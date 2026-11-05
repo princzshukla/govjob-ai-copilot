@@ -1,0 +1,27 @@
+# Virtual Environment (Must ignore - too large for GitHub)
+venv*/
+env*/
+ENV*/
+.venv/
+
+# Bytecode & C-Extensions
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.so
+*.dll
+
+# Environment variables & secrets
+.env
+*.env
+
+# SQLite / Local Test Databases (if any)
+*.sqlite3
+*.db
+
+# Pytest & Coverage caches
+.pytest_cache/
+.coverage
+htmlcov/
+EOF

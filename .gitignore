@@ -1,0 +1,24 @@
+# Python & Virtual Environments
+**/venv*/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+
+# Node & Bun
+**/node_modules/
+**/.bun/
+**/dist/
+**/.output/
+**/coverage/
+
+# Environment Variables & Secrets
+**/.env
+**/.env.local
+**/.env.*.local
+
+# IDE & OS Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
