@@ -214,7 +214,7 @@ export function GovJobApp() {
   return (
     <div className="relative min-h-screen overflow-x-hidden">
       <div className="ambient-glow" />
-      <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-6 md:px-8 md:pt-10">
+      <div className="relative w-full px-4 pb-16 pt-6 md:px-8 lg:px-12 md:pt-10">
         {/* Header */}
         <header className="flex flex-col gap-4 border-b pb-6 md:flex-row md:items-center md:justify-between">
           <div>
@@ -291,7 +291,7 @@ export function GovJobApp() {
         )}
 
         {/* Tabbed navigation with sliding pill */}
-        <nav className="mt-8 inline-flex w-full flex-wrap gap-1 rounded-2xl border bg-card/60 p-1.5 backdrop-blur md:w-auto">
+        <nav className="mt-8 grid w-full grid-cols-2 sm:grid-cols-4 gap-2 rounded-2xl border bg-card/60 p-1.5 backdrop-blur ">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
