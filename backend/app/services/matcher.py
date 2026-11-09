@@ -4,11 +4,61 @@ from app.schemas.candidate import CandidateProfileCreate
 from app.schemas.exam import ExamMatchResult, EligibilityCheckResponse
 from app.models.exam import ExamNotification
 
+# Educational Hierarchy Rank: higher rank automatically satisfies lower statutory requirements
+EDUCATION_RANK = {
+    "10th": 1,
+    "10th pass": 1,
+    "matriculation": 1,
+    "high school": 1,
+    "12th": 2,
+    "12th pass": 2,
+    "intermediate": 2,
+    "senior secondary": 2,
+    "hsc": 2,
+    "diploma": 2,
+    "bca": 3,
+    "b.tech": 3,
+    "be": 3,
+    "b.sc": 3,
+    "b.com": 3,
+    "ba": 3,
+    "bba": 3,
+    "any graduate": 3,
+    "graduate": 3,
+    "graduation": 3,
+    "mca": 4,
+    "m.tech": 4,
+    "m.sc": 4,
+    "mba": 4,
+    "post graduate": 4,
+}
+
 # Degree Normalization Equivalency Map
 DEGREE_EQUIVALENTS = {
-    "Any Graduate": ["B.Tech", "BE", "BCA", "B.Sc", "B.Com", "BA", "BBA", "MCA", "M.Tech", "M.Sc", "MBA"],
+    "10th": ["10th", "10th Pass", "Matriculation", "High School"],
+    "12th": ["12th", "12th Pass", "Intermediate", "Senior Secondary", "HSC"],
+    "Any Graduate": ["B.Tech", "BE", "BCA", "B.Sc", "B.Com", "BA", "BBA", "MCA", "M.Tech", "M.Sc", "MBA", "Graduation"],
     "Engineering/IT Graduate": ["B.Tech", "BE", "BCA", "MCA", "M.Tech", "M.Sc"]
 }
+
+def normalize_degree(degree_str: str) -> str:
+    """Normalizes candidate input degree strings to standard identifiers."""
+    d = degree_str.strip().lower()
+    if any(k in d for k in ["10th", "matric", "high school"]):
+        return "10th"
+    if any(k in d for k in ["12th", "inter", "senior secondary", "hsc"]):
+        return "12th"
+    if "bca" in d:
+        return "BCA"
+    if "b.tech" in d or "btech" in d or "b.e." in d or "be" in d:
+        return "B.Tech"
+    if "b.sc" in d or "bsc" in d:
+        return "B.Sc"
+    if "b.com" in d or "bcom" in d:
+        return "B.Com"
+    if "ba" in d or "b.a" in d:
+        return "BA"
+    return degree_str.strip()
 
 def calculate_exact_age(dob: date, cutoff_date: date) -> int:
     """Calculates completed years of age as on the statutory cutoff date."""
@@ -51,20 +101,31 @@ def check_single_exam_eligibility(
             f"Overage: {candidate_age} yrs on {exam.age_cutoff_date} (Max allowed for {candidate.category}: {max_allowed_age})"
         )
 
-    # 2. Degree Equivalence Verification
-    cand_degree = candidate.highest_degree.strip()
+    # 2. Degree & Education Level Hierarchy Verification
+    cand_degree = normalize_degree(candidate.highest_degree)
+    cand_rank = EDUCATION_RANK.get(cand_degree.lower(), 1)
+    
     degree_matched = False
     for allowed in exam.allowed_degrees:
+        allowed_normalized = normalize_degree(allowed)
+        allowed_rank = EDUCATION_RANK.get(allowed_normalized.lower(), 3)
+
+        # Direct equivalence list check
         if allowed in DEGREE_EQUIVALENTS and cand_degree in DEGREE_EQUIVALENTS[allowed]:
             degree_matched = True
             break
+        # Exact title match
         if cand_degree.lower() == allowed.lower():
+            degree_matched = True
+            break
+        # Educational hierarchy check: Higher degrees qualify for 10th & 12th entry-level exams
+        if allowed_normalized in ["10th", "12th"] and cand_rank >= allowed_rank:
             degree_matched = True
             break
 
     if not degree_matched:
         reasons_failed.append(
-            f"Degree mismatch: '{cand_degree}' not in required {exam.allowed_degrees}"
+            f"Degree mismatch: '{candidate.highest_degree}' does not satisfy required {exam.allowed_degrees}"
         )
 
     # 3. Technical / Specialist Stream Verification
@@ -94,7 +155,7 @@ def check_single_exam_eligibility(
     is_eligible = len(reasons_failed) == 0
     is_last_attempt = is_eligible and (max_allowed_age - candidate_age <= 1)
 
-    # 6. Calculate Syllabus Overlap Percentage (if a target exam is specified)
+    # 6. Calculate Syllabus Overlap Percentage
     overlap_pct = None
     if primary_exam_id and primary_exam_id in exam_topics_map and exam.id in exam_topics_map:
         base_topics = exam_topics_map[primary_exam_id]

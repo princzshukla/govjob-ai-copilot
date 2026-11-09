@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Loader2, Sparkles, Upload } from "lucide-react";
+import { FileText, Loader2, Sparkles, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +29,28 @@ interface ResumeProfileStepProps {
 
 const CATEGORY_OPTIONS = ["General", "OBC-NCL", "EWS", "SC", "ST"];
 
+const DEGREE_OPTIONS = [
+  { label: "10th Pass (Matriculation)", value: "10th" },
+  { label: "12th Pass (Intermediate / HSC)", value: "12th" },
+  { label: "BCA (Bachelor of Computer Applications)", value: "BCA" },
+  { label: "B.Tech / B.E.", value: "B.Tech" },
+  { label: "B.Sc", value: "B.Sc" },
+  { label: "B.Com", value: "B.Com" },
+  { label: "B.A.", value: "B.A." },
+  { label: "BBA", value: "BBA" },
+  { label: "MCA / M.Tech / M.Sc (Post Graduate)", value: "MCA" },
+];
+
+const STREAM_OPTIONS_12TH = [
+  "PCM (Physics, Chemistry, Maths)",
+  "PCB (Physics, Chemistry, Biology)",
+  "Commerce",
+  "Arts / Humanities",
+  "General",
+];
+
+const GRADUATION_STATUS_OPTIONS = ["Completed", "Final Year / Appearing"];
+
 export function ResumeProfileStep({
   loading,
   submitting,
@@ -40,26 +62,61 @@ export function ResumeProfileStep({
   onSubmit,
 }: ResumeProfileStepProps) {
   const [fileName, setFileName] = useState<string | null>(null);
+  const [isManual, setIsManual] = useState(false);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
+    setIsManual(false);
     onUpload(file);
   };
 
+  const handleManualStart = () => {
+    setIsManual(true);
+    setFileName(null);
+    onFieldChange("full_name", profile?.full_name || "Candidate");
+    onFieldChange("highest_degree", profile?.highest_degree || "12th");
+    onFieldChange("stream", profile?.stream || "PCM (Physics, Chemistry, Maths)");
+    onFieldChange("dob", ((profile as Record<string, unknown>)?.["dob"] as string) || "2004-06-10");
+    onFieldChange("category", profile?.category || "General");
+    onFieldChange(
+      "graduation_status",
+      ((profile as Record<string, unknown>)?.["graduation_status"] as string) || "Completed",
+    );
+    onFieldChange(
+      "percentage_cgpa",
+      profile?.percentage_cgpa ? String(profile.percentage_cgpa) : "75",
+    );
+  };
+
   const stringValue = (field: string) => {
-    const value = profile?.[field];
+    const value = (profile as Record<string, unknown> | null)?.[field];
     return value === null || value === undefined ? "" : String(value);
   };
 
+  const selectedDegree = stringValue("highest_degree");
+  const isSchoolLevel = selectedDegree === "12th" || selectedDegree === "10th";
+
+  const handleDegreeChange = (val: string) => {
+    onFieldChange("highest_degree", val);
+    if (val === "12th" || val === "10th") {
+      onFieldChange("graduation_status", "Completed");
+      if (!stringValue("stream")) {
+        onFieldChange("stream", "PCM (Physics, Chemistry, Maths)");
+      }
+    }
+  };
+
+  const showProfileForm = Boolean(profile || isManual);
+
   return (
     <div className="space-y-6">
-      {/* Step 1: Upload resume */}
+      {/* Step 1: Upload resume or Manual Entry */}
       <Card className="overflow-hidden border-dashed">
-        <CardHeader className="pb-4">
-          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-start gap-3">
+        <CardHeader className="py-4 px-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-3 max-w-xl">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Upload className="size-5" />
               </span>
@@ -67,32 +124,47 @@ export function ResumeProfileStep({
                 <CardTitle className="text-lg">Upload Your Resume (PDF)</CardTitle>
                 <CardDescription className="mt-1">
                   We extract your qualifications and only ask for missing government-specific
-                  criteria.
+                  criteria, or you can enter details manually.
                 </CardDescription>
               </div>
             </div>
-            <label
-              className={cn(
-                "group relative inline-flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90",
-                loading && "pointer-events-none opacity-80",
-              )}
-            >
-              {loading && !profile ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Upload className="size-4" />
-              )}
-              <span>{profile ? "Upload Another Resume" : "Select Resume PDF"}</span>
-              <input
-                type="file"
-                accept="application/pdf"
-                className="hidden"
-                onChange={handleFile}
-              />
-            </label>
+
+            {/* Buttons pushed right with reduced padding */}
+            <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+              <label
+                className={cn(
+                  "group relative inline-flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition hover:bg-primary/90",
+                  loading && "pointer-events-none opacity-80",
+                )}
+              >
+                {loading && !profile ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Upload className="size-3.5" />
+                )}
+                <span>{profile && !isManual ? "Upload Another Resume" : "Select Resume PDF"}</span>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  className="hidden"
+                  onChange={handleFile}
+                />
+              </label>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleManualStart}
+                className="inline-flex h-auto items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold"
+              >
+                <FileText className="size-3.5" />
+                <span>Enter Details Manually</span>
+              </Button>
+            </div>
           </div>
+
           {fileName && (
-            <p className="mt-3 truncate text-xs text-muted-foreground">
+            <p className="mt-2 truncate text-xs text-muted-foreground">
               Selected file: <span className="font-medium text-foreground">{fileName}</span>
             </p>
           )}
@@ -100,7 +172,7 @@ export function ResumeProfileStep({
       </Card>
 
       {/* Step 2: Review extracted profile & fill missing fields */}
-      {profile && (
+      {showProfileForm && (
         <motion.form
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
@@ -119,12 +191,12 @@ export function ResumeProfileStep({
                 )}
               </div>
               <Badge variant="secondary" className="shrink-0">
-                {profile.full_name || "Candidate Profile"}
+                {stringValue("full_name") || (isManual ? "Manual Entry" : "Candidate Profile")}
               </Badge>
             </CardHeader>
 
             <CardContent className="space-y-6 pt-5">
-              {missingFields.length > 0 && (
+              {!isManual && missingFields.length > 0 && (
                 <div className="space-y-4 rounded-xl border border-warning/40 bg-warning/10 p-5">
                   <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-warning">
                     <Sparkles className="size-4" />
@@ -167,26 +239,121 @@ export function ResumeProfileStep({
                 </div>
               )}
 
-              {/* Extracted fields summary (editable) */}
+              {isManual && (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Full Name *</Label>
+                    <Input
+                      type="text"
+                      required
+                      placeholder="e.g. Candidate Name"
+                      value={stringValue("full_name")}
+                      onChange={(e) => onFieldChange("full_name", e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      {isSchoolLevel
+                        ? "12th / 10th Percentage (%) *"
+                        : "Graduation Percentage / CGPA *"}
+                    </Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      required
+                      placeholder="e.g. 75.0"
+                      value={stringValue("percentage_cgpa")}
+                      onChange={(e) => onFieldChange("percentage_cgpa", e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      {isSchoolLevel ? "Qualification Status" : "Graduation Status *"}
+                    </Label>
+                    <Select
+                      value={stringValue("graduation_status") || "Completed"}
+                      onValueChange={(value) => onFieldChange("graduation_status", value)}
+                      disabled={isSchoolLevel}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {GRADUATION_STATUS_OPTIONS.map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {status}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              {/* Core qualification fields */}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Highest Degree</Label>
-                  <Input
-                    type="text"
-                    value={stringValue("highest_degree")}
-                    onChange={(e) => onFieldChange("highest_degree", e.target.value)}
-                  />
+                  <Label className="text-xs text-muted-foreground">Highest Qualification *</Label>
+                  {isManual ? (
+                    <Select value={selectedDegree || "12th"} onValueChange={handleDegreeChange}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select Qualification" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DEGREE_OPTIONS.map((deg) => (
+                          <SelectItem key={deg.value} value={deg.value}>
+                            {deg.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      type="text"
+                      required
+                      value={selectedDegree}
+                      onChange={(e) => onFieldChange("highest_degree", e.target.value)}
+                    />
+                  )}
                 </div>
+
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Stream / Specialization</Label>
-                  <Input
-                    type="text"
-                    value={stringValue("stream")}
-                    onChange={(e) => onFieldChange("stream", e.target.value)}
-                  />
+                  <Label className="text-xs text-muted-foreground">
+                    {isSchoolLevel ? "12th Stream / Subjects *" : "Stream / Specialization *"}
+                  </Label>
+                  {isManual && isSchoolLevel ? (
+                    <Select
+                      value={stringValue("stream") || "PCM (Physics, Chemistry, Maths)"}
+                      onValueChange={(val) => onFieldChange("stream", val)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select 12th Stream" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STREAM_OPTIONS_12TH.map((st) => (
+                          <SelectItem key={st} value={st}>
+                            {st}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      type="text"
+                      required
+                      placeholder="e.g. Computer Science"
+                      value={stringValue("stream")}
+                      onChange={(e) => onFieldChange("stream", e.target.value)}
+                    />
+                  )}
                 </div>
+
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Date of Birth</Label>
+                  <Label className="text-xs text-muted-foreground">Date of Birth *</Label>
                   <Input
                     type="date"
                     required
@@ -194,8 +361,9 @@ export function ResumeProfileStep({
                     onChange={(e) => onFieldChange("dob", e.target.value)}
                   />
                 </div>
+
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Category</Label>
+                  <Label className="text-xs text-muted-foreground">Category *</Label>
                   <Select
                     value={stringValue("category") || "General"}
                     onValueChange={(value) => onFieldChange("category", value)}

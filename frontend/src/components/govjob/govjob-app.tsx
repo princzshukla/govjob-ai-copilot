@@ -103,13 +103,28 @@ export function GovJobApp() {
     }
   };
 
-  // 2. Live field edits
+  // 2. Live field edits (supports both uploaded resume and manual entry)
   const handleFieldChange = (field: string, value: string) => {
     setProfile((prev) => {
-      if (!prev) return prev;
+      const base: CandidateProfile = prev ?? {
+        full_name: "Candidate",
+        dob: "2004-06-10",
+        category: "General",
+        highest_degree: "12th",
+        stream: "PCM (Physics, Chemistry, Maths)",
+        percentage_cgpa: 75,
+        graduation_status: "Completed",
+        skills: [],
+      } as unknown as CandidateProfile;
+
       return {
-        ...prev,
-        [field]: field === "percentage_cgpa" ? parseFloat(value) || null : value,
+        ...base,
+        [field]:
+          field === "percentage_cgpa"
+            ? value
+              ? parseFloat(value)
+              : null
+            : value,
       };
     });
   };
@@ -214,7 +229,7 @@ export function GovJobApp() {
   return (
     <div className="relative min-h-screen overflow-x-hidden">
       <div className="ambient-glow" />
-      <div className="relative w-full px-4 pb-16 pt-6 md:px-8 lg:px-12 md:pt-10">
+      <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-6 md:px-8 md:pt-10">
         {/* Header */}
         <header className="flex flex-col gap-4 border-b pb-6 md:flex-row md:items-center md:justify-between">
           <div>
@@ -291,7 +306,7 @@ export function GovJobApp() {
         )}
 
         {/* Tabbed navigation with sliding pill */}
-        <nav className="mt-8 grid w-full grid-cols-2 sm:grid-cols-4 gap-2 rounded-2xl border bg-card/60 p-1.5 backdrop-blur ">
+        <nav className="mt-8 grid w-full grid-cols-2 gap-2 rounded-2xl border bg-card/60 p-1.5 backdrop-blur sm:grid-cols-4">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -301,7 +316,7 @@ export function GovJobApp() {
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "relative flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors duration-200",
+                  "relative flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors duration-200",
                   isActive
                     ? "text-primary-foreground"
                     : "text-muted-foreground hover:text-foreground",
@@ -314,7 +329,7 @@ export function GovJobApp() {
                     transition={{ type: "spring", stiffness: 420, damping: 34 }}
                   />
                 )}
-                <span className="relative z-10 flex items-center gap-2">
+                <span className="relative z-10 flex items-center justify-center gap-2">
                   <Icon className="size-4" />
                   {tab.label}
                 </span>
@@ -362,7 +377,7 @@ export function GovJobApp() {
                   <EmptyTabState
                     icon={Award}
                     title="No eligibility results yet"
-                    description="Upload your resume and complete the eligibility profile to see your matched government exams."
+                    description="Upload your resume or enter your profile details manually to see your matched government exams."
                     actionLabel="Go to Resume & Profile"
                     onAction={() => setActiveTab("profile")}
                   />

@@ -6,26 +6,12 @@ import type {
   SyncLiveJobsResponse,
   TelegramAlertResponse,
 } from "@/types/govjob";
-import {
-  DEMO_ELIGIBILITY,
-  DEMO_MISSING_FIELDS,
-  DEMO_PROFILE,
-  buildDemoRoadmap,
-  demoSyncLiveJobs,
-} from "./demo-data";
-
-/**
- * GovJob API client with a graceful demo fallback:
- * every call first tries the real FastAPI backend, and if it is unreachable
- * or fails, returns realistic demo data instead so the UI never dead-ends.
- */
 
 const API_BASE = import.meta.env["VITE_API_BASE_URL"] ?? "http://localhost:8000/api/v1";
-const REQUEST_TIMEOUT_MS = 4000;
+const REQUEST_TIMEOUT_MS = 15000; // Increased to 15s to allow for real AI roadmap generation & PDF parsing
 
 export interface ApiResult<T> {
   data: T;
-  /** true when the real backend was unreachable and demo data was served */
   demo: boolean;
 }
 
@@ -47,66 +33,73 @@ async function fetchWithTimeout(input: string, init?: RequestInit): Promise<Resp
 
 async function callApi<T>(
   path: string,
-  init: RequestInit | undefined,
-  demo: T,
+  init?: RequestInit,
 ): Promise<ApiResult<T>> {
   try {
     const res = await fetchWithTimeout(`${API_BASE}${path}`, init);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}) as { detail?: string });
-      throw new Error(err.detail || `Request failed (${res.status})`);
+      throw new Error(err.detail || `Server returned HTTP ${res.status}: ${res.statusText}`);
     }
-    return { data: (await res.json()) as T, demo: false };
+    const data = (await res.json()) as T;
+    return { data, demo: false };
   } catch (err) {
-    console.error("API Call failed:", path, err);
-    // Backend responded with HTTP error
-    if (err instanceof Error && err.message.startsWith("Request failed")) {
+    console.error(`API Call failed on [${path}]:`, err);
+    if (err instanceof Error) {
+      if (err.name === "AbortError") {
+        throw new Error("Request timed out. Please check if your FastAPI server is running.");
+      }
       throw err;
     }
-    // Return demo fallback but log a clear warning
-    console.warn(`Falling back to demo data for endpoint: ${path}`);
-    return { data: demo, demo: true };
+    throw new Error("Failed to communicate with GovJob backend.");
   }
-}
-
-export function withDemoDefaults(profile: CandidateProfile): CandidateProfile {
-  return {
-    ...profile,
-    gender: profile.gender || "Male",
-    category: profile.category || "General",
-    domicile_state: profile.domicile_state || "Delhi",
-    highest_degree: profile.highest_degree || "Any Graduate",
-    stream: profile.stream || "Any",
-    percentage_cgpa: profile.percentage_cgpa ?? 60.0,
-  };
 }
 
 export function parseResume(file: File): Promise<ApiResult<ParseResumeResult>> {
   const formData = new FormData();
   formData.append("file", file);
-  return callApi<ParseResumeResult>(
-    "/candidate/parse-resume",
-    { method: "POST", body: formData },
-    {
-      extracted_profile: DEMO_PROFILE,
-      missing_fields: DEMO_MISSING_FIELDS,
-      message: "Demo mode: sample resume parsed. Connect the backend to analyse your real resume.",
-    },
-  );
+  return callApi<ParseResumeResult>("/candidate/parse-resume", {
+    method: "POST",
+    body: formData,
+  });
 }
 
 export function checkEligibility(
   profile: CandidateProfile,
   primaryExamId: string,
 ): Promise<ApiResult<EligibilityCheckResponse>> {
+  const raw = profile as Record<string, any>;
+
+  // Ensure valid date string YYYY-MM-DD
+  const rawDate = raw["dob"] || raw["date_of_birth"];
+  const validDob = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : "2004-06-10";
+
+  // Ensure category aligns with CandidateProfileCreate: General, OBC-NCL, SC, ST, EWS
+  let category = raw["category"] || "General";
+  if (category === "OBC") category = "OBC-NCL";
+
+  // Build the strict CandidateProfileCreate payload
+  const sanitizedPayload = {
+    full_name: raw["full_name"]?.trim() || "Candidate",
+    dob: validDob,
+    gender: raw["gender"] || "Male",
+    category: category,
+    is_pwd: Boolean(raw["is_pwd"] ?? raw["physical_disability"] ?? false),
+    domicile_state: raw["domicile_state"]?.trim() || "Delhi",
+    highest_degree: raw["highest_degree"]?.trim() || "12th",
+    stream: raw["stream"]?.trim() || "Any",
+    percentage_cgpa: Number(raw["percentage_cgpa"]) || 60.0,
+    passing_year: raw["passing_year"] ? Number(raw["passing_year"]) : 2022,
+    skills: Array.isArray(raw["skills"]) ? raw["skills"] : [],
+  };
+
   return callApi<EligibilityCheckResponse>(
     `/eligibility/check?primary_exam_id=${encodeURIComponent(primaryExamId)}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(withDemoDefaults(profile)),
+      body: JSON.stringify(sanitizedPayload),
     },
-    DEMO_ELIGIBILITY,
   );
 }
 
@@ -116,18 +109,15 @@ export function generateRoadmap(
   examName: string,
 ): Promise<ApiResult<StudyRoadmapResponse>> {
   return callApi<StudyRoadmapResponse>(
-    `/eligibility/generate-roadmap/${encodeURIComponent(examId)}?target_weeks=${targetWeeks}`,
+    `/eligibility/generate-roadmap/${encodeURIComponent(examId)}?target_weeks=${targetWeeks}&exam_name=${encodeURIComponent(examName)}`,
     { method: "POST" },
-    buildDemoRoadmap(examId, examName, targetWeeks),
   );
 }
 
 export function syncLiveJobs(): Promise<ApiResult<SyncLiveJobsResponse>> {
-  return callApi<SyncLiveJobsResponse>(
-    "/eligibility/sync-live-jobs",
-    { method: "POST" },
-    demoSyncLiveJobs(),
-  );
+  return callApi<SyncLiveJobsResponse>("/eligibility/sync-live-jobs", {
+    method: "POST",
+  });
 }
 
 export function sendTelegramAlert(payload: {
@@ -136,16 +126,9 @@ export function sendTelegramAlert(payload: {
   application_deadline: string;
   days_left: number;
 }): Promise<ApiResult<TelegramAlertResponse>> {
-  return callApi<TelegramAlertResponse>(
-    "/notifications/send-deadline-alert",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    },
-    {
-      status: "success",
-      message: "Demo alert dispatched (backend offline). No real Telegram message was sent.",
-    },
-  );
+  return callApi<TelegramAlertResponse>("/notifications/send-deadline-alert", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }
