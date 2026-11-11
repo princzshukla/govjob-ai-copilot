@@ -1,12 +1,14 @@
 import httpx
-import os
+
+from app.core.config import settings
+
 
 async def send_telegram_alert(chat_id: str, message: str) -> bool:
     """
     Dispatches a Telegram message via Bot API. 
-    Falls back to console logging if TELEGRAM_BOT_TOKEN environment variable is not set.
+    Falls back to console logging if TELEGRAM_BOT_TOKEN is not set.
     """
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    token = settings.TELEGRAM_BOT_TOKEN
     
     if not token:
         print(f"\n[MOCK TELEGRAM ALERT DISPATCHED TO CHAT ID: {chat_id}]")

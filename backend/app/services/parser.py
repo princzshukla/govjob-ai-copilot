@@ -1,6 +1,9 @@
 # app/services/parser.py
 import json
-import fitz  # PyMuPDF
+import logging
+from datetime import date
+
+import pymupdf  # PyMuPDF
 from groq import AsyncGroq
 from app.core.config import settings
 from app.schemas.candidate import (
@@ -8,6 +11,8 @@ from app.schemas.candidate import (
     MissingFieldPrompt,
     ResumeParseResponse
 )
+
+logger = logging.getLogger(__name__)
 
 client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
@@ -64,8 +69,8 @@ REQUIRED_GOV_FIELDS = {
 }
 
 def extract_raw_text_from_pdf(pdf_bytes: bytes) -> str:
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    return "\n".join([page.get_text() for page in doc])
+    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
+        return "\n".join([page.get_text() for page in doc])
 
 def inspect_missing_gov_fields(profile: ParsedResumeProfile) -> list[MissingFieldPrompt]:
     missing: list[MissingFieldPrompt] = []
@@ -108,14 +113,26 @@ async def parse_resume_with_groq(raw_text: str) -> ResumeParseResponse:
         response_format={"type": "json_object"}
     )
 
-    parsed_dict = json.loads(chat_completion.choices[0].message.content)
+    parsed_dict = json.loads(chat_completion.choices[0].message.content or "{}")
+
+    # A malformed date from the model would otherwise fail the whole upload.
+    dob_value = parsed_dict.get("dob")
+    if dob_value:
+        try:
+            date.fromisoformat(str(dob_value))
+        except ValueError:
+            logger.warning("Discarding unparseable resume DOB: %r", dob_value)
+            parsed_dict["dob"] = None
+
     extracted_profile = ParsedResumeProfile(**parsed_dict)
 
-    # Default is_pwd to False unless explicitly needed, or keep in missing list
+    # Inspect the fields BEFORE defaulting is_pwd, otherwise the PwBD question
+    # can never be reported as missing.
+    missing_prompts = inspect_missing_gov_fields(extracted_profile)
+
     if extracted_profile.is_pwd is None:
         extracted_profile.is_pwd = False
 
-    missing_prompts = inspect_missing_gov_fields(extracted_profile)
     is_complete = len(missing_prompts) == 0
 
     if is_complete:
