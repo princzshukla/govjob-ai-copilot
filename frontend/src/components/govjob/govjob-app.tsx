@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Award,
   BookOpen,
+  BrainCircuit,
   CircleAlert,
   Crop,
   Loader2,
@@ -13,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AdaptiveQuizPanel } from "@/components/AdaptiveQuizPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -35,6 +37,7 @@ const TABS = [
   { id: "eligibility", label: "Eligibility", icon: Award },
   { id: "roadmap", label: "Study Roadmap", icon: BookOpen },
   { id: "documents", label: "Photo & Signature", icon: Crop },
+  { id: "adaptive", label: "Adaptive Drill", icon: BrainCircuit },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -45,7 +48,8 @@ const DEMO_NOTICE =
 export function GovJobApp() {
   const [darkMode, setDarkMode] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>("profile");
-
+  const [activeDrillTopic, setActiveDrillTopic] = useState("Percentage");
+ const [activeDrillSubject, setActiveDrillSubject] = useState("Quantitative Aptitude");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
@@ -106,7 +110,7 @@ export function GovJobApp() {
   // 2. Live field edits (supports both uploaded resume and manual entry)
   const handleFieldChange = (field: string, value: string) => {
     setProfile((prev) => {
-      const base: CandidateProfile = prev ?? {
+      const base: CandidateProfile = prev ?? ({
         full_name: "Candidate",
         dob: "2004-06-10",
         category: "General",
@@ -115,7 +119,7 @@ export function GovJobApp() {
         percentage_cgpa: 75,
         graduation_status: "Completed",
         skills: [],
-      } as unknown as CandidateProfile;
+      } as unknown as CandidateProfile);
 
       return {
         ...base,
@@ -225,7 +229,11 @@ export function GovJobApp() {
       setAlertLoading(false);
     }
   };
-
+const handlePracticeTopic = (topic: string, subject: string = "Quantitative Aptitude") => {
+  setActiveDrillTopic(topic);
+  setActiveDrillSubject(subject);
+  setActiveTab("adaptive");
+};
   return (
     <div className="relative min-h-screen overflow-x-hidden">
       <div className="ambient-glow" />
@@ -305,8 +313,8 @@ export function GovJobApp() {
           </div>
         )}
 
-        {/* Tabbed navigation with sliding pill */}
-        <nav className="mt-8 grid w-full grid-cols-2 gap-2 rounded-2xl border bg-card/60 p-1.5 backdrop-blur sm:grid-cols-4">
+        {/* Tabbed navigation with sliding pill (5 columns on desktop) */}
+        <nav className="mt-8 grid w-full grid-cols-2 gap-2 rounded-2xl border bg-card/60 p-1.5 backdrop-blur sm:grid-cols-5">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -391,6 +399,8 @@ export function GovJobApp() {
                     onToggleWeek={(week) =>
                       setCompletedWeeks((prev) => ({ ...prev, [week]: !prev[week] }))
                     }
+                    onPracticeTopic={handlePracticeTopic}
+                    examId={primaryExamId}
                   />
                 ) : (
                   <EmptyTabState
@@ -403,6 +413,12 @@ export function GovJobApp() {
                 ))}
 
               {activeTab === "documents" && <DocumentResizer />}
+
+              {activeTab === "adaptive" && (
+                <AdaptiveQuizPanel initialExamId={primaryExamId}
+                initialTopic={activeDrillTopic}
+                initialSubject={activeDrillSubject} />
+              )}
             </motion.div>
           </AnimatePresence>
         </div>
