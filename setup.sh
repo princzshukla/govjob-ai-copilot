@@ -45,7 +45,7 @@ cd "$ROOT_DIR/frontend"
 if [ ! -f ".env" ]; then
   echo "Creating default frontend .env file..."
   cat << 'EOF' > .env
-VITE_GOVJOB_API_BASE=http://localhost:8000/api/v1
+VITE_API_BASE_URL=http://localhost:8000/api/v1
 EOF
 fi
 

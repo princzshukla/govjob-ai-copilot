@@ -3,7 +3,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Award,
   BookOpen,
-  CircleAlert,
   Crop,
   Loader2,
   Moon,
@@ -39,9 +38,6 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
-const DEMO_NOTICE =
-  "Demo mode — the GovJob backend isn't reachable right now, so you're seeing sample data.";
-
 export function GovJobApp() {
   const [darkMode, setDarkMode] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>("profile");
@@ -63,7 +59,6 @@ export function GovJobApp() {
   const [selectedJob, setSelectedJob] = useState<ExamMatchResult | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [demoNotice, setDemoNotice] = useState<string | null>(null);
 
   const [telegramChatId, setTelegramChatId] = useState("");
   const [alertLoading, setAlertLoading] = useState(false);
@@ -84,17 +79,14 @@ export function GovJobApp() {
     }
   }, [darkMode]);
 
-  const showDemoNotice = () => setDemoNotice(DEMO_NOTICE);
-
   // 1. Upload resume
   const handleFileUpload = async (file: File) => {
     setLoading(true);
     try {
-      const { data, demo } = await api.parseResume(file);
+      const data = await api.parseResume(file);
       setProfile(data.extracted_profile);
       setMissingFields(data.missing_fields || []);
       setStatusMessage(data.message);
-      if (demo) showDemoNotice();
       toast.success("Resume parsed — review the extracted profile below.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to parse resume");
@@ -134,10 +126,9 @@ export function GovJobApp() {
     if (!profile) return;
     setSubmitting(true);
     try {
-      const { data, demo } = await api.checkEligibility(profile, primaryExamId);
+      const data = await api.checkEligibility(profile, primaryExamId);
       setEligibility(data);
       setActiveTab("eligibility");
-      if (demo) showDemoNotice();
       toast.success(`Found ${data.eligible_now.length} eligible exams for you.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Eligibility check failed");
@@ -151,9 +142,8 @@ export function GovJobApp() {
     if (!profile) return;
     setPrimaryExamId(newPrimaryId);
     try {
-      const { data, demo } = await api.checkEligibility(profile, newPrimaryId);
+      const data = await api.checkEligibility(profile, newPrimaryId);
       setEligibility(data);
-      if (demo) showDemoNotice();
       toast.success("Primary target updated — overlaps recalculated.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not update primary exam");
@@ -164,11 +154,10 @@ export function GovJobApp() {
   const handleGenerateRoadmap = async (exam: ExamMatchResult) => {
     setRoadmapExamId(exam.exam_id);
     try {
-      const { data, demo } = await api.generateRoadmap(exam.exam_id, targetWeeks, exam.title);
+      const data = await api.generateRoadmap(exam.exam_id, targetWeeks);
       setRoadmap(data);
       setCompletedWeeks({});
       setActiveTab("roadmap");
-      if (demo) showDemoNotice();
       toast.success(`Roadmap generated: ${targetWeeks} weeks for ${exam.title}.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not generate roadmap");
@@ -181,7 +170,7 @@ export function GovJobApp() {
     setSyncing(true);
     setSyncMessage(null);
     try {
-      const { data, demo } = await api.syncLiveJobs();
+      const data = await api.syncLiveJobs();
       if (data.status === "success") {
         setSyncMessage(
           `Successfully synced! Discovered ${data.new_jobs_discovered} new live jobs (${data.total_active_jobs} total active).`,
@@ -189,7 +178,6 @@ export function GovJobApp() {
       } else {
         setSyncMessage(data.message || "Sync completed: no new jobs added.");
       }
-      if (demo) showDemoNotice();
     } catch (err) {
       setSyncMessage(`Sync failed: ${err instanceof Error ? err.message : "unknown error"}`);
     } finally {
@@ -205,7 +193,7 @@ export function GovJobApp() {
     setAlertLoading(true);
     setAlertStatus(null);
     try {
-      const { data, demo } = await api.sendTelegramAlert({
+      const data = await api.sendTelegramAlert({
         chat_id: telegramChatId.trim(),
         exam_title: exam.title,
         application_deadline: exam.application_deadline,
@@ -213,7 +201,6 @@ export function GovJobApp() {
           (new Date(exam.application_deadline).getTime() - Date.now()) / 86400000,
         ),
       });
-      if (demo) showDemoNotice();
       setAlertStatus(
         data.status === "success"
           ? "Alert dispatched successfully! Check your Telegram."
@@ -284,21 +271,6 @@ export function GovJobApp() {
             <button
               onClick={() => setSyncMessage(null)}
               className="font-bold text-muted-foreground hover:text-foreground"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-        )}
-
-        {demoNotice && (
-          <div className="mt-4 flex items-center justify-between rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-xs">
-            <span className="flex items-center gap-2 text-warning">
-              <CircleAlert className="size-4 shrink-0" />
-              {demoNotice}
-            </span>
-            <button
-              onClick={() => setDemoNotice(null)}
-              className="font-bold text-warning hover:opacity-70"
             >
               <X className="size-4" />
             </button>

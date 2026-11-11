@@ -57,7 +57,7 @@ async def structure_jobs_with_groq(raw_jobs: list[dict]) -> list[dict]:
     - "topics": list of 6-10 standard syllabus topics for this exam
 
     Raw Scraped Data:
-    {json.dumps(raw_jobs[:6], indent=2)}
+    {json.dumps(raw_jobs[:12], indent=2)}
     """
 
     chat_completion = await client.chat.completions.create(
@@ -70,5 +70,6 @@ async def structure_jobs_with_groq(raw_jobs: list[dict]) -> list[dict]:
         response_format={"type": "json_object"}
     )
 
-    parsed = json.loads(chat_completion.choices[0].message.content)
-    return parsed.get("exams", [])
+    parsed = json.loads(chat_completion.choices[0].message.content or "{}")
+    exams = parsed.get("exams", [])
+    return exams if isinstance(exams, list) else []

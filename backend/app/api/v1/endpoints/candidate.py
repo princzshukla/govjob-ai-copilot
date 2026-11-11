@@ -13,20 +13,28 @@ async def upload_and_parse_resume(file: UploadFile = File(...)):
             detail="Only PDF resume uploads are currently supported."
         )
 
+    pdf_bytes = await file.read()
+
     try:
-        pdf_bytes = await file.read()
         raw_text = extract_raw_text_from_pdf(pdf_bytes)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Could not read the PDF file: {exc}"
+        ) from exc
 
-        if not raw_text.strip():
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Could not extract text from PDF. It may be scanned or image-only."
-            )
+    if not raw_text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Could not extract text from PDF. It may be scanned or image-only."
+        )
 
+    try:
         return await parse_resume_with_groq(raw_text)
-
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Resume extraction failed: {str(exc)}"
-        )
+            detail=f"Resume extraction failed: {exc}"
+        ) from exc
