@@ -5,10 +5,14 @@ import type {
   StudyRoadmapResponse,
   SyncLiveJobsResponse,
   TelegramAlertResponse,
+  QuizGenerateResponse,
+  QuizEvaluationResponse,
+  SubmitQuizPayload,
+  UserMasteryResponse,
 } from "@/types/govjob";
 
 const API_BASE = import.meta.env["VITE_API_BASE_URL"] ?? "http://localhost:8000/api/v1";
-const REQUEST_TIMEOUT_MS = 15000; // Increased to 15s to allow for real AI roadmap generation & PDF parsing
+const REQUEST_TIMEOUT_MS = 25000; // Increased to 25s to account for AI Groq question generation
 
 export interface ApiResult<T> {
   data: T;
@@ -54,6 +58,10 @@ async function callApi<T>(
     throw new Error("Failed to communicate with GovJob backend.");
   }
 }
+
+// ==========================================
+// RESUME & ELIGIBILITY ENDPOINTS
+// ==========================================
 
 export function parseResume(file: File): Promise<ApiResult<ParseResumeResult>> {
   const formData = new FormData();
@@ -131,4 +139,43 @@ export function sendTelegramAlert(payload: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+}
+
+// ==========================================
+// ADAPTIVE DRILL & MASTERY ENDPOINTS
+// ==========================================
+
+export async function fetchAdaptiveQuiz(
+  examId: string,
+  subject: string,
+  topic: string,
+  count: number = 3,
+): Promise<QuizGenerateResponse> {
+  const result = await callApi<QuizGenerateResponse>(
+    `/adaptive/quiz?exam_id=${encodeURIComponent(examId)}&subject=${encodeURIComponent(
+      subject,
+    )}&topic=${encodeURIComponent(topic)}&count=${count}`,
+  );
+  return result.data;
+}
+
+export async function submitAdaptiveQuiz(
+  payload: SubmitQuizPayload,
+): Promise<QuizEvaluationResponse> {
+  const result = await callApi<QuizEvaluationResponse>("/adaptive/submit-quiz", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return result.data;
+}
+
+export async function fetchUserMastery(
+  userId: string,
+  examId: string,
+): Promise<UserMasteryResponse> {
+  const result = await callApi<UserMasteryResponse>(
+    `/adaptive/mastery/${encodeURIComponent(userId)}/${encodeURIComponent(examId)}`,
+  );
+  return result.data;
 }

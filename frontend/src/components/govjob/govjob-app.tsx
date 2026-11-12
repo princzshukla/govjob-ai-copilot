@@ -234,6 +234,63 @@ const handlePracticeTopic = (topic: string, subject: string = "Quantitative Apti
   setActiveDrillSubject(subject);
   setActiveTab("adaptive");
 };
+const handleDrillEvaluated = ({
+    topic,
+    topicStatus,
+    microRevisions,
+  }: {
+    topic: string;
+    topicStatus: string;
+    microRevisions: string[];
+    diagnostics: any[];
+  }) => {
+    if (topicStatus === "Needs Revision" || microRevisions.length > 0) {
+      setRoadmap((prev) => {
+        if (!prev) return prev;
+
+        const activeWeekIndex = prev.weekly_breakdown.findIndex(
+          (w) => !completedWeeks[w.week_number]
+        );
+        const targetIdx = activeWeekIndex !== -1 ? activeWeekIndex : 0;
+
+        const updatedBreakdown = [...prev.weekly_breakdown];
+        const currentWeek = updatedBreakdown[targetIdx];
+        if (!currentWeek) return prev;
+
+        const newTopics =
+          microRevisions.length > 0
+            ? microRevisions.map((sub) => `[Micro-Revision] ${topic}: ${sub}`)
+            : [`[High Priority] ${topic} Revision & Practice`];
+
+        const existingSet = new Set(currentWeek.topics);
+        const filteredNew = newTopics.filter((t) => !existingSet.has(t));
+
+        if (filteredNew.length === 0) return prev;
+
+        updatedBreakdown[targetIdx] = {
+          ...currentWeek,
+          topics: [...currentWeek.topics, ...filteredNew],
+        };
+
+        return {
+          ...prev,
+          weekly_breakdown: updatedBreakdown,
+        };
+      });
+
+      toast.warning(`Roadmap adapted! Micro-revision added for "${topic}".`, {
+        description: "Scheduled into your current study week based on drill diagnostics.",
+        action: {
+          label: "View Roadmap",
+          onClick: () => setActiveTab("roadmap"),
+        },
+      });
+    } else if (topicStatus === "Mastered") {
+      toast.success(`"${topic}" is Mastered!`, {
+        description: "Accuracy EMA updated across your active study plan.",
+      });
+    }
+  };
   return (
     <div className="relative min-h-screen overflow-x-hidden">
       <div className="ambient-glow" />
@@ -400,7 +457,7 @@ const handlePracticeTopic = (topic: string, subject: string = "Quantitative Apti
                       setCompletedWeeks((prev) => ({ ...prev, [week]: !prev[week] }))
                     }
                     onPracticeTopic={handlePracticeTopic}
-                    examId={primaryExamId}
+                    examId={roadmap.exam_id || primaryExamId}
                   />
                 ) : (
                   <EmptyTabState
@@ -415,9 +472,12 @@ const handlePracticeTopic = (topic: string, subject: string = "Quantitative Apti
               {activeTab === "documents" && <DocumentResizer />}
 
               {activeTab === "adaptive" && (
-                <AdaptiveQuizPanel initialExamId={primaryExamId}
-                initialTopic={activeDrillTopic}
-                initialSubject={activeDrillSubject} />
+                <AdaptiveQuizPanel
+                  initialExamId={roadmap?.exam_id || primaryExamId}
+                  initialTopic={activeDrillTopic}
+                  initialSubject={activeDrillSubject}
+                  onDrillEvaluated={handleDrillEvaluated}
+                />
               )}
             </motion.div>
           </AnimatePresence>

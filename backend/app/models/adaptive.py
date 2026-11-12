@@ -25,11 +25,11 @@ class TopicMastery(Base):
     exam_id = Column(String, index=True, nullable=False)
     subject = Column(String, nullable=False)
     topic = Column(String, index=True, nullable=False)
-    accuracy_ema = Column(Float, default=0.5)            # Rolling accuracy (0.0 to 1.0)
+    accuracy_ema = Column(Float, default=0.5)
     attempts_count = Column(Integer, default=0)
-    status = Column(String, default="Moderate")          # Weak, Moderate, Strong
+    status = Column(String, default="Moderate")
     consecutive_fails = Column(Integer, default=0)
-    last_reviewed_at = Column(DateTime, default=datetime.utcnow)
+    last_reviewed_at = Column(DateTime, default=datetime.utcnow) # <-- Column name is last_reviewed_at
 
 class QuizAttempt(Base):
     __tablename__ = "quiz_attempts"
