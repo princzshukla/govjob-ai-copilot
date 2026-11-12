@@ -27,6 +27,8 @@ class LoginIn(_EmailNormalizationMixin):
 class UserOut(BaseModel):
     id: int
     email: EmailStr
+    full_name: str | None = None
+    phone: str | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
