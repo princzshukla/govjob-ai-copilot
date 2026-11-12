@@ -11,13 +11,21 @@ import type {
   UserMasteryResponse,
 } from "@/types/govjob";
 
+<<<<<<< HEAD
 const API_BASE = import.meta.env["VITE_API_BASE_URL"] ?? "http://localhost:8000/api/v1";
 const REQUEST_TIMEOUT_MS = 25000; // Increased to 25s to account for AI Groq question generation
+=======
+// Both names are read so the app keeps working with either the value written
+// by setup.sh or a manually configured frontend/.env.
+const API_BASE =
+  import.meta.env["VITE_API_BASE_URL"] ??
+  import.meta.env["VITE_GOVJOB_API_BASE"] ??
+  "http://localhost:8000/api/v1";
+>>>>>>> 48eff3084592803c8a6cf3556c304aa6936a3a3d
 
-export interface ApiResult<T> {
-  data: T;
-  demo: boolean;
-}
+const REQUEST_TIMEOUT_MS = 15000; // Allows for real AI roadmap generation & PDF parsing
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export interface ParseResumeResult {
   extracted_profile: CandidateProfile;
@@ -35,18 +43,14 @@ async function fetchWithTimeout(input: string, init?: RequestInit): Promise<Resp
   }
 }
 
-async function callApi<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<ApiResult<T>> {
+async function callApi<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     const res = await fetchWithTimeout(`${API_BASE}${path}`, init);
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}) as { detail?: string });
+      const err = (await res.json().catch(() => ({}))) as { detail?: string };
       throw new Error(err.detail || `Server returned HTTP ${res.status}: ${res.statusText}`);
     }
-    const data = (await res.json()) as T;
-    return { data, demo: false };
+    return (await res.json()) as T;
   } catch (err) {
     console.error(`API Call failed on [${path}]:`, err);
     if (err instanceof Error) {
@@ -59,11 +63,94 @@ async function callApi<T>(
   }
 }
 
+<<<<<<< HEAD
 // ==========================================
 // RESUME & ELIGIBILITY ENDPOINTS
 // ==========================================
 
 export function parseResume(file: File): Promise<ApiResult<ParseResumeResult>> {
+=======
+/** Coerces a date-ish value to YYYY-MM-DD, or null when it is unusable. */
+export function toIsoDate(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const trimmed = value.trim();
+  if (ISO_DATE.test(trimmed)) return trimmed;
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
+function toBoolean(value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    return ["yes", "true", "1"].includes(value.trim().toLowerCase());
+  }
+  return false;
+}
+
+function asTrimmedString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/**
+ * Builds the strict `CandidateProfileCreate` payload.
+ *
+ * Missing statutory fields raise an error instead of being silently replaced
+ * with placeholder data — otherwise a candidate could be judged against a
+ * fictional date of birth, percentage or domicile.
+ */
+export function buildCandidatePayload(profile: CandidateProfile): Record<string, unknown> {
+  const raw = profile as Record<string, unknown>;
+  const missing: string[] = [];
+
+  const dob = toIsoDate(raw["dob"] ?? raw["date_of_birth"]);
+  if (!dob) missing.push("Date of birth");
+
+  const rawCategory = asTrimmedString(raw["category"]);
+  const category = rawCategory === "OBC" ? "OBC-NCL" : rawCategory;
+  if (!category) missing.push("Reservation category");
+
+  const domicileState = asTrimmedString(raw["domicile_state"]);
+  if (!domicileState) missing.push("Domicile state");
+
+  const highestDegree = asTrimmedString(raw["highest_degree"]);
+  if (!highestDegree) missing.push("Highest qualification");
+
+  const rawPercentage = raw["percentage_cgpa"];
+  const percentageValue =
+    rawPercentage === null || rawPercentage === undefined || rawPercentage === ""
+      ? Number.NaN
+      : Number(rawPercentage);
+  if (Number.isNaN(percentageValue)) missing.push("Graduation percentage");
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Please fill in the following before checking eligibility: ${missing.join(", ")}.`,
+    );
+  }
+
+  const fullName = asTrimmedString(raw["full_name"]);
+  const stream = asTrimmedString(raw["stream"]);
+  const passingYear = raw["passing_year"];
+
+  return {
+    full_name: fullName || null,
+    dob,
+    gender: asTrimmedString(raw["gender"]) || "Male",
+    category,
+    is_pwd: toBoolean(raw["is_pwd"] ?? raw["physical_disability"]),
+    domicile_state: domicileState,
+    highest_degree: highestDegree,
+    stream: stream || "Any",
+    percentage_cgpa: percentageValue,
+    passing_year: passingYear ? Number(passingYear) : null,
+    skills: Array.isArray(raw["skills"]) ? raw["skills"] : [],
+  };
+}
+
+export function parseResume(file: File): Promise<ParseResumeResult> {
+>>>>>>> 48eff3084592803c8a6cf3556c304aa6936a3a3d
   const formData = new FormData();
   formData.append("file", file);
   return callApi<ParseResumeResult>("/candidate/parse-resume", {
@@ -75,38 +162,15 @@ export function parseResume(file: File): Promise<ApiResult<ParseResumeResult>> {
 export function checkEligibility(
   profile: CandidateProfile,
   primaryExamId: string,
-): Promise<ApiResult<EligibilityCheckResponse>> {
-  const raw = profile as Record<string, any>;
-
-  // Ensure valid date string YYYY-MM-DD
-  const rawDate = raw["dob"] || raw["date_of_birth"];
-  const validDob = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : "2004-06-10";
-
-  // Ensure category aligns with CandidateProfileCreate: General, OBC-NCL, SC, ST, EWS
-  let category = raw["category"] || "General";
-  if (category === "OBC") category = "OBC-NCL";
-
-  // Build the strict CandidateProfileCreate payload
-  const sanitizedPayload = {
-    full_name: raw["full_name"]?.trim() || "Candidate",
-    dob: validDob,
-    gender: raw["gender"] || "Male",
-    category: category,
-    is_pwd: Boolean(raw["is_pwd"] ?? raw["physical_disability"] ?? false),
-    domicile_state: raw["domicile_state"]?.trim() || "Delhi",
-    highest_degree: raw["highest_degree"]?.trim() || "12th",
-    stream: raw["stream"]?.trim() || "Any",
-    percentage_cgpa: Number(raw["percentage_cgpa"]) || 60.0,
-    passing_year: raw["passing_year"] ? Number(raw["passing_year"]) : 2022,
-    skills: Array.isArray(raw["skills"]) ? raw["skills"] : [],
-  };
+): Promise<EligibilityCheckResponse> {
+  const payload = buildCandidatePayload(profile);
 
   return callApi<EligibilityCheckResponse>(
     `/eligibility/check?primary_exam_id=${encodeURIComponent(primaryExamId)}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(sanitizedPayload),
+      body: JSON.stringify(payload),
     },
   );
 }
@@ -114,15 +178,14 @@ export function checkEligibility(
 export function generateRoadmap(
   examId: string,
   targetWeeks: number,
-  examName: string,
-): Promise<ApiResult<StudyRoadmapResponse>> {
+): Promise<StudyRoadmapResponse> {
   return callApi<StudyRoadmapResponse>(
-    `/eligibility/generate-roadmap/${encodeURIComponent(examId)}?target_weeks=${targetWeeks}&exam_name=${encodeURIComponent(examName)}`,
+    `/eligibility/generate-roadmap/${encodeURIComponent(examId)}?target_weeks=${targetWeeks}`,
     { method: "POST" },
   );
 }
 
-export function syncLiveJobs(): Promise<ApiResult<SyncLiveJobsResponse>> {
+export function syncLiveJobs(): Promise<SyncLiveJobsResponse> {
   return callApi<SyncLiveJobsResponse>("/eligibility/sync-live-jobs", {
     method: "POST",
   });
@@ -133,13 +196,14 @@ export function sendTelegramAlert(payload: {
   exam_title: string;
   application_deadline: string;
   days_left: number;
-}): Promise<ApiResult<TelegramAlertResponse>> {
+}): Promise<TelegramAlertResponse> {
   return callApi<TelegramAlertResponse>("/notifications/send-deadline-alert", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 }
+<<<<<<< HEAD
 
 // ==========================================
 // ADAPTIVE DRILL & MASTERY ENDPOINTS
@@ -179,3 +243,5 @@ export async function fetchUserMastery(
   );
   return result.data;
 }
+=======
+>>>>>>> 48eff3084592803c8a6cf3556c304aa6936a3a3d

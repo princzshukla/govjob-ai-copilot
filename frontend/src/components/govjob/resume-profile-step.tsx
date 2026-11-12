@@ -29,6 +29,31 @@ interface ResumeProfileStepProps {
 
 const CATEGORY_OPTIONS = ["General", "OBC-NCL", "EWS", "SC", "ST"];
 
+const DOMICILE_STATES = [
+  "Andhra Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Delhi",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Odisha",
+  "Punjab",
+  "Rajasthan",
+  "Tamil Nadu",
+  "Telangana",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+  "Other",
+];
+
 const DEGREE_OPTIONS = [
   { label: "10th Pass (Matriculation)", value: "10th" },
   { label: "12th Pass (Intermediate / HSC)", value: "12th" },
@@ -240,7 +265,7 @@ export function ResumeProfileStep({
               )}
 
               {isManual && (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground">Full Name *</Label>
                     <Input
@@ -286,6 +311,25 @@ export function ResumeProfileStep({
                         {GRADUATION_STATUS_OPTIONS.map((status) => (
                           <SelectItem key={status} value={status}>
                             {status}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Domicile State *</Label>
+                    <Select
+                      value={stringValue("domicile_state")}
+                      onValueChange={(value) => onFieldChange("domicile_state", value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select State" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DOMICILE_STATES.map((state) => (
+                          <SelectItem key={state} value={state}>
+                            {state}
                           </SelectItem>
                         ))}
                       </SelectContent>

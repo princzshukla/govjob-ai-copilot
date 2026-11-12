@@ -1,6 +1,7 @@
 import os
 os.environ["DISABLE_SQLALCHEMY_CEXT"] = "1"
 
+<<<<<<< HEAD
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +19,12 @@ from app.api.v1.endpoints import (
 async def lifespan(app: FastAPI):
     await init_db()
     yield
+=======
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.api.v1.endpoints import candidate, eligibility, notifications
+>>>>>>> 48eff3084592803c8a6cf3556c304aa6936a3a3d
 
 
 app = FastAPI(
@@ -42,7 +49,10 @@ app.add_middleware(
 app.include_router(candidate.router, prefix="/api/v1")
 app.include_router(eligibility.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
+<<<<<<< HEAD
 app.include_router(adaptive.router, prefix="/api/v1/adaptive", tags=["Adaptive Preparation"])
+=======
+>>>>>>> 48eff3084592803c8a6cf3556c304aa6936a3a3d
 
 
 @app.get("/health")

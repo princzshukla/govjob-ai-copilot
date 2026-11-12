@@ -1,64 +1,140 @@
+import re
 from datetime import date
 from typing import List, Dict, Optional
 from app.schemas.candidate import CandidateProfileCreate
 from app.schemas.exam import ExamMatchResult, EligibilityCheckResponse
 from app.models.exam import ExamNotification
 
-# Educational Hierarchy Rank: higher rank automatically satisfies lower statutory requirements
-EDUCATION_RANK = {
+# Educational hierarchy rank: a higher rank automatically satisfies lower
+# statutory education requirements.
+DEGREE_RANK = {
     "10th": 1,
-    "10th pass": 1,
-    "matriculation": 1,
-    "high school": 1,
     "12th": 2,
-    "12th pass": 2,
-    "intermediate": 2,
-    "senior secondary": 2,
-    "hsc": 2,
-    "diploma": 2,
-    "bca": 3,
-    "b.tech": 3,
-    "be": 3,
-    "b.sc": 3,
-    "b.com": 3,
-    "ba": 3,
-    "bba": 3,
-    "any graduate": 3,
-    "graduate": 3,
-    "graduation": 3,
-    "mca": 4,
-    "m.tech": 4,
-    "m.sc": 4,
-    "mba": 4,
-    "post graduate": 4,
+    "Diploma": 2,
+    "B.Tech": 3,
+    "BE": 3,
+    "BCA": 3,
+    "B.Sc": 3,
+    "B.Com": 3,
+    "BA": 3,
+    "BBA": 3,
+    "Any Graduate": 3,
+    "MCA": 4,
+    "M.Tech": 4,
+    "M.E": 4,
+    "M.Sc": 4,
+    "MBA": 4,
 }
 
-# Degree Normalization Equivalency Map
-DEGREE_EQUIVALENTS = {
-    "10th": ["10th", "10th Pass", "Matriculation", "High School"],
-    "12th": ["12th", "12th Pass", "Intermediate", "Senior Secondary", "HSC"],
-    "Any Graduate": ["B.Tech", "BE", "BCA", "B.Sc", "B.Com", "BA", "BBA", "MCA", "M.Tech", "M.Sc", "MBA", "Graduation"],
-    "Engineering/IT Graduate": ["B.Tech", "BE", "BCA", "MCA", "M.Tech", "M.Sc"]
+# Exact (whole-string) aliases -> canonical degree. Matching on the full
+# normalized string avoids the old substring bugs ("MBA" -> "BA",
+# "B.E" -> "B.Tech") that came from using `in` checks.
+_DEGREE_ALIASES = {
+    # School level
+    "10th": "10th",
+    "10th pass": "10th",
+    "matric": "10th",
+    "matriculation": "10th",
+    "high school": "10th",
+    "12th": "12th",
+    "12th pass": "12th",
+    "intermediate": "12th",
+    "senior secondary": "12th",
+    "hsc": "12th",
+    "plus two": "12th",
+    # Diploma
+    "diploma": "Diploma",
+    "polytechnic diploma": "Diploma",
+    # Bachelors
+    "btech": "B.Tech",
+    "b.tech": "B.Tech",
+    "bachelor of technology": "B.Tech",
+    "be": "BE",
+    "b.e": "BE",
+    "b.e.": "BE",
+    "bachelor of engineering": "BE",
+    "bca": "BCA",
+    "bachelor of computer applications": "BCA",
+    "bsc": "B.Sc",
+    "b.sc": "B.Sc",
+    "bachelor of science": "B.Sc",
+    "bcom": "B.Com",
+    "b.com": "B.Com",
+    "bachelor of commerce": "B.Com",
+    "ba": "BA",
+    "b.a": "BA",
+    "b.a.": "BA",
+    "bachelor of arts": "BA",
+    "bba": "BBA",
+    "bachelor of business administration": "BBA",
+    # Masters
+    "mca": "MCA",
+    "master of computer applications": "MCA",
+    "mtech": "M.Tech",
+    "m.tech": "M.Tech",
+    "master of technology": "M.Tech",
+    "me": "M.E",
+    "m.e": "M.E",
+    "m.e.": "M.E",
+    "msc": "M.Sc",
+    "m.sc": "M.Sc",
+    "master of science": "M.Sc",
+    "mba": "MBA",
+    "master of business administration": "MBA",
+    # Generic
+    "any graduate": "Any Graduate",
+    "graduate": "Any Graduate",
+    "graduation": "Any Graduate",
+    "post graduate": "Any Graduate",
+    "postgraduate": "Any Graduate",
 }
+
+# Degrees that are treated as equivalent when matching a requirement.
+_DEGREE_GROUPS = [
+    {"B.Tech", "BE"},
+    {"M.Tech", "M.E"},
+]
+
+
+def _clean_degree(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip().lower())
+
 
 def normalize_degree(degree_str: str) -> str:
-    """Normalizes candidate input degree strings to standard identifiers."""
-    d = degree_str.strip().lower()
-    if any(k in d for k in ["10th", "matric", "high school"]):
-        return "10th"
-    if any(k in d for k in ["12th", "inter", "senior secondary", "hsc"]):
-        return "12th"
-    if "bca" in d:
-        return "BCA"
-    if "b.tech" in d or "btech" in d or "b.e." in d or "be" in d:
-        return "B.Tech"
-    if "b.sc" in d or "bsc" in d:
-        return "B.Sc"
-    if "b.com" in d or "bcom" in d:
-        return "B.Com"
-    if "ba" in d or "b.a" in d:
-        return "BA"
+    """Normalizes a degree string to a canonical identifier (exact matching)."""
+    key = _clean_degree(degree_str)
+
+    if key in _DEGREE_ALIASES:
+        return _DEGREE_ALIASES[key]
+
+    # Fall back to a token match for descriptive strings such as
+    # "Bachelor of Technology (Computer Science)".
+    for alias, canonical in _DEGREE_ALIASES.items():
+        if re.search(rf"(?<![a-z]){re.escape(alias)}(?![a-z])", key):
+            return canonical
+
     return degree_str.strip()
+
+
+def _degrees_equivalent(candidate_degree: str, required_degree: str) -> bool:
+    if candidate_degree.lower() == required_degree.lower():
+        return True
+    for group in _DEGREE_GROUPS:
+        if candidate_degree in group and required_degree in group:
+            return True
+    return False
+
+
+def degree_satisfies(required_degree: str, candidate_degree: str) -> bool:
+    """Returns True when the candidate's degree meets the required degree."""
+    required = normalize_degree(required_degree)
+    candidate = normalize_degree(candidate_degree)
+
+    if required in ("10th", "12th"):
+        return DEGREE_RANK.get(candidate, 1) >= DEGREE_RANK.get(required, 1)
+    if required == "Any Graduate":
+        return DEGREE_RANK.get(candidate, 1) >= 3
+    return _degrees_equivalent(candidate, required)
 
 def calculate_exact_age(dob: date, cutoff_date: date) -> int:
     """Calculates completed years of age as on the statutory cutoff date."""
@@ -102,28 +178,7 @@ def check_single_exam_eligibility(
         )
 
     # 2. Degree & Education Level Hierarchy Verification
-    cand_degree = normalize_degree(candidate.highest_degree)
-    cand_rank = EDUCATION_RANK.get(cand_degree.lower(), 1)
-    
-    degree_matched = False
-    for allowed in exam.allowed_degrees:
-        allowed_normalized = normalize_degree(allowed)
-        allowed_rank = EDUCATION_RANK.get(allowed_normalized.lower(), 3)
-
-        # Direct equivalence list check
-        if allowed in DEGREE_EQUIVALENTS and cand_degree in DEGREE_EQUIVALENTS[allowed]:
-            degree_matched = True
-            break
-        # Exact title match
-        if cand_degree.lower() == allowed.lower():
-            degree_matched = True
-            break
-        # Educational hierarchy check: Higher degrees qualify for 10th & 12th entry-level exams
-        if allowed_normalized in ["10th", "12th"] and cand_rank >= allowed_rank:
-            degree_matched = True
-            break
-
-    if not degree_matched:
+    if not any(degree_satisfies(allowed, candidate.highest_degree) for allowed in exam.allowed_degrees):
         reasons_failed.append(
             f"Degree mismatch: '{candidate.highest_degree}' does not satisfy required {exam.allowed_degrees}"
         )
@@ -131,17 +186,27 @@ def check_single_exam_eligibility(
     # 3. Technical / Specialist Stream Verification
     if exam.allowed_streams and "Any" not in exam.allowed_streams:
         cand_stream = (candidate.stream or "").strip()
-        stream_matched = any(
-            s.lower() in cand_stream.lower() or cand_stream.lower() in s.lower()
-            for s in exam.allowed_streams
-        )
-        if not stream_matched:
+        if not cand_stream or cand_stream.lower() == "any":
+            # An empty/"Any" stream must not silently satisfy a specialist
+            # requirement (empty string used to match everything).
+            reasons_failed.append(
+                f"Stream unspecified: requires one of {exam.allowed_streams}"
+            )
+            stream_matched = False
+        else:
+            stream_matched = any(
+                s.lower() in cand_stream.lower() or cand_stream.lower() in s.lower()
+                for s in exam.allowed_streams
+            )
+        if not stream_matched and not any(
+            r.startswith("Stream unspecified") for r in reasons_failed
+        ):
             reasons_failed.append(
                 f"Stream mismatch: Requires {exam.allowed_streams}, found '{cand_stream or 'Unspecified'}'"
             )
 
     # 4. Percentage Threshold Check
-    if exam.min_percentage and candidate.percentage_cgpa:
+    if exam.min_percentage and float(exam.min_percentage) > 0:
         if float(candidate.percentage_cgpa) < float(exam.min_percentage):
             reasons_failed.append(
                 f"Minimum marks required: {exam.min_percentage}%, found {candidate.percentage_cgpa}%"

@@ -37,6 +37,10 @@ export function EligibilityResults({
 }: EligibilityResultsProps) {
   if (!eligibility) return null;
 
+  const borderlineIds = new Set(
+    (eligibility.borderline_last_chance ?? []).map((item) => item.exam_id),
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -120,6 +124,13 @@ export function EligibilityResults({
                       </span>
                     </div>
                   </div>
+
+                  {borderlineIds.has(exam.exam_id) && (
+                    <p className="rounded-lg border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning">
+                      ⚠ This is your final attempt — you will cross the maximum age limit for
+                      this exam next cycle.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-2 pt-1 sm:flex-row">

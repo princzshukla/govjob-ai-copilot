@@ -4,7 +4,8 @@
 *.py[cod]
 *$py.class
 *.pyd
-
+bug.MD
+bugfixed.md
 # Node & Bun
 **/node_modules/
 **/.bun/
