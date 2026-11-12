@@ -1,8 +1,6 @@
 import os
 os.environ["DISABLE_SQLALCHEMY_CEXT"] = "1"
 
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -13,14 +11,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.api.v1.endpoints import adaptive, auth, candidate, eligibility, notifications
 from app.core.config import settings
-from app.core.database import init_db
 from app.core.rate_limit import limiter
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await init_db()  # create missing tables on boot; idempotent
-    yield
 
 
 # Keep explicit origins from env and include origins added on main.
@@ -37,7 +28,6 @@ _cors_origins = list(
 app = FastAPI(
     title="GovJob Matcher & AI Roadmap API",
     version="1.0.0",
-    lifespan=lifespan,
 )
 
 app.state.limiter = limiter
