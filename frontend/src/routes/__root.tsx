@@ -13,6 +13,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { setUnauthorizedHandler } from "@/lib/govjob/api";
 import { useGovJobStore } from "@/stores/govjob-store";
+import { AuthDialog } from "@/components/auth/auth-dialog";
 
 import appCss from "../style.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -152,6 +153,7 @@ function RootComponent() {
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <GlobalUnauthorizedHandler />
       <Outlet />
+      <AuthDialog />
       <Toaster richColors position="top-right" />
     </QueryClientProvider>
   );

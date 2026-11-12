@@ -4,16 +4,16 @@ import * as api from "@/lib/govjob/api";
 import type { SavedRoadmap } from "@/types/govjob";
 import { useMe } from "./use-me";
 
-export function roadmapKey(userId: number | "guest", examId: string) {
-  return ["roadmap", userId, examId] as const;
+export function roadmapKey(ownerId: number | "guest", examId: string) {
+  return ["roadmap", ownerId, examId] as const;
 }
 
 export function useRoadmapQuery(examId: string | null | undefined) {
   const { data: me } = useMe();
-  const userId = me?.id ?? "guest";
+  const ownerId = me?.id ?? "guest";
 
   return useQuery({
-    queryKey: roadmapKey(userId, examId ?? "unknown-exam"),
+    queryKey: roadmapKey(ownerId, examId ?? "unknown-exam"),
     queryFn: () => api.getMyRoadmap(examId as string),
     enabled: me?.id != null && !!examId,
     staleTime: 60 * 1000,
@@ -29,8 +29,8 @@ export function useRoadmapQuery(examId: string | null | undefined) {
 export function useToggleRoadmapWeek(examId: string) {
   const queryClient = useQueryClient();
   const { data: me } = useMe();
-  const userId = me?.id ?? "guest";
-  const queryKey = roadmapKey(userId, examId);
+  const ownerId = me?.id ?? "guest";
+  const queryKey = roadmapKey(ownerId, examId);
 
   return useMutation({
     mutationFn: ({ roadmapId, weekNo, done }: { roadmapId: string; weekNo: number; done: boolean }) =>

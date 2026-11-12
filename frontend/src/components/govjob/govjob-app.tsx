@@ -22,7 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import * as api from "@/lib/govjob/api";
 import { useGovJobStore, getDraftProfile } from "@/stores/govjob-store";
-import { useMe } from "@/hooks/use-me";
+import { useAuth } from "@/hooks/use-auth";
 import { useRoadmapQuery, useToggleRoadmapWeek, roadmapKey } from "@/hooks/use-roadmap";
 import { useEligibilityCheck } from "@/hooks/use-eligibility";
 import type {
@@ -37,6 +37,7 @@ import { EligibilityResults } from "./eligibility-results";
 import { RoadmapStep } from "./roadmap-step";
 import { DocumentResizer } from "./document-resizer";
 import { JobDetailDialog } from "./job-detail-dialog";
+import { AccountMenu } from "./account-menu";
 
 const TABS = [
   { id: "profile", label: "Resume & Profile", icon: Upload },
@@ -61,6 +62,7 @@ export function GovJobApp() {
     navigate({ search: (prev) => ({ ...prev, week }), replace: true });
 
   const setDraftProfile = useGovJobStore((s) => s.setDraftProfile);
+  const requestSignIn = useGovJobStore((s) => s.requestSignIn);
 
   const [darkMode, setDarkMode] = useState(true);
   const [activeDrillTopic, setActiveDrillTopic] = useState("Percentage");
@@ -73,8 +75,8 @@ export function GovJobApp() {
 
   const [targetWeeks, setTargetWeeks] = useState(12);
 
-  const { data: me } = useMe();
-  const userId = me?.id ?? "guest";
+  const { user: me } = useAuth();
+  const ownerId = me?.id ?? "guest";
   const activeExamId = examId || "ssc-cgl-general";
 
   const eligibilityCheck = useEligibilityCheck();
@@ -84,7 +86,7 @@ export function GovJobApp() {
   const { data: savedRoadmap, isLoading: roadmapLoading } = useRoadmapQuery(activeExamId);
   const roadmapExamId = savedRoadmap?.exam_id ?? null;
   const roadmap = savedRoadmap?.roadmap ?? null;
-  const roadmapProgressKey = roadmapKey(userId, activeExamId);
+  const roadmapProgressKey = roadmapKey(ownerId, activeExamId);
 
   const toggleWeekMutation = useToggleRoadmapWeek(activeExamId);
   const completedWeeks = useMemo(
@@ -100,7 +102,7 @@ export function GovJobApp() {
       api.generateRoadmap(vars.examId, vars.targetWeeks),
     onSuccess: (_data, vars) => {
       // Server already saved the roadmap atomically; just refresh the cache.
-      queryClient.invalidateQueries({ queryKey: roadmapKey(userId, vars.examId) });
+      queryClient.invalidateQueries({ queryKey: roadmapKey(ownerId, vars.examId) });
     },
   });
 
@@ -135,8 +137,12 @@ export function GovJobApp() {
     }
   }, [darkMode]);
 
-  // Telegram status is per session; guests get 401 and simply stay unlinked.
+  // Telegram status is per session; guests have no session, so skip the call.
   useEffect(() => {
+    if (!me) {
+      setTelegramLinked(false);
+      return;
+    }
     let cancelled = false;
     api
       .getTelegramStatus()
@@ -149,7 +155,7 @@ export function GovJobApp() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [me]);
 
   // 1. Upload resume
   const handleFileUpload = async (file: File) => {
@@ -219,6 +225,10 @@ export function GovJobApp() {
 
   // 4. AI study roadmap (guests get 401, which this app handles globally)
   const handleGenerateRoadmap = async (exam: ExamMatchResult) => {
+    if (!me) {
+      requestSignIn();
+      return;
+    }
     setExam(exam.exam_id);
     try {
       await generateMutation.mutateAsync({ examId: exam.exam_id, targetWeeks });
@@ -230,6 +240,10 @@ export function GovJobApp() {
   };
 
   const handleSyncLiveJobs = async () => {
+    if (!me) {
+      requestSignIn();
+      return;
+    }
     setSyncing(true);
     setSyncMessage(null);
     try {
@@ -249,6 +263,10 @@ export function GovJobApp() {
   };
 
   const handleSendTelegramAlert = async (exam: ExamMatchResult) => {
+    if (!me) {
+      requestSignIn();
+      return;
+    }
     if (!telegramLinked) {
       toast.error("Link your Telegram account first.");
       return;
@@ -276,6 +294,10 @@ export function GovJobApp() {
   };
 
   const handleStartTelegramLink = async () => {
+    if (!me) {
+      requestSignIn();
+      return;
+    }
     setTelegramBusy(true);
     setAlertStatus(null);
     try {
@@ -293,6 +315,10 @@ export function GovJobApp() {
   };
 
   const handleRefreshTelegramStatus = async () => {
+    if (!me) {
+      requestSignIn();
+      return;
+    }
     setTelegramBusy(true);
     try {
       const status = await api.getTelegramStatus();
@@ -311,6 +337,10 @@ export function GovJobApp() {
   };
 
   const handleUnlinkTelegram = async () => {
+    if (!me) {
+      requestSignIn();
+      return;
+    }
     setTelegramBusy(true);
     try {
       await api.unlinkTelegram();
@@ -325,6 +355,10 @@ export function GovJobApp() {
   };
 
   const handlePracticeTopic = (topic: string, subject: string = "Quantitative Aptitude") => {
+    if (!me) {
+      requestSignIn();
+      return;
+    }
     setActiveDrillTopic(topic);
     setActiveDrillSubject(subject);
     setTab("adaptive");
@@ -445,6 +479,8 @@ export function GovJobApp() {
                 {syncing ? "Scraping Live Jobs..." : "Sync Live Jobs"}
               </span>
             </Button>
+
+            <AccountMenu />
           </div>
         </header>
 
@@ -554,23 +590,36 @@ export function GovJobApp() {
                 ) : (
                   <EmptyTabState
                     icon={BookOpen}
-                    title="No study roadmap yet"
-                    description="Pick an eligible exam and hit Roadmap to generate an adaptive, week-by-week AI preparation plan."
-                    actionLabel="Go to Eligibility"
-                    onAction={() => setTab("eligibility")}
+                    title={me ? "No study roadmap yet" : "Sign in to build your roadmap"}
+                    description={
+                      me
+                        ? "Pick an eligible exam and hit Roadmap to generate an adaptive, week-by-week AI preparation plan."
+                        : "Generate a week-by-week AI plan, saved to your account. Your guest resume draft is attached automatically on sign-in."
+                    }
+                    actionLabel={me ? "Go to Eligibility" : "Sign in to continue"}
+                    onAction={me ? () => setTab("eligibility") : requestSignIn}
                   />
                 ))}
 
               {activeTab === "documents" && <DocumentResizer />}
 
-              {activeTab === "adaptive" && (
-                <AdaptiveQuizPanel
-                  initialExamId={roadmapExamId || examId}
-                  initialTopic={activeDrillTopic}
-                  initialSubject={activeDrillSubject}
-                  onDrillEvaluated={handleDrillEvaluated}
-                />
-              )}
+              {activeTab === "adaptive" &&
+                (me ? (
+                  <AdaptiveQuizPanel
+                    initialExamId={roadmapExamId || examId}
+                    initialTopic={activeDrillTopic}
+                    initialSubject={activeDrillSubject}
+                    onDrillEvaluated={handleDrillEvaluated}
+                  />
+                ) : (
+                  <EmptyTabState
+                    icon={BrainCircuit}
+                    title="Adaptive drills need an account"
+                    description="Sign in to start targeted drills; your mastery EMA and drill history are saved to your own account. Parsing a resume stays free for guests."
+                    actionLabel="Sign in to start drilling"
+                    onAction={requestSignIn}
+                  />
+                ))}
             </motion.div>
           </AnimatePresence>
         </div>
