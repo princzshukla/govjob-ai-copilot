@@ -10,7 +10,6 @@ import app.models.auth  # noqa: F401
 import app.models.candidate  # noqa: F401
 import app.models.exam  # noqa: F401
 import app.models.roadmap  # noqa: F401
-import app.models.syllabus  # noqa: F401
 
 db_url = str(settings.DATABASE_URL)
 if db_url.startswith("postgresql://"):
