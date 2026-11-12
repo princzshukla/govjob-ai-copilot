@@ -34,9 +34,9 @@ export function RoadmapStep({
   examId = "ssc-cgl-tier1",
   userId = "usr_demo_001",
 }: RoadmapStepProps) {
-  if (!roadmap) return null;
-
   const { data: masteryData } = useTopicMastery(userId, examId);
+
+  if (!roadmap) return null;
 
   // Map topic name to mastery record for quick lookup
   const masteryMap = (masteryData?.topics || []).reduce(

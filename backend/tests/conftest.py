@@ -1,4 +1,5 @@
 import os
+import pathlib
 
 # Must be set before app modules are imported: settings are read at import time.
 os.environ.setdefault("GROQ_API_KEY", "test-key-not-used")
@@ -12,31 +13,53 @@ import httpx
 import psycopg2
 import pytest
 import pytest_asyncio
+from alembic import command
+from alembic.config import Config as AlembicConfig
 from sqlalchemy import text
 
-from app.core.database import AsyncSessionLocal, init_db
+from app.core.database import AsyncSessionLocal
 from app.core.rate_limit import limiter
 from app.main import app
 
 TEST_DB = "govjobs_test"
+BACKEND_DIR = pathlib.Path(__file__).resolve().parents[1]
 
 
-def _ensure_test_database() -> None:
+def _recreate_test_database() -> None:
+    """Drop and recreate the test database so every run starts from migrations.
+
+    Only the fixed TEST_DB identifier from this module is used; no user input
+    reaches the SQL. WITH (FORCE) (Postgres 13+) drops stale connections from
+    an interrupted run.
+    """
     conn = psycopg2.connect(
         host="localhost", port=5432, user="postgres", password="postgres", dbname="postgres"
     )
     conn.autocommit = True
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (TEST_DB,))
-            if cur.fetchone() is None:
-                # Fixed identifier from this module, not user input.
-                cur.execute(f'CREATE DATABASE "{TEST_DB}"')
+            cur.execute(f'DROP DATABASE IF EXISTS "{TEST_DB}" WITH (FORCE)')
+            cur.execute(f'CREATE DATABASE "{TEST_DB}"')
     finally:
         conn.close()
 
 
-_ensure_test_database()
+def _run_migrations() -> None:
+    """Build the test schema with the real Alembic migrations.
+
+    Using migrations instead of ``Base.metadata.create_all`` means a broken or
+    drifted migration fails the test suite, not production.
+    """
+    config = AlembicConfig(str(BACKEND_DIR / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
+    command.upgrade(config, "head")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _migrated_database():
+    _recreate_test_database()
+    _run_migrations()
+    yield
 
 
 @pytest.fixture(autouse=True)
@@ -49,7 +72,6 @@ def _reset_rate_limits():
 
 @pytest_asyncio.fixture(autouse=True)
 async def _prepare_db():
-    await init_db()  # idempotent: creates tables on first use
     async with AsyncSessionLocal() as db:
         await db.execute(text("DELETE FROM sessions"))
         await db.execute(text("DELETE FROM users"))
