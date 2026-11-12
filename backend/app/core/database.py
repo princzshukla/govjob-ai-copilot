@@ -26,10 +26,7 @@ _engine_kwargs = {
         "prepared_statement_cache_size": 0,  # Extra safety for asyncpg variants
     },
 }
-
-is_test = getattr(settings, "ENVIRONMENT", "development") == "test"
-
-if is_test:
+if settings.ENVIRONMENT == "test":
     engine = create_async_engine(db_url, poolclass=NullPool, **_engine_kwargs)
 else:
     engine = create_async_engine(
