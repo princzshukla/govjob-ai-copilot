@@ -4,10 +4,12 @@ from datetime import date as dt_date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import current_user, user_or_ip_key
 from app.core.rate_limit import limiter
 from app.core.seed import SEED_EXAMS
+from app.core.database import get_db
 from app.models.auth import User
 from app.models.exam import ExamNotification
 from app.schemas.candidate import CandidateProfileCreate
@@ -15,6 +17,7 @@ from app.schemas.exam import EligibilityCheckResponse
 from app.schemas.roadmap import StudyRoadmapResponse
 from app.services.matcher import evaluate_all_exams
 from app.services.roadmap_generator import generate_study_roadmap_groq
+from app.services.roadmap_store import upsert_saved_roadmap
 
 logger = logging.getLogger(__name__)
 
@@ -45,28 +48,38 @@ async def create_exam_roadmap(
     exam_id: str,
     target_weeks: int = Query(default=12, ge=4, le=52),
     user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Generates an AI-structured week-by-week preparation roadmap using Groq
     for the chosen eligible exam. Results are cached per exam/duration so the
-    same roadmap is not paid for twice.
+    same roadmap is not paid for twice. Either way, the roadmap is also saved
+    against the session user so it survives across devices and refreshes.
     """
     cache_key = f"{exam_id}_{target_weeks}"
     if cache_key in ROADMAP_CACHE:
-        return ROADMAP_CACHE[cache_key]
+        roadmap = ROADMAP_CACHE[cache_key]
+    else:
+        exam_obj = next((e for e in EXAM_MODELS if e.id == exam_id), None)
+        if not exam_obj:
+            raise HTTPException(status_code=404, detail="Exam ID not found")
 
-    exam_obj = next((e for e in EXAM_MODELS if e.id == exam_id), None)
-    if not exam_obj:
-        raise HTTPException(status_code=404, detail="Exam ID not found")
+        topics = list(EXAM_TOPICS_MAP.get(exam_id, ()))
 
-    topics = list(EXAM_TOPICS_MAP.get(exam_id, ()))
+        roadmap = await generate_study_roadmap_groq(
+            exam_title=exam_obj.title,
+            syllabus_topics=topics,
+            target_weeks=target_weeks
+        )
+        ROADMAP_CACHE[cache_key] = roadmap
 
-    roadmap = await generate_study_roadmap_groq(
-        exam_title=exam_obj.title,
-        syllabus_topics=topics,
-        target_weeks=target_weeks
+    await upsert_saved_roadmap(
+        db,
+        user_id=user.id,
+        exam_id=exam_id,
+        target_weeks=target_weeks,
+        roadmap=roadmap,
     )
-    ROADMAP_CACHE[cache_key] = roadmap
     return roadmap
 
 
