@@ -3,15 +3,19 @@ import { BookOpen, ExternalLink, Loader2, MailCheck, Smartphone, X } from "lucid
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import type { ExamMatchResult } from "@/types/govjob";
 
 interface JobDetailDialogProps {
   exam: ExamMatchResult | null;
-  telegramChatId: string;
+  telegramLinked: boolean;
+  telegramCode: string | null;
+  telegramBotUsername: string;
+  telegramBusy: boolean;
   alertLoading: boolean;
   alertStatus: string | null;
-  onTelegramChange: (value: string) => void;
+  onStartTelegramLink: () => void;
+  onRefreshTelegramStatus: () => void;
+  onUnlinkTelegram: () => void;
   onSendAlert: (exam: ExamMatchResult) => void;
   onRoadmap: (exam: ExamMatchResult) => void;
   onClose: () => void;
@@ -23,10 +27,15 @@ function getDaysLeft(deadlineStr: string) {
 
 export function JobDetailDialog({
   exam,
-  telegramChatId,
+  telegramLinked,
+  telegramCode,
+  telegramBotUsername,
+  telegramBusy,
   alertLoading,
   alertStatus,
-  onTelegramChange,
+  onStartTelegramLink,
+  onRefreshTelegramStatus,
+  onUnlinkTelegram,
   onSendAlert,
   onRoadmap,
   onClose,
@@ -85,29 +94,74 @@ export function JobDetailDialog({
             <X className="size-4" />
           </button>
         </div>
-        <div className="flex gap-2">
-          <Input
-            type="text"
-            placeholder="Enter Telegram Chat ID (e.g. 12345678)"
-            value={telegramChatId}
-            onChange={(e) => onTelegramChange(e.target.value)}
-            className="text-xs"
-          />
-          <Button
-            type="button"
-            size="sm"
-            disabled={alertLoading}
-            onClick={() => onSendAlert(displayExam)}
-            className="shrink-0 gap-1.5 text-xs"
-          >
-            {alertLoading ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <MailCheck className="size-3.5" />
-            )}
-            <span>Test Alert</span>
-          </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {telegramLinked ? (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                disabled={alertLoading}
+                onClick={() => onSendAlert(displayExam)}
+                className="gap-1.5 text-xs"
+              >
+                {alertLoading ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <MailCheck className="size-3.5" />
+                )}
+                <span>Test Alert</span>
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={telegramBusy}
+                onClick={onUnlinkTelegram}
+                className="text-xs"
+              >
+                Unlink
+              </Button>
+            </>
+          ) : telegramCode ? (
+            <>
+              <code className="rounded-md border bg-muted px-2.5 py-1.5 font-mono text-xs">
+                {telegramCode}
+              </code>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={telegramBusy}
+                onClick={onRefreshTelegramStatus}
+                className="text-xs"
+              >
+                {telegramBusy ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                Check status
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              disabled={telegramBusy}
+              onClick={onStartTelegramLink}
+              className="gap-1.5 text-xs"
+            >
+              {telegramBusy ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Smartphone className="size-3.5" />
+              )}
+              Get link code
+            </Button>
+          )}
         </div>
+        {!telegramLinked && telegramCode && (
+          <p className="text-[11px] text-muted-foreground">
+            Send <code className="font-mono">/start {telegramCode}</code> to @
+            {telegramBotUsername || "the bot"} in Telegram, then press Check status.
+          </p>
+        )}
         {alertStatus && <p className="text-[11px] text-success">{alertStatus}</p>}
       </div>
 

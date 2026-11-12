@@ -42,7 +42,6 @@ interface AdaptiveQuizPanelProps {
   initialExamId?: string;
   initialTopic?: string;
   initialSubject?: string;
-  userId?: string;
   onDrillEvaluated?: (result: DrillEvaluatedEvent) => void;
 }
 
@@ -50,7 +49,6 @@ export function AdaptiveQuizPanel({
   initialExamId = "ssc-cgl-tier1",
   initialTopic = "Percentage",
   initialSubject = "Quantitative Aptitude",
-  userId = "usr_demo_001",
   onDrillEvaluated,
 }: AdaptiveQuizPanelProps) {
   const queryClient = useQueryClient(); // 1. Instantiate the query client
@@ -87,7 +85,7 @@ export function AdaptiveQuizPanel({
     onSuccess: (data) => {
       // 2. Invalidate mastery cache so the Roadmap badges update immediately
       queryClient.invalidateQueries({
-        queryKey: ["topic-mastery", userId, initialExamId],
+        queryKey: ["topic-mastery", initialExamId],
       });
 
       if (onDrillEvaluated) {
@@ -170,7 +168,6 @@ export function AdaptiveQuizPanel({
 
   const handleSubmit = () => {
     submitMutation.mutate({
-      user_id: userId,
       exam_id: initialExamId,
       topic: selectedTopic,
       answers: Object.entries(answers).map(([qId, val]) => ({
@@ -277,14 +274,13 @@ export function AdaptiveQuizPanel({
                 Detailed Question Explanations
               </h4>
               <div className="space-y-3">
-                {quiz.questions.map((q, idx) => {
-                  const userAnswer = answers[q.id]?.option;
-                  const isCorrect = userAnswer === q.correct_option;
-                  const timeSpent = answers[q.id]?.time || 0;
+                {submitMutation.data.results.map((result, idx) => {
+                  const isCorrect = result.is_correct;
+                  const timeSpent = result.time_taken_sec;
 
                   return (
                     <div
-                      key={q.id}
+                      key={result.question_id}
                       className="p-4 rounded-xl border border-border/60 bg-muted/20 space-y-3 text-sm"
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -295,18 +291,18 @@ export function AdaptiveQuizPanel({
                             <XCircle className="h-4 w-4 text-destructive shrink-0" />
                           )}
                           <span>
-                            Q{idx + 1}. {q.question}
+                            Q{idx + 1}. {result.question}
                           </span>
                         </div>
                         <Badge variant="outline" className="text-[10px] shrink-0 font-mono">
-                          {timeSpent}s / {q.expected_time_sec}s
+                          {timeSpent}s
                         </Badge>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                        {Object.entries(q.options).map(([k, text]) => {
-                          const isUserChoice = userAnswer === k;
-                          const isRightChoice = q.correct_option === k;
+                        {Object.entries(result.options).map(([k, text]) => {
+                          const isUserChoice = result.selected_option === k;
+                          const isRightChoice = result.correct_option === k;
 
                           let badgeStyle = "border-border/60 text-muted-foreground";
                           if (isRightChoice) {
@@ -328,10 +324,10 @@ export function AdaptiveQuizPanel({
                         })}
                       </div>
 
-                      {q.explanation && (
+                      {result.explanation && (
                         <div className="p-3 rounded-lg bg-background/60 border border-border/40 text-xs text-muted-foreground space-y-1">
                           <strong className="text-foreground">Solution:</strong>
-                          <p>{q.explanation}</p>
+                          <p>{result.explanation}</p>
                         </div>
                       )}
                     </div>
