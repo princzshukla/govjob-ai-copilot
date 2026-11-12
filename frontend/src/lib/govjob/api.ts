@@ -1,5 +1,8 @@
 import type {
   CandidateProfile,
+  CandidateProfileOut,
+  SavedRoadmap,
+  RoadmapProgress,
   EligibilityCheckResponse,
   MissingFieldPrompt,
   StudyRoadmapResponse,
@@ -23,6 +26,20 @@ const API_BASE =
 const REQUEST_TIMEOUT_MS = 25000; // Increased to 25s to account for AI Groq question generation
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Global 401 handler: the app registers this once (in the root component) so
+// that ANY API call that comes back unauthenticated logs the user out of the
+// cached state and opens the sign-in dialog.
+type UnauthorizedHandler = () => void;
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  unauthorizedHandler = handler;
+}
+
+function notifyUnauthorized(): void {
+  unauthorizedHandler?.();
+}
 
 export interface ParseResumeResult {
   extracted_profile: CandidateProfile;
@@ -48,11 +65,16 @@ async function fetchWithTimeout(input: string, init?: RequestInit): Promise<Resp
 async function callApi<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     const res = await fetchWithTimeout(`${API_BASE}${path}`, init);
+    if (res.status === 401) {
+      // Session expired or rejected anywhere in the app.
+      notifyUnauthorized();
+    }
     if (!res.ok) {
       const err = (await res.json().catch(() => ({}))) as { detail?: string };
       throw new Error(err.detail || `Server returned HTTP ${res.status}: ${res.statusText}`);
     }
-    return (await res.json()) as T;
+    // 204 No Content must not be parsed as JSON.
+    return (res.status === 204 ? undefined : await res.json()) as T;
   } catch (err) {
     console.error(`API Call failed on [${path}]:`, err);
     if (err instanceof Error) {
@@ -142,6 +164,58 @@ export function buildCandidatePayload(profile: CandidateProfile): Record<string,
     passing_year: passingYear ? Number(passingYear) : null,
     skills: Array.isArray(raw["skills"]) ? raw["skills"] : [],
   };
+}
+
+/**
+ * Best-effort payload for the candidate profile persistence endpoints.
+ * Unlike `buildCandidatePayload`, missing fields are simply omitted — the
+ * server stores partial drafts instead of rejecting them.
+ */
+export function buildProfilePayload(profile: CandidateProfile): Record<string, unknown> {
+  const raw = profile as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+
+  const fullName = asTrimmedString(raw["full_name"]);
+  if (fullName) out["full_name"] = fullName;
+
+  const dob = toIsoDate(raw["dob"] ?? raw["date_of_birth"]);
+  if (dob) out["dob"] = dob;
+
+  const gender = asTrimmedString(raw["gender"]);
+  if (gender) out["gender"] = gender;
+
+  const rawCategory = asTrimmedString(raw["category"]);
+  if (rawCategory) out["category"] = rawCategory === "OBC" ? "OBC-NCL" : rawCategory;
+
+  if (raw["is_pwd"] !== undefined || raw["physical_disability"] !== undefined) {
+    out["is_pwd"] = toBoolean(raw["is_pwd"] ?? raw["physical_disability"]);
+  }
+
+  const domicileState = asTrimmedString(raw["domicile_state"]);
+  if (domicileState) out["domicile_state"] = domicileState;
+
+  const highestDegree = asTrimmedString(raw["highest_degree"]);
+  if (highestDegree) out["highest_degree"] = highestDegree;
+
+  const stream = asTrimmedString(raw["stream"]);
+  if (stream) out["stream"] = stream;
+
+  const rawPercentage = raw["percentage_cgpa"];
+  if (rawPercentage !== null && rawPercentage !== undefined && rawPercentage !== "") {
+    const parsed = Number(rawPercentage);
+    if (!Number.isNaN(parsed)) out["percentage_cgpa"] = parsed;
+  }
+
+  if (raw["passing_year"] !== null && raw["passing_year"] !== undefined && raw["passing_year"] !== "") {
+    const parsed = Number(raw["passing_year"]);
+    if (Number.isFinite(parsed)) out["passing_year"] = parsed;
+  }
+
+  if (Array.isArray(raw["skills"])) {
+    out["skills"] = raw["skills"].filter((s): s is string => typeof s === "string" && !!s.trim());
+  }
+
+  return out;
 }
 
 // ==========================================
@@ -250,5 +324,144 @@ export async function fetchUserMastery(
 ): Promise<UserMasteryResponse> {
   return callApi<UserMasteryResponse>(
     `/adaptive/mastery/${encodeURIComponent(examId)}`,
+  );
+}
+
+// ==========================================
+// ACCOUNT & AUTH ENDPOINTS
+// ==========================================
+
+export interface UserOut {
+  id: number;
+  email: string;
+  full_name: string | null;
+  phone: string | null;
+  created_at: string;
+}
+
+export interface RegisterPayload {
+  email: string;
+  password: string;
+  full_name: string;
+  phone?: string | null;
+}
+
+export interface ClaimDraftResponse {
+  status: "claimed" | "already_claimed";
+  profile: CandidateProfileOut;
+}
+
+export function register(payload: RegisterPayload): Promise<UserOut> {
+  return callApi<UserOut>("/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function login(email: string, password: string): Promise<UserOut> {
+  return callApi<UserOut>("/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function logout(): Promise<void> {
+  await callApi<{ message: string }>("/auth/logout", { method: "POST" });
+}
+
+export function changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+  return callApi<{ message: string }>("/users/me/change-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
+
+export async function deleteAccount(password: string): Promise<void> {
+  const res = await fetchWithTimeout(`${API_BASE}/users/me`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+  if (res.status === 401) notifyUnauthorized();
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { detail?: string };
+    throw new Error(err.detail || `Could not delete account (HTTP ${res.status})`);
+  }
+}
+
+/** Fetch the current session user. 401 (guest) returns null without raising. */
+export async function getMe(): Promise<UserOut | null> {
+  const res = await fetchWithTimeout(`${API_BASE}/auth/me`, { method: "GET" });
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error(`Could not load the session user (HTTP ${res.status})`);
+  return (await res.json()) as UserOut;
+}
+
+// ==========================================
+// PROFILE & PERSISTENCE ENDPOINTS
+// ==========================================
+
+export async function getMyProfile(): Promise<CandidateProfileOut | null> {
+  const res = await fetchWithTimeout(`${API_BASE}/users/me/profile`, { method: "GET" });
+  if (res.status === 401) {
+    notifyUnauthorized();
+    throw new Error("Not authenticated");
+  }
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Could not load your profile (HTTP ${res.status})`);
+  return (await res.json()) as CandidateProfileOut;
+}
+
+export function putMyProfile(profile: CandidateProfile): Promise<CandidateProfileOut> {
+  return callApi<CandidateProfileOut>("/users/me/profile", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(buildProfilePayload(profile)),
+  });
+}
+
+export function claimMyDraft(profile: CandidateProfile): Promise<ClaimDraftResponse> {
+  return callApi<ClaimDraftResponse>("/users/me/claim-draft", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(buildProfilePayload(profile)),
+  });
+}
+
+export async function getMyRoadmap(examId: string): Promise<SavedRoadmap | null> {
+  const res = await fetchWithTimeout(`${API_BASE}/users/me/roadmaps/${encodeURIComponent(examId)}`, {
+    method: "GET",
+  });
+  if (res.status === 401) {
+    notifyUnauthorized();
+    throw new Error("Not authenticated");
+  }
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Could not load your roadmap (HTTP ${res.status})`);
+  return (await res.json()) as SavedRoadmap;
+}
+
+export function getRoadmapProgress(roadmapId: string): Promise<RoadmapProgress> {
+  return callApi<RoadmapProgress>(
+    `/users/me/roadmaps/${encodeURIComponent(roadmapId)}/progress`,
+    { method: "GET" },
+  );
+}
+
+export function toggleRoadmapWeek(
+  roadmapId: string,
+  weekNo: number,
+  done: boolean,
+): Promise<RoadmapProgress> {
+  return callApi<RoadmapProgress>(
+    `/users/me/roadmaps/${encodeURIComponent(roadmapId)}/progress`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ week_no: weekNo, done }),
+    },
   );
 }

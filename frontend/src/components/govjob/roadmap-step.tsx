@@ -23,6 +23,9 @@ interface RoadmapStepProps {
   onToggleWeek: (weekNumber: number) => void;
   onPracticeTopic?: (topic: string, subject: string) => void;
   examId?: string;
+  /** Week highlighted as the user's current focus (URL `?week=`). */
+  activeWeek?: number;
+  onWeekSelect?: (weekNumber: number) => void;
 }
 
 export function RoadmapStep({
@@ -31,6 +34,8 @@ export function RoadmapStep({
   onToggleWeek,
   onPracticeTopic,
   examId = "ssc-cgl-tier1",
+  activeWeek,
+  onWeekSelect,
 }: RoadmapStepProps) {
   const { data: masteryData } = useTopicMastery(examId);
 
@@ -242,6 +247,8 @@ export function RoadmapStep({
                     isDone
                       ? "border-success/50 bg-success/10 opacity-80"
                       : "bg-muted/30 hover:border-primary/40 hover:bg-muted/50",
+                    activeWeek === week.week_number &&
+                      "ring-2 ring-primary/60 border-primary/40",
                   )}
                 >
                   <div className="flex items-start gap-3">
@@ -252,7 +259,17 @@ export function RoadmapStep({
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-bold">Week {week.week_number}:</span>
+                        <button
+                          type="button"
+                          className="font-bold underline decoration-dotted underline-offset-4 hover:text-primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onWeekSelect?.(week.week_number);
+                          }}
+                          title="Set as your focus week"
+                        >
+                          Week {week.week_number}:
+                        </button>
                         <span className="font-medium text-primary">{week.focus_subject}</span>
                         <Badge variant="secondary" className="text-[10px] uppercase">
                           {week.phase}

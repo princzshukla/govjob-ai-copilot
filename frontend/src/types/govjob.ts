@@ -75,6 +75,29 @@ export interface SyncLiveJobsResponse {
   message?: string;
 }
 
+export interface SavedRoadmap {
+  roadmap_id: string;
+  exam_id: string;
+  target_weeks: number;
+  roadmap: StudyRoadmapResponse;
+  created_at: string;
+  completed_weeks: number[];
+  completed_count: number;
+  percent: number;
+}
+
+export interface RoadmapProgress {
+  roadmap_id: string;
+  target_weeks: number;
+  completed_weeks: number[];
+  completed_count: number;
+  percent: number;
+}
+
+export interface CandidateProfileOut extends CandidateProfile {
+  id: string;
+}
+
 export interface TelegramAlertResponse {
   status?: string;
   detail?: string;
