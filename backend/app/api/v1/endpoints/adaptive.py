@@ -31,8 +31,8 @@ router = APIRouter()
 async def get_quiz(
     request: Request,
     exam_id: str = Query(..., pattern=r"^[a-z0-9-]{1,64}$", description="Target exam ID (e.g. ssc-cgl-tier1)"),
-    subject: str = Query(..., pattern=r"^[A-Za-z0-9][A-Za-z0-9 &()./-]{0,63}$", description="Subject domain"),
-    topic: str = Query(..., pattern=r"^[A-Za-z0-9][A-Za-z0-9 &()./-]{0,79}$", description="Specific syllabus topic"),
+    subject: str = Query(..., pattern=r"^[A-Za-z0-9][A-Za-z0-9 &(),.'\-/-]{0,63}$", description="Subject domain"),
+    topic: str = Query(..., pattern=r"^[A-Za-z0-9][A-Za-z0-9 &(),.'\-/-]{0,79}$", description="Specific syllabus topic"),
     count: int = Query(3, ge=1, le=10),
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),

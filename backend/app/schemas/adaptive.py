@@ -36,7 +36,7 @@ class QuizGenerateResponse(BaseModel):
 # ----------------------------------------------------
 # Quiz Submission & Diagnostics Schemas
 # ----------------------------------------------------
-_PARAM_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9 &()./-]{0,79}$"
+_PARAM_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9 &(),.'\-/-]{0,79}$"
 
 
 class QuestionAnswerItem(BaseModel):
