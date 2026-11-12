@@ -21,7 +21,7 @@ def set_session_cookie(response: Response, token: str) -> None:
         path="/",
         httponly=True,  # JS cannot read it, so XSS can't exfiltrate the session
         secure=settings.COOKIE_SECURE,  # must be true in production (HTTPS)
-        samesite="lax",  # blocks cross-site POST (CSRF), allows normal navigation
+        samesite=settings.COOKIE_SAMESITE,
     )
 
 
@@ -31,5 +31,5 @@ def clear_session_cookie(response: Response) -> None:
         path="/",
         httponly=True,
         secure=settings.COOKIE_SECURE,
-        samesite="lax",
+        samesite=settings.COOKIE_SAMESITE,
     )

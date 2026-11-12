@@ -27,6 +27,31 @@ const REQUEST_TIMEOUT_MS = 25000; // Increased to 25s to account for AI Groq que
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+// FastAPI returns `detail` as a string for HTTPException but as a LIST of
+// validation-error objects for 422s. Coerce either into human text.
+export function detailToMessage(detail: unknown, fallback: string): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((entry) => {
+        if (!entry || typeof entry !== "object") return null;
+        const loc = Array.isArray((entry as { loc?: unknown }).loc)
+          ? ((entry as { loc: unknown[] }).loc as unknown[])
+              .slice(1)
+              .map((p) => String(p))
+              .join(".")
+          : "";
+        const msg = typeof (entry as { msg?: unknown }).msg === "string"
+          ? ((entry as { msg: string }).msg as string)
+          : "Invalid value";
+        return loc ? `${loc}: ${msg}` : msg;
+      })
+      .filter((s): s is string => !!s);
+    return parts.length > 0 ? parts.join(". ") : fallback;
+  }
+  return fallback;
+}
+
 // Global 401 handler: the app registers this once (in the root component) so
 // that ANY API call that comes back unauthenticated logs the user out of the
 // cached state and opens the sign-in dialog.
@@ -70,8 +95,10 @@ async function callApi<T>(path: string, init?: RequestInit): Promise<T> {
       notifyUnauthorized();
     }
     if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as { detail?: string };
-      throw new Error(err.detail || `Server returned HTTP ${res.status}: ${res.statusText}`);
+      const errBody: unknown = await res.json().catch(() => ({}));
+      throw new Error(
+        detailToMessage((errBody as { detail?: unknown }).detail, `Server returned HTTP ${res.status}: ${res.statusText}`),
+      );
     }
     // 204 No Content must not be parsed as JSON.
     return (res.status === 204 ? undefined : await res.json()) as T;
@@ -395,8 +422,10 @@ export async function deleteAccount(password: string): Promise<void> {
   });
   if (res.status === 401) notifyUnauthorized();
   if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(err.detail || `Could not delete account (HTTP ${res.status})`);
+    const errBody: unknown = await res.json().catch(() => ({}));
+    throw new Error(
+      detailToMessage((errBody as { detail?: unknown }).detail, `Could not delete account (HTTP ${res.status})`),
+    );
   }
 }
 

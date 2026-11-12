@@ -106,6 +106,8 @@ export function AuthDialog() {
                   type="email"
                   autoComplete="email"
                   required
+                  pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+                  title="Use your full email, for example you@example.com"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -144,6 +146,8 @@ export function AuthDialog() {
                   type="email"
                   autoComplete="email"
                   required
+                  pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+                  title="Use your full email, for example you@example.com"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -157,9 +161,18 @@ export function AuthDialog() {
                   id="auth-phone"
                   type="tel"
                   autoComplete="tel"
+                  inputMode="tel"
+                  pattern="\+?[0-9 ]{7,20}"
+                  title="Include your country code, for example +91 98765 43210"
                   placeholder="+91 98765 43210"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => {
+                    // Keep only a leading +, digits and spaces; strip the rest live.
+                    const raw = e.target.value;
+                    const leadingPlus = raw.trimStart().startsWith("+") ? "+" : "";
+                    const digits = raw.replace(/\D/g, "");
+                    setPhone(leadingPlus + digits);
+                  }}
                 />
               </div>
               <div className="space-y-1.5">
