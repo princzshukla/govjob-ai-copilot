@@ -27,6 +27,10 @@ async def _resolve_user(request: Request, db: AsyncSession) -> User | None:
     if session is None or session.expires_at <= datetime.now(timezone.utc):
         return None
 
+    # Expose the owning session so account endpoints can revoke every session
+    # except this one without re-reading the raw cookie.
+    request.state.session_id = session.id
+
     return await db.get(User, session.user_id)
 
 

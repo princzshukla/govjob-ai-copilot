@@ -17,8 +17,17 @@ LOGOUT_URL = "/api/v1/auth/logout"
 ME_URL = "/api/v1/auth/me"
 
 
-async def register(client, email: str = EMAIL, password: str = PASSWORD):
-    return await client.post(REGISTER_URL, json={"email": email, "password": password})
+async def register(
+    client,
+    email: str = EMAIL,
+    password: str = PASSWORD,
+    full_name: str = "Test User",
+    phone: str | None = None,
+):
+    body = {"email": email, "password": password, "full_name": full_name}
+    if phone is not None:
+        body["phone"] = phone
+    return await client.post(REGISTER_URL, json=body)
 
 
 async def login(client, email: str = EMAIL, password: str = PASSWORD):
