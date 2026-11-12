@@ -1,15 +1,20 @@
 import uuid
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from typing import List
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.core.database import get_db  # adjust if your session generator is named differently
+from app.api.v1.deps import current_user, user_or_ip_key
+from app.core.database import get_db
+from app.core.rate_limit import limiter
 from app.models.adaptive import QuestionBank, QuizAttempt, TopicMastery
+from app.models.auth import User
 from app.schemas.adaptive import (
     QuizGenerateResponse,
     SubmitQuizPayload,
     QuizEvaluationResponse,
+    QuestionReviewItem,
     UserMasteryResponse,
     TopicMasteryItem,
     DiagnosticItem,
@@ -20,27 +25,30 @@ router = APIRouter()
 
 
 @router.get("/quiz", response_model=QuizGenerateResponse)
+@limiter.limit("30/hour", key_func=user_or_ip_key)
 async def get_quiz(
+    request: Request,
     exam_id: str = Query(..., description="Target exam ID (e.g. ssc-cgl-tier1)"),
     subject: str = Query(..., description="Subject domain"),
     topic: str = Query(..., description="Specific syllabus topic"),
     count: int = Query(3, ge=1, le=10),
-    user_id: Optional[str] = Query("usr_demo_001", description="Candidate ID to exclude seen questions"),
+    user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Fetches unseen questions for the user from QuestionBank,
+    Fetches questions for the logged-in candidate from QuestionBank,
     falling back to Groq if cache misses occur.
+
+    The owner is always the session user; there is no user_id input.
     """
     questions = await get_or_generate_quiz(
         db=db,
         exam_id=exam_id,
         subject=subject,
         topic=topic,
-        user_id=user_id,
         count=count,
     )
-    
+
     quiz_id = f"quiz_{uuid.uuid4().hex[:8]}"
     return QuizGenerateResponse(
         quiz_id=quiz_id,
@@ -52,42 +60,51 @@ async def get_quiz(
 
 
 @router.post("/submit-quiz", response_model=QuizEvaluationResponse)
+@limiter.limit("60/hour", key_func=user_or_ip_key)
 async def submit_quiz(
+    request: Request,
     payload: SubmitQuizPayload,
+    user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Evaluates submissions, performs diagnostic error classification (Rush vs Conceptual),
     updates TopicMastery EMA, and logs QuizAttempt to record candidate drills.
+
+    The score is always derived from the stored question rows; nothing the client
+    sends besides option keys, timing and the topic is trusted.
     """
     if not payload.answers:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="No answers provided."
         )
 
-    # 1. Initialize metrics upfront so they are never unbound
-    total_attempted = len(payload.answers)
-    correct_count = 0
     diagnostics: List[DiagnosticItem] = []
+    results: List[QuestionReviewItem] = []
+    correct_count = 0
 
-    # 2. Fetch questions to evaluate correctness and baseline expected timings
+    # Fetch questions to evaluate correctness and baseline expected timings.
+    # The topic/exam filters stop a client from grading questions from another
+    # drill while recording the attempt against this one.
     q_ids = [ans.question_id for ans in payload.answers]
-    stmt = select(QuestionBank).where(QuestionBank.id.in_(q_ids))
+    stmt = select(QuestionBank).where(
+        QuestionBank.id.in_(q_ids),
+        QuestionBank.topic == payload.topic,
+        QuestionBank.exam_id == payload.exam_id,
+    )
     result = await db.execute(stmt)
     db_questions = {q.id: q for q in result.scalars().all()}
 
-    # 3. Evaluate answers
     for ans in payload.answers:
         q_record = db_questions.get(ans.question_id)
         if not q_record:
+            # Unknown/foreign question ids are ignored, not counted as attempts.
             continue
 
         q_data = q_record.question_data or {}
-        correct_option = q_data.get("correct_option")
+        correct_option = str(q_data.get("correct_option", "")).strip().upper()
         expected_time = q_data.get("expected_time_sec", 45)
-        is_correct = (
-            ans.selected_option.strip().upper() == str(correct_option).strip().upper()
-        )
+        is_correct = ans.selected_option.strip().upper() == correct_option
 
         if is_correct:
             correct_count += 1
@@ -110,16 +127,31 @@ async def submit_quiz(
                 )
             )
 
-    accuracy_pct = (
-        round((correct_count / total_attempted) * 100, 1)
-        if total_attempted > 0
-        else 0.0
-    )
+        results.append(
+            QuestionReviewItem(
+                question_id=ans.question_id,
+                question=q_data.get("question", ""),
+                options=q_data.get("options", {}),
+                selected_option=ans.selected_option.strip().upper(),
+                correct_option=correct_option,
+                explanation=q_data.get("explanation"),
+                is_correct=is_correct,
+                time_taken_sec=ans.time_taken_sec,
+            )
+        )
 
-    # 4. Log drill attempt into QuizAttempt (matching your model columns)
+    total_attempted = len(results)
+    if total_attempted == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="None of the submitted questions could be found.",
+        )
+
+    accuracy_pct = round((correct_count / total_attempted) * 100, 1)
+
     attempt = QuizAttempt(
         id=str(uuid.uuid4()),
-        user_id=payload.user_id,
+        user_id=user.id,
         exam_id=payload.exam_id,
         topic=payload.topic,
         score=correct_count,
@@ -130,12 +162,12 @@ async def submit_quiz(
     )
     db.add(attempt)
 
-    # 5. Update or Insert TopicMastery with Exponential Moving Average (EMA)
+    # Update or Insert TopicMastery with Exponential Moving Average (EMA)
     ALPHA = 0.35
     normalized_acc = accuracy_pct / 100.0
 
     mastery_stmt = select(TopicMastery).where(
-        TopicMastery.user_id == payload.user_id,
+        TopicMastery.user_id == user.id,
         TopicMastery.exam_id == payload.exam_id,
         TopicMastery.topic == payload.topic,
     )
@@ -150,7 +182,7 @@ async def submit_quiz(
     else:
         mastery_record = TopicMastery(
             id=str(uuid.uuid4()),
-            user_id=payload.user_id,
+            user_id=user.id,
             exam_id=payload.exam_id,
             subject="General",
             topic=payload.topic,
@@ -170,7 +202,7 @@ async def submit_quiz(
 
     mastery_record.status = topic_status
 
-    # 6. Generate micro-revisions if needed
+    # Generate micro-revisions if needed
     micro_revisions = []
     if topic_status == "Needs Revision" or any(
         d.mistake_type == "Conceptual Gap" for d in diagnostics
@@ -190,20 +222,23 @@ async def submit_quiz(
         diagnostics=diagnostics,
         micro_revisions_added=micro_revisions,
         roadmap_structure_changed=len(micro_revisions) > 0,
+        results=results,
     )
 
 
-@router.get("/mastery/{user_id}/{exam_id}", response_model=UserMasteryResponse)
+@router.get("/mastery/{exam_id}", response_model=UserMasteryResponse)
+@limiter.limit("120/hour", key_func=user_or_ip_key)
 async def get_user_mastery(
-    user_id: str,
+    request: Request,
     exam_id: str,
+    user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Returns all topic masteries for a user on a given exam.
+    Returns all topic masteries for the logged-in user on a given exam.
     """
     stmt = select(TopicMastery).where(
-        TopicMastery.user_id == user_id,
+        TopicMastery.user_id == user.id,
         TopicMastery.exam_id == exam_id,
     )
     result = await db.execute(stmt)
@@ -222,7 +257,7 @@ async def get_user_mastery(
     ]
 
     return UserMasteryResponse(
-        user_id=user_id,
+        user_id=user.id,
         exam_id=exam_id,
         topics=topics,
     )
