@@ -1,8 +1,7 @@
 # app/models/adaptive.py
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, ForeignKey, JSON
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, JSON
 from app.models.exam import Base
 
 class QuestionBank(Base):
@@ -21,7 +20,17 @@ class TopicMastery(Base):
     __tablename__ = "topic_mastery"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, index=True, nullable=False)
+    # Integer FK: mastery belongs to an account row, never to a client string.
+    user_id = Column(
+        Integer,
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE",
+            name="fk_topic_mastery_user_id",
+        ),
+        index=True,
+        nullable=False,
+    )
     exam_id = Column(String, index=True, nullable=False)
     subject = Column(String, nullable=False)
     topic = Column(String, index=True, nullable=False)
@@ -35,7 +44,16 @@ class QuizAttempt(Base):
     __tablename__ = "quiz_attempts"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, index=True, nullable=False)
+    user_id = Column(
+        Integer,
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE",
+            name="fk_quiz_attempts_user_id",
+        ),
+        index=True,
+        nullable=False,
+    )
     exam_id = Column(String, nullable=False)
     topic = Column(String, nullable=False)
     score = Column(Integer, nullable=False)
