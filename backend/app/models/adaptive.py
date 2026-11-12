@@ -1,7 +1,7 @@
 # app/models/adaptive.py
 import uuid
-from datetime import datetime
-from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, JSON
+from datetime import datetime, timezone
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, JSON
 from app.models.exam import Base
 
 class QuestionBank(Base):
@@ -14,7 +14,7 @@ class QuestionBank(Base):
     sub_topic = Column(String, index=True, nullable=True)# e.g. "Successive Percentage Change"
     difficulty = Column(String, default="Medium")        # Easy, Medium, Hard
     question_data = Column(JSON, nullable=False)         # {question, options, correct_option, explanation}
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 class TopicMastery(Base):
     __tablename__ = "topic_mastery"
@@ -38,7 +38,13 @@ class TopicMastery(Base):
     attempts_count = Column(Integer, default=0)
     status = Column(String, default="Moderate")
     consecutive_fails = Column(Integer, default=0)
-    last_reviewed_at = Column(DateTime, default=datetime.utcnow) # <-- Column name is last_reviewed_at
+    last_reviewed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)) # <-- Column name is last_reviewed_at
+
+    __table_args__ = (
+        # One mastery row per (user, exam, topic): the endpoint upserts with
+        # ON CONFLICT so this is also what keeps upserts atomic.
+        UniqueConstraint("user_id", "exam_id", "topic", name="uq_topic_mastery_user_exam_topic"),
+    )
 
 class QuizAttempt(Base):
     __tablename__ = "quiz_attempts"
@@ -61,4 +67,4 @@ class QuizAttempt(Base):
     accuracy_percentage = Column(Float, nullable=False)
     time_taken_seconds = Column(Integer, default=0)
     diagnostics_log = Column(JSON, nullable=True)        # Mistake classifications
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))

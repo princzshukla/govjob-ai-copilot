@@ -36,6 +36,9 @@ class QuizGenerateResponse(BaseModel):
 # ----------------------------------------------------
 # Quiz Submission & Diagnostics Schemas
 # ----------------------------------------------------
+_PARAM_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9 &()./-]{0,79}$"
+
+
 class QuestionAnswerItem(BaseModel):
     question_id: str = Field(min_length=1, max_length=64)
     # The UI only ever sends the option key, never free text.
@@ -44,8 +47,8 @@ class QuestionAnswerItem(BaseModel):
 
 
 class SubmitQuizPayload(BaseModel):
-    exam_id: str = Field(min_length=1, max_length=100)
-    topic: str = Field(min_length=1, max_length=200)
+    exam_id: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9-]{1,64}$")
+    topic: str = Field(min_length=1, max_length=80, pattern=_PARAM_PATTERN)
     # No user_id: the owner always comes from the session cookie.
     answers: List[QuestionAnswerItem] = Field(min_length=1, max_length=50)
 
@@ -83,7 +86,6 @@ class QuizEvaluationResponse(BaseModel):
     topic_status: str  # "Mastered" | "Moderate" | "Needs Revision"
     diagnostics: List[DiagnosticItem] = []
     micro_revisions_added: List[str] = []
-    roadmap_structure_changed: bool = False
     results: List[QuestionReviewItem] = []
 
 

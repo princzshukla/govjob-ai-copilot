@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import delete, select
@@ -24,10 +25,23 @@ from app.schemas.auth import LoginIn, RegisterIn, UserOut
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 INVALID_CREDENTIALS = "Invalid email or password"
+# Never reveal which identifier collided: same copy for the pre-check and the
+# concurrent insert path, so duplicate registration is not an enumeration oracle.
+GENERIC_CONFLICT = "An account with this email or phone already exists"
+
+# Expired-session pruning is write-heavy on every login; throttle it to once
+# per 10 minutes per process instead of twice-two-commits-per-login.
+_PRUNE_INTERVAL_SECONDS = 600
+_last_prune_at = 0.0
 
 
-async def delete_expired_sessions(db: AsyncSession) -> None:
-    """Remove expired rows. Cheap thanks to the expires_at index."""
+async def delete_expired_sessions(db: AsyncSession, *, force: bool = False) -> None:
+    """Remove expired rows; at most once per process every 10 minutes."""
+    global _last_prune_at
+    now = time.monotonic()
+    if not force and now - _last_prune_at < _PRUNE_INTERVAL_SECONDS:
+        return
+    _last_prune_at = now
     await db.execute(
         delete(Session).where(Session.expires_at < datetime.now(timezone.utc))
     )
@@ -38,14 +52,15 @@ async def delete_expired_sessions(db: AsyncSession) -> None:
 @limiter.limit("5/minute")
 async def register(
     request: Request,
+    response: Response,
     payload: RegisterIn,
     db: AsyncSession = Depends(get_db),
 ) -> UserOut:
     existing = await db.scalar(select(User.id).where(User.email == payload.email))
     if existing is not None:
-        # Email conflicts are the overwhelmingly common case here.
+        # Same wording as the concurrent-insert path: no enumeration signal.
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Email already registered"
+            status_code=status.HTTP_409_CONFLICT, detail=GENERIC_CONFLICT
         )
 
     # Argon2 is CPU-bound (~100ms+); run off the event loop so it can't stall
@@ -64,10 +79,25 @@ async def register(
         # Unique constraint wins the race: email (or phone) already registered.
         await db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email or phone already exists",
+            status_code=status.HTTP_409_CONFLICT, detail=GENERIC_CONFLICT
         )
     await db.refresh(user)
+
+    # Registration also opens a session, like login does.
+    token = generate_session_token()
+    expires_at = datetime.now(timezone.utc) + timedelta(days=settings.SESSION_TTL_DAYS)
+    db.add(
+        Session(
+            token_hash=hash_session_token(token),
+            user_id=user.id,
+            expires_at=expires_at,
+        )
+    )
+    await db.commit()
+
+    await delete_expired_sessions(db)
+
+    set_session_cookie(response, token)
     return UserOut.model_validate(user)
 
 

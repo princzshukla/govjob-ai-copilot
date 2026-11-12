@@ -65,12 +65,21 @@ def _profile_out(row: CandidateProfile) -> CandidateProfileOut:
     )
 
 
-def _profile_values(payload: CandidateProfileIn) -> dict:
-    values = payload.model_dump()
+def _profile_values(
+    payload: CandidateProfileIn, *, exclude_unset: bool = True
+) -> dict:
+    """Map a payload to DB columns.
+
+    ``exclude_unset=True`` (merge mode): only fields present in the payload are
+    changed; an explicit null clears a column, absent fields stay untouched.
+    ``False`` (claim mode): the draft is stored exactly as given.
+    """
+
+    values = payload.model_dump(exclude_unset=exclude_unset)
     for field, default in _DEFAULTED_FIELDS.items():
-        if values.get(field) is None:
+        if values.get(field) is None and (field in values or not exclude_unset):
             values[field] = default
-    if values.get("is_pwd") is None:
+    if values.get("is_pwd") is None and ("is_pwd" in values or not exclude_unset):
         values["is_pwd"] = False
     return values
 
@@ -115,12 +124,14 @@ async def put_profile(
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CandidateProfileOut:
-    """Full replace: the account stores exactly this profile.
+    """Merge update: only fields present in the payload are changed.
 
-    Missing optional fields are stored as missing (partial drafts are a normal
-    state), except the defaulted columns above, which never become NULL.
+    Previously a partial body (e.g. ``{"full_name": ...}``) wiped every absent
+    statutory field (dob, category, percentage…). Explicit nulls now clear a
+    single field; absent fields keep their stored value. The defaulted
+    columns (gender, category, is_pwd) never become NULL.
     """
-    values = _profile_values(payload)
+    values = _profile_values(payload, exclude_unset=True)
     row = await _get_profile_row(db, user.id)
     if row is None:
         row = CandidateProfile(id=str(uuid.uuid4()), user_id=user.id, **values)
@@ -229,7 +240,7 @@ async def claim_draft(
     if existing is not None:
         return ClaimDraftOut(status="already_claimed", profile=_profile_out(existing))
 
-    values = _profile_values(payload)
+    values = _profile_values(payload, exclude_unset=False)
     row = CandidateProfile(
         id=str(uuid.uuid4()),
         user_id=user.id,

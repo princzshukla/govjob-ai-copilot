@@ -187,7 +187,6 @@ export interface QuizEvaluationResponse {
   topic_status: TopicMasteryStatus;
   diagnostics: DiagnosticItem[];
   micro_revisions_added: string[];
-  roadmap_structure_changed: boolean;
   results: QuestionReviewItem[];
 }
 

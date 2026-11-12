@@ -14,16 +14,9 @@ from app.core.config import settings
 from app.core.rate_limit import limiter
 
 
-# Keep explicit origins from env and include origins added on main.
-_cors_origins = list(
-    dict.fromkeys(
-        settings.cors_origins_list
-        + [
-            "http://127.0.0.1:5173",
-            "http://localhost:3000",
-        ]
-    )
-)
+# Keep only origins from env. Dev defaults must not follow the build to prod:
+# the deployment supplies exact HTTPS origins through CORS_ORIGINS there.
+_cors_origins = list(dict.fromkeys(settings.cors_origins_list))
 
 app = FastAPI(
     title="GovJob Matcher & AI Roadmap API",
