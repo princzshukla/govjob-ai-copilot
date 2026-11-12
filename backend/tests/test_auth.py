@@ -95,10 +95,9 @@ async def test_login_sets_httponly_cookie(client):
     # The DB stores only the SHA-256 of the cookie token.
     raw_token = resp.cookies[settings.COOKIE_NAME]
     async with AsyncSessionLocal() as db:
-        stored = await db.scalar(select(Session.token_hash))
+        hashed = hash_session_token(raw_token)
+        stored = await db.scalar(select(Session.token_hash).where(Session.token_hash == hashed))
         assert stored is not None
-        assert stored != raw_token
-        assert stored == hash_session_token(raw_token)
 
 
 async def test_protected_route_without_cookie_returns_401(client):

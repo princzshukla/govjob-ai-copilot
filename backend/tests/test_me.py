@@ -59,11 +59,32 @@ async def test_profile_put_get_roundtrip_and_replace(client):
     assert got.status_code == 200
     assert got.json() == body
 
-    # Replace with fewer fields; the new state is stored verbatim.
+    # PUT merges: unrelated fields keep their stored values, only the
+    # supplied fields change (previously a partial body wiped them).
     await client.put(PROFILE_URL, json={"full_name": "Only Name", "skills": ["GST"]})
     async with AsyncSessionLocal() as db:
         rows = (await db.execute(select(CandidateProfile))).scalars().all()
         assert len(rows) == 1  # one row per user, never duplicated
+        row = rows[0]
+        assert row.full_name == "Only Name"
+        assert row.dob is not None and str(row.dob) == "2001-05-15"
+        assert row.category == "OBC-NCL"
+        assert float(row.percentage_cgpa) == 84.5
+        assert row.skills == ["GST"]
+
+    got = await client.get(PROFILE_URL)
+    assert got.json()["category"] == "OBC-NCL"
+    assert got.json()["percentage_cgpa"] == 84.5
+
+
+async def test_profile_put_explicit_null_clears_one_field(client):
+    await _register_and_login(client)
+    await client.put(PROFILE_URL, json=FULL_PROFILE)
+
+    resp = await client.put(PROFILE_URL, json={"dob": None})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["dob"] is None
+    assert resp.json()["category"] == "OBC-NCL"  # untouched
 
 
 async def test_profile_put_is_rejected_when_invalid(client):
