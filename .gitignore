@@ -6,6 +6,8 @@
 *.pyd
 bug.MD
 bugfixed.md
+IMPLEMENTATION_PLAN.md
+docs/implementation/
 # Node & Bun
 **/node_modules/
 **/.bun/
