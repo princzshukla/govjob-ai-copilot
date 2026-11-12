@@ -1,4 +1,7 @@
+import asyncio
 import os
+from contextlib import asynccontextmanager, suppress
+
 os.environ["DISABLE_SQLALCHEMY_CEXT"] = "1"
 
 from fastapi import FastAPI, Request
@@ -11,7 +14,24 @@ from slowapi.errors import RateLimitExceeded
 
 from app.api.v1.endpoints import adaptive, auth, candidate, eligibility, notifications, user_data, users
 from app.core.config import settings
+from app.core.logging_config import configure_logging
 from app.core.rate_limit import limiter
+from app.core.tasks import session_cleanup_loop
+
+configure_logging()
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Prune expired sessions hourly in-process; the DELETE is idempotent, so
+    # multiple workers doing it is fine.
+    cleanup_task = asyncio.create_task(session_cleanup_loop())
+    try:
+        yield
+    finally:
+        cleanup_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await cleanup_task
 
 
 # Keep only origins from env. Dev defaults must not follow the build to prod:
@@ -21,10 +41,32 @@ _cors_origins = list(dict.fromkeys(settings.cors_origins_list))
 app = FastAPI(
     title="GovJob Matcher & AI Roadmap API",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    """Baseline hardening headers on every response.
+
+    The API serves JSON, so its CSP is a deny-all box. HSTS is only set when
+    the deployment is actually HTTPS (ENVIRONMENT=production).
+    """
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    )
+    if settings.ENVIRONMENT == "production":
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
+    return response
 
 
 @app.exception_handler(RequestValidationError)

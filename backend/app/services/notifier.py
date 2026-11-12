@@ -17,7 +17,7 @@ async def send_telegram_alert(chat_id: str, message: str) -> bool:
     token = settings.TELEGRAM_BOT_TOKEN
 
     if not token:
-        logger.info("Telegram token not configured; alert for chat %s: %s", chat_id, message)
+        logger.info("Telegram token not configured; alert for chat %s (message not logged)", chat_id)
         return True  # Local/testing behaviour, no network call.
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
