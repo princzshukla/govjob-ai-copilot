@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import * as api from "@/lib/govjob/api";
+import { splitPhone } from "@/lib/govjob/phone";
 import { useAuth } from "@/hooks/use-auth";
 import { useGovJobStore } from "@/stores/govjob-store";
 import { DeleteAccountDialog } from "./delete-account-dialog";
@@ -163,13 +164,22 @@ function AccountContent({ user }: { user: api.UserOut }) {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="account-phone">Phone</Label>
-                <Input
-                  id="account-phone"
-                  value={user.phone ?? ""}
-                  placeholder="Not set"
-                  disabled
-                  readOnly
-                />
+                <div className="flex">
+                  <span
+                    aria-hidden="true"
+                    className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-sm text-muted-foreground"
+                  >
+                    +91
+                  </span>
+                  <Input
+                    id="account-phone"
+                    value={splitPhone(user.phone)?.national ?? ""}
+                    placeholder="Not set"
+                    disabled
+                    readOnly
+                    className="rounded-l-none"
+                  />
+                </div>
               </div>
             </div>
             <div className="flex justify-end">
