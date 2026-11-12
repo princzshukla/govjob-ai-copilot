@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
+from app.api.v1.cookies import clear_session_cookie, set_session_cookie
 from app.api.v1.deps import current_user
 from app.core.config import settings
 from app.core.database import get_db
@@ -42,6 +43,7 @@ async def register(
 ) -> UserOut:
     existing = await db.scalar(select(User.id).where(User.email == payload.email))
     if existing is not None:
+        # Email conflicts are the overwhelmingly common case here.
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Email already registered"
         )
@@ -49,15 +51,21 @@ async def register(
     # Argon2 is CPU-bound (~100ms+); run off the event loop so it can't stall
     # other requests.
     password_hash = await run_in_threadpool(hash_password, payload.password)
-    user = User(email=payload.email, password_hash=password_hash)
+    user = User(
+        email=payload.email,
+        full_name=payload.full_name,
+        phone=payload.phone,
+        password_hash=password_hash,
+    )
     db.add(user)
     try:
         await db.commit()
     except IntegrityError:
-        # Unique constraint wins the race if two registrations arrive together.
+        # Unique constraint wins the race: email (or phone) already registered.
         await db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Email already registered"
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email or phone already exists",
         )
     await db.refresh(user)
     return UserOut.model_validate(user)
@@ -100,15 +108,7 @@ async def login(
 
     await delete_expired_sessions(db)
 
-    response.set_cookie(
-        key=settings.COOKIE_NAME,
-        value=token,
-        max_age=settings.SESSION_TTL_DAYS * 24 * 60 * 60,
-        path="/",
-        httponly=True,  # JS cannot read it, so XSS can't exfiltrate the session
-        secure=settings.COOKIE_SECURE,  # must be true in production (HTTPS)
-        samesite="lax",  # blocks cross-site POST (CSRF), allows normal navigation
-    )
+    set_session_cookie(response, token)
     return UserOut.model_validate(user)
 
 
@@ -126,13 +126,7 @@ async def logout(
         await db.commit()
 
     # Always clear the cookie, even if the session was already gone (idempotent).
-    response.delete_cookie(
-        key=settings.COOKIE_NAME,
-        path="/",
-        httponly=True,
-        secure=settings.COOKIE_SECURE,
-        samesite="lax",
-    )
+    clear_session_cookie(response)
     return {"message": "Logged out"}
 
 
