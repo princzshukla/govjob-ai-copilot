@@ -1,12 +1,10 @@
 import re
 from datetime import date
-from typing import List, Dict, Optional
-from app.schemas.candidate import CandidateProfileCreate
-from app.schemas.exam import ExamMatchResult, EligibilityCheckResponse
+from typing import Dict, List, Optional
 from app.models.exam import ExamNotification
+from app.schemas.candidate import CandidateProfileCreate
+from app.schemas.exam import EligibilityCheckResponse, ExamMatchResult
 
-# Educational hierarchy rank: a higher rank automatically satisfies lower
-# statutory education requirements.
 DEGREE_RANK = {
     "10th": 1,
     "12th": 2,
@@ -26,11 +24,7 @@ DEGREE_RANK = {
     "MBA": 4,
 }
 
-# Exact (whole-string) aliases -> canonical degree. Matching on the full
-# normalized string avoids the old substring bugs ("MBA" -> "BA",
-# "B.E" -> "B.Tech") that came from using `in` checks.
 _DEGREE_ALIASES = {
-    # School level
     "10th": "10th",
     "10th pass": "10th",
     "matric": "10th",
@@ -42,10 +36,8 @@ _DEGREE_ALIASES = {
     "senior secondary": "12th",
     "hsc": "12th",
     "plus two": "12th",
-    # Diploma
     "diploma": "Diploma",
     "polytechnic diploma": "Diploma",
-    # Bachelors
     "btech": "B.Tech",
     "b.tech": "B.Tech",
     "bachelor of technology": "B.Tech",
@@ -67,7 +59,6 @@ _DEGREE_ALIASES = {
     "bachelor of arts": "BA",
     "bba": "BBA",
     "bachelor of business administration": "BBA",
-    # Masters
     "mca": "MCA",
     "master of computer applications": "MCA",
     "mtech": "M.Tech",
@@ -81,7 +72,6 @@ _DEGREE_ALIASES = {
     "master of science": "M.Sc",
     "mba": "MBA",
     "master of business administration": "MBA",
-    # Generic
     "any graduate": "Any Graduate",
     "graduate": "Any Graduate",
     "graduation": "Any Graduate",
@@ -89,31 +79,55 @@ _DEGREE_ALIASES = {
     "postgraduate": "Any Graduate",
 }
 
-# Degrees that are treated as equivalent when matching a requirement.
 _DEGREE_GROUPS = [
     {"B.Tech", "BE"},
     {"M.Tech", "M.E"},
 ]
 
+_STREAM_ALIASES = {
+    "cs": "computer science",
+    "cse": "computer science",
+    "computer science & engineering": "computer science",
+    "computer science and engineering": "computer science",
+    "computer applications": "computer science",
+    "it": "information technology",
+    "ece": "electronics and communication",
+    "eee": "electrical and electronics",
+    "ee": "electrical",
+    "me": "mechanical",
+    "ce": "civil",
+}
 
-def _clean_degree(value: str) -> str:
+
+def _clean_text(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip().lower())
 
 
 def normalize_degree(degree_str: str) -> str:
-    """Normalizes a degree string to a canonical identifier (exact matching)."""
-    key = _clean_degree(degree_str)
-
+    key = _clean_text(degree_str)
     if key in _DEGREE_ALIASES:
         return _DEGREE_ALIASES[key]
 
-    # Fall back to a token match for descriptive strings such as
-    # "Bachelor of Technology (Computer Science)".
     for alias, canonical in _DEGREE_ALIASES.items():
         if re.search(rf"(?<![a-z]){re.escape(alias)}(?![a-z])", key):
             return canonical
 
     return degree_str.strip()
+
+
+def normalize_stream(stream_str: str) -> str:
+    key = _clean_text(stream_str)
+    return _STREAM_ALIASES.get(key, key)
+
+
+def normalize_percentage(score: Optional[float]) -> float:
+    """Converts 10-point CGPA (<= 10.0) to approximate percentage (CBSE/UGC 9.5x)."""
+    if score is None:
+        return 0.0
+    val = float(score)
+    if 0 < val <= 10.0:
+        return round(val * 9.5, 2)
+    return val
 
 
 def _degrees_equivalent(candidate_degree: str, required_degree: str) -> bool:
@@ -126,7 +140,6 @@ def _degrees_equivalent(candidate_degree: str, required_degree: str) -> bool:
 
 
 def degree_satisfies(required_degree: str, candidate_degree: str) -> bool:
-    """Returns True when the candidate's degree meets the required degree."""
     required = normalize_degree(required_degree)
     candidate = normalize_degree(candidate_degree)
 
@@ -136,30 +149,31 @@ def degree_satisfies(required_degree: str, candidate_degree: str) -> bool:
         return DEGREE_RANK.get(candidate, 1) >= 3
     return _degrees_equivalent(candidate, required)
 
+
 def calculate_exact_age(dob: date, cutoff_date: date) -> int:
-    """Calculates completed years of age as on the statutory cutoff date."""
     return cutoff_date.year - dob.year - (
         (cutoff_date.month, cutoff_date.day) < (dob.month, dob.day)
     )
 
+
 def get_statutory_relaxation(category: str, is_pwd: bool) -> int:
-    """Returns statutory upper-age relaxation in years per Government of India norms."""
     cat = category.upper().strip()
     relaxation = 0
     if cat in ["SC", "ST"]:
         relaxation = 5
     elif cat in ["OBC", "OBC-NCL"]:
         relaxation = 3
-    
+
     if is_pwd:
-        relaxation += 10  # PwBD adds 10 yrs (total 10 Gen, 13 OBC, 15 SC/ST)
+        relaxation += 10  # PwBD adds 10 yrs (total 10 Gen/EWS, 13 OBC, 15 SC/ST)
     return relaxation
+
 
 def check_single_exam_eligibility(
     candidate: CandidateProfileCreate,
     exam: ExamNotification,
     exam_topics_map: Dict[str, set],
-    primary_exam_id: Optional[str] = None
+    primary_exam_id: Optional[str] = None,
 ) -> ExamMatchResult:
     reasons_failed = []
 
@@ -185,31 +199,28 @@ def check_single_exam_eligibility(
 
     # 3. Technical / Specialist Stream Verification
     if exam.allowed_streams and "Any" not in exam.allowed_streams:
-        cand_stream = (candidate.stream or "").strip()
-        if not cand_stream or cand_stream.lower() == "any":
-            # An empty/"Any" stream must not silently satisfy a specialist
-            # requirement (empty string used to match everything).
+        raw_stream = (candidate.stream or "").strip()
+        if not raw_stream or raw_stream.lower() == "any":
             reasons_failed.append(
                 f"Stream unspecified: requires one of {exam.allowed_streams}"
             )
-            stream_matched = False
         else:
+            norm_cand_stream = normalize_stream(raw_stream)
             stream_matched = any(
-                s.lower() in cand_stream.lower() or cand_stream.lower() in s.lower()
+                normalize_stream(s) in norm_cand_stream or norm_cand_stream in normalize_stream(s)
                 for s in exam.allowed_streams
             )
-        if not stream_matched and not any(
-            r.startswith("Stream unspecified") for r in reasons_failed
-        ):
-            reasons_failed.append(
-                f"Stream mismatch: Requires {exam.allowed_streams}, found '{cand_stream or 'Unspecified'}'"
-            )
+            if not stream_matched:
+                reasons_failed.append(
+                    f"Stream mismatch: Requires {exam.allowed_streams}, found '{raw_stream}'"
+                )
 
-    # 4. Percentage Threshold Check
+    # 4. Percentage / CGPA Threshold Check
     if exam.min_percentage and float(exam.min_percentage) > 0:
-        if float(candidate.percentage_cgpa) < float(exam.min_percentage):
+        effective_pct = normalize_percentage(candidate.percentage_cgpa)
+        if effective_pct < float(exam.min_percentage):
             reasons_failed.append(
-                f"Minimum marks required: {exam.min_percentage}%, found {candidate.percentage_cgpa}%"
+                f"Minimum marks required: {exam.min_percentage}%, found {effective_pct}%"
             )
 
     # 5. State Domicile Check
@@ -242,20 +253,23 @@ def check_single_exam_eligibility(
         max_allowed_age=max_allowed_age,
         is_last_attempt_age=is_last_attempt,
         reasons_failed=reasons_failed,
-        syllabus_overlap_pct=overlap_pct
+        syllabus_overlap_pct=overlap_pct,
     )
+
 
 def evaluate_all_exams(
     candidate: CandidateProfileCreate,
     exams: List[ExamNotification],
     exam_topics_map: Dict[str, set],
-    primary_exam_id: Optional[str] = None
+    primary_exam_id: Optional[str] = None,
 ) -> EligibilityCheckResponse:
-    eligible_now = []
-    borderline = []
-    ineligible = []
+    eligible_now: List[ExamMatchResult] = []
+    borderline: List[ExamMatchResult] = []
+    ineligible: List[ExamMatchResult] = []
 
     for exam in exams:
+        if not getattr(exam, "is_active", True):
+            continue
         res = check_single_exam_eligibility(candidate, exam, exam_topics_map, primary_exam_id)
         if res.is_eligible:
             eligible_now.append(res)
@@ -264,9 +278,15 @@ def evaluate_all_exams(
         else:
             ineligible.append(res)
 
+    # Rank eligible exams by highest syllabus overlap first, then earliest deadline
+    eligible_now.sort(
+        key=lambda x: (-(x.syllabus_overlap_pct or 0.0), x.application_deadline)
+    )
+    borderline.sort(key=lambda x: x.application_deadline)
+
     return EligibilityCheckResponse(
         candidate_name=candidate.full_name,
         eligible_now=eligible_now,
         borderline_last_chance=borderline,
-        ineligible=ineligible
+        ineligible=ineligible,
     )

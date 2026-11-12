@@ -1,12 +1,25 @@
 # app/api/v1/endpoints/candidate.py
 import logging
+import uuid
+from typing import Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import optional_current_user, user_or_ip_key
+from app.api.v1.endpoints.eligibility import DEFAULT_TOPICS, _ensure_seed_exams
+from app.core.database import get_db
 from app.core.rate_limit import limiter
 from app.models.auth import User
-from app.schemas.candidate import ResumeParseResponse
+from app.models.candidate import CandidateProfile
+from app.schemas.candidate import (
+    CandidateProfileCreate,
+    CandidateProfileResponse,
+    ResumeParseResponse,
+)
+from app.schemas.exam import EligibilityCheckResponse
+from app.services.matcher import evaluate_all_exams
 from app.services.parser import extract_raw_text_from_pdf, parse_resume_with_groq
 
 logger = logging.getLogger(__name__)
@@ -78,3 +91,133 @@ async def upload_and_parse_resume(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Resume parsing failed. Please try again later.",
         )
+
+
+@router.post("/profile", status_code=status.HTTP_201_CREATED)
+async def save_candidate_profile(
+    payload: CandidateProfileCreate,
+    profile_id: Optional[str] = Query(
+        default=None,
+        description="Pass an existing profile_id to update instead of creating a new record",
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Persists a manual or resume-parsed CandidateProfile to PostgreSQL.
+    Returns the profile_id so the frontend can store it and re-run matches anytime.
+    """
+    data = payload.model_dump()
+
+    if profile_id:
+        res = await db.execute(
+            select(CandidateProfile).where(CandidateProfile.id == profile_id)
+        )
+        existing = res.scalar_one_or_none()
+        if existing:
+            for key, value in data.items():
+                if hasattr(existing, key):
+                    setattr(existing, key, value)
+            await db.commit()
+            await db.refresh(existing)
+            return {
+                "profile_id": existing.id,
+                "status": "updated",
+                "profile": data,
+            }
+
+    new_id = profile_id or str(uuid.uuid4())
+    valid_cols = {c.key for c in CandidateProfile.__table__.columns}
+    filtered_data = {k: v for k, v in data.items() if k in valid_cols}
+
+    candidate = CandidateProfile(id=new_id, **filtered_data)
+    db.add(candidate)
+    await db.commit()
+    await db.refresh(candidate)
+
+    return {
+        "profile_id": candidate.id,
+        "status": "created",
+        "profile": data,
+    }
+
+
+@router.get("/profile/{profile_id}", response_model=CandidateProfileResponse)
+async def get_candidate_profile(
+    profile_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetches a persisted candidate profile from PostgreSQL."""
+    res = await db.execute(
+        select(CandidateProfile).where(CandidateProfile.id == profile_id)
+    )
+    candidate = res.scalar_one_or_none()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate profile not found")
+
+    return CandidateProfileResponse(
+        profile_id=candidate.id,
+        full_name=candidate.full_name,
+        dob=candidate.dob,
+        gender=candidate.gender,
+        category=candidate.category,
+        is_pwd=candidate.is_pwd,
+        domicile_state=candidate.domicile_state,
+        highest_degree=candidate.highest_degree,
+        stream=candidate.stream,
+        percentage_cgpa=float(candidate.percentage_cgpa)
+        if candidate.percentage_cgpa is not None
+        else 0.0,
+        passing_year=candidate.passing_year,
+        skills=candidate.skills or [],
+        raw_resume_text=candidate.raw_resume_text,
+    )
+
+
+@router.get("/profile/{profile_id}/eligibility", response_model=EligibilityCheckResponse)
+async def check_saved_profile_eligibility(
+    profile_id: str,
+    primary_exam_id: Optional[str] = Query(
+        default="ssc-cgl-general",
+        description="Exam ID used to calculate Plan-B syllabus overlap percentages",
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Loads a saved CandidateProfile from PostgreSQL and evaluates eligibility
+    against all active government exams.
+    """
+    res = await db.execute(
+        select(CandidateProfile).where(CandidateProfile.id == profile_id)
+    )
+    candidate_row = res.scalar_one_or_none()
+    if not candidate_row:
+        raise HTTPException(status_code=404, detail="Candidate profile not found")
+
+    profile_schema = CandidateProfileCreate(
+        full_name=candidate_row.full_name,
+        dob=candidate_row.dob,
+        gender=candidate_row.gender,
+        category=candidate_row.category,
+        is_pwd=candidate_row.is_pwd,
+        domicile_state=candidate_row.domicile_state,
+        highest_degree=candidate_row.highest_degree,
+        stream=candidate_row.stream,
+        percentage_cgpa=float(candidate_row.percentage_cgpa)
+        if candidate_row.percentage_cgpa is not None
+        else 0.0,
+        passing_year=candidate_row.passing_year,
+        skills=candidate_row.skills or [],
+        raw_resume_text=candidate_row.raw_resume_text,
+    )
+
+    exams = await _ensure_seed_exams(db)
+    exam_topics_map = {
+        exam.id: set(exam.topics or DEFAULT_TOPICS) for exam in exams
+    }
+
+    return evaluate_all_exams(
+        candidate=profile_schema,
+        exams=exams,
+        exam_topics_map=exam_topics_map,
+        primary_exam_id=primary_exam_id,
+    )
