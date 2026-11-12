@@ -11,19 +11,14 @@ import type {
   UserMasteryResponse,
 } from "@/types/govjob";
 
-<<<<<<< HEAD
-const API_BASE = import.meta.env["VITE_API_BASE_URL"] ?? "http://localhost:8000/api/v1";
-const REQUEST_TIMEOUT_MS = 25000; // Increased to 25s to account for AI Groq question generation
-=======
 // Both names are read so the app keeps working with either the value written
 // by setup.sh or a manually configured frontend/.env.
 const API_BASE =
   import.meta.env["VITE_API_BASE_URL"] ??
   import.meta.env["VITE_GOVJOB_API_BASE"] ??
   "http://localhost:8000/api/v1";
->>>>>>> 48eff3084592803c8a6cf3556c304aa6936a3a3d
 
-const REQUEST_TIMEOUT_MS = 15000; // Allows for real AI roadmap generation & PDF parsing
+const REQUEST_TIMEOUT_MS = 25000; // Increased to 25s to account for AI Groq question generation
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -63,13 +58,6 @@ async function callApi<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
-<<<<<<< HEAD
-// ==========================================
-// RESUME & ELIGIBILITY ENDPOINTS
-// ==========================================
-
-export function parseResume(file: File): Promise<ApiResult<ParseResumeResult>> {
-=======
 /** Coerces a date-ish value to YYYY-MM-DD, or null when it is unusable. */
 export function toIsoDate(value: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
@@ -149,8 +137,11 @@ export function buildCandidatePayload(profile: CandidateProfile): Record<string,
   };
 }
 
+// ==========================================
+// RESUME & ELIGIBILITY ENDPOINTS
+// ==========================================
+
 export function parseResume(file: File): Promise<ParseResumeResult> {
->>>>>>> 48eff3084592803c8a6cf3556c304aa6936a3a3d
   const formData = new FormData();
   formData.append("file", file);
   return callApi<ParseResumeResult>("/candidate/parse-resume", {
@@ -203,7 +194,6 @@ export function sendTelegramAlert(payload: {
     body: JSON.stringify(payload),
   });
 }
-<<<<<<< HEAD
 
 // ==========================================
 // ADAPTIVE DRILL & MASTERY ENDPOINTS
@@ -215,33 +205,28 @@ export async function fetchAdaptiveQuiz(
   topic: string,
   count: number = 3,
 ): Promise<QuizGenerateResponse> {
-  const result = await callApi<QuizGenerateResponse>(
+  return callApi<QuizGenerateResponse>(
     `/adaptive/quiz?exam_id=${encodeURIComponent(examId)}&subject=${encodeURIComponent(
       subject,
     )}&topic=${encodeURIComponent(topic)}&count=${count}`,
   );
-  return result.data;
 }
 
 export async function submitAdaptiveQuiz(
   payload: SubmitQuizPayload,
 ): Promise<QuizEvaluationResponse> {
-  const result = await callApi<QuizEvaluationResponse>("/adaptive/submit-quiz", {
+  return callApi<QuizEvaluationResponse>("/adaptive/submit-quiz", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  return result.data;
 }
 
 export async function fetchUserMastery(
   userId: string,
   examId: string,
 ): Promise<UserMasteryResponse> {
-  const result = await callApi<UserMasteryResponse>(
+  return callApi<UserMasteryResponse>(
     `/adaptive/mastery/${encodeURIComponent(userId)}/${encodeURIComponent(examId)}`,
   );
-  return result.data;
 }
-=======
->>>>>>> 48eff3084592803c8a6cf3556c304aa6936a3a3d
