@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
+# Re-exported for alembic/env.py (target_metadata); not used by the app itself.
 from app.models.exam import Base
 
 # Model imports so metadata knows about all tables
@@ -9,7 +10,9 @@ import app.models.adaptive  # noqa: F401
 import app.models.auth  # noqa: F401
 import app.models.candidate  # noqa: F401
 import app.models.exam  # noqa: F401
+import app.models.progress  # noqa: F401
 import app.models.roadmap  # noqa: F401
+import app.models.telegram  # noqa: F401
 
 db_url = str(settings.DATABASE_URL)
 if db_url.startswith("postgresql://"):
@@ -38,11 +41,6 @@ else:
     )
 
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-
-async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
 
 
 async def get_db():
