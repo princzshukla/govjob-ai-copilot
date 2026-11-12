@@ -3,6 +3,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Award,
   BookOpen,
+<<<<<<< HEAD
+  BrainCircuit,
+  CircleAlert,
+=======
+>>>>>>> 48eff3084592803c8a6cf3556c304aa6936a3a3d
   Crop,
   Loader2,
   Moon,
@@ -12,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AdaptiveQuizPanel } from "@/components/AdaptiveQuizPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -34,6 +40,7 @@ const TABS = [
   { id: "eligibility", label: "Eligibility", icon: Award },
   { id: "roadmap", label: "Study Roadmap", icon: BookOpen },
   { id: "documents", label: "Photo & Signature", icon: Crop },
+  { id: "adaptive", label: "Adaptive Drill", icon: BrainCircuit },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -41,7 +48,8 @@ type TabId = (typeof TABS)[number]["id"];
 export function GovJobApp() {
   const [darkMode, setDarkMode] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>("profile");
-
+  const [activeDrillTopic, setActiveDrillTopic] = useState("Percentage");
+ const [activeDrillSubject, setActiveDrillSubject] = useState("Quantitative Aptitude");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
@@ -98,7 +106,7 @@ export function GovJobApp() {
   // 2. Live field edits (supports both uploaded resume and manual entry)
   const handleFieldChange = (field: string, value: string) => {
     setProfile((prev) => {
-      const base: CandidateProfile = prev ?? {
+      const base: CandidateProfile = prev ?? ({
         full_name: "Candidate",
         dob: "2004-06-10",
         category: "General",
@@ -107,7 +115,7 @@ export function GovJobApp() {
         percentage_cgpa: 75,
         graduation_status: "Completed",
         skills: [],
-      } as unknown as CandidateProfile;
+      } as unknown as CandidateProfile);
 
       return {
         ...base,
@@ -212,7 +220,68 @@ export function GovJobApp() {
       setAlertLoading(false);
     }
   };
+const handlePracticeTopic = (topic: string, subject: string = "Quantitative Aptitude") => {
+  setActiveDrillTopic(topic);
+  setActiveDrillSubject(subject);
+  setActiveTab("adaptive");
+};
+const handleDrillEvaluated = ({
+    topic,
+    topicStatus,
+    microRevisions,
+  }: {
+    topic: string;
+    topicStatus: string;
+    microRevisions: string[];
+    diagnostics: any[];
+  }) => {
+    if (topicStatus === "Needs Revision" || microRevisions.length > 0) {
+      setRoadmap((prev) => {
+        if (!prev) return prev;
 
+        const activeWeekIndex = prev.weekly_breakdown.findIndex(
+          (w) => !completedWeeks[w.week_number]
+        );
+        const targetIdx = activeWeekIndex !== -1 ? activeWeekIndex : 0;
+
+        const updatedBreakdown = [...prev.weekly_breakdown];
+        const currentWeek = updatedBreakdown[targetIdx];
+        if (!currentWeek) return prev;
+
+        const newTopics =
+          microRevisions.length > 0
+            ? microRevisions.map((sub) => `[Micro-Revision] ${topic}: ${sub}`)
+            : [`[High Priority] ${topic} Revision & Practice`];
+
+        const existingSet = new Set(currentWeek.topics);
+        const filteredNew = newTopics.filter((t) => !existingSet.has(t));
+
+        if (filteredNew.length === 0) return prev;
+
+        updatedBreakdown[targetIdx] = {
+          ...currentWeek,
+          topics: [...currentWeek.topics, ...filteredNew],
+        };
+
+        return {
+          ...prev,
+          weekly_breakdown: updatedBreakdown,
+        };
+      });
+
+      toast.warning(`Roadmap adapted! Micro-revision added for "${topic}".`, {
+        description: "Scheduled into your current study week based on drill diagnostics.",
+        action: {
+          label: "View Roadmap",
+          onClick: () => setActiveTab("roadmap"),
+        },
+      });
+    } else if (topicStatus === "Mastered") {
+      toast.success(`"${topic}" is Mastered!`, {
+        description: "Accuracy EMA updated across your active study plan.",
+      });
+    }
+  };
   return (
     <div className="relative min-h-screen overflow-x-hidden">
       <div className="ambient-glow" />
@@ -277,8 +346,28 @@ export function GovJobApp() {
           </div>
         )}
 
+<<<<<<< HEAD
+        {demoNotice && (
+          <div className="mt-4 flex items-center justify-between rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-xs">
+            <span className="flex items-center gap-2 text-warning">
+              <CircleAlert className="size-4 shrink-0" />
+              {demoNotice}
+            </span>
+            <button
+              onClick={() => setDemoNotice(null)}
+              className="font-bold text-warning hover:opacity-70"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Tabbed navigation with sliding pill (5 columns on desktop) */}
+        <nav className="mt-8 grid w-full grid-cols-2 gap-2 rounded-2xl border bg-card/60 p-1.5 backdrop-blur sm:grid-cols-5">
+=======
         {/* Tabbed navigation with sliding pill */}
         <nav className="mt-8 grid w-full grid-cols-2 gap-2 rounded-2xl border bg-card/60 p-1.5 backdrop-blur sm:grid-cols-4">
+>>>>>>> 48eff3084592803c8a6cf3556c304aa6936a3a3d
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -363,6 +452,8 @@ export function GovJobApp() {
                     onToggleWeek={(week) =>
                       setCompletedWeeks((prev) => ({ ...prev, [week]: !prev[week] }))
                     }
+                    onPracticeTopic={handlePracticeTopic}
+                    examId={roadmap.exam_id || primaryExamId}
                   />
                 ) : (
                   <EmptyTabState
@@ -375,6 +466,15 @@ export function GovJobApp() {
                 ))}
 
               {activeTab === "documents" && <DocumentResizer />}
+
+              {activeTab === "adaptive" && (
+                <AdaptiveQuizPanel
+                  initialExamId={roadmap?.exam_id || primaryExamId}
+                  initialTopic={activeDrillTopic}
+                  initialSubject={activeDrillSubject}
+                  onDrillEvaluated={handleDrillEvaluated}
+                />
+              )}
             </motion.div>
           </AnimatePresence>
         </div>

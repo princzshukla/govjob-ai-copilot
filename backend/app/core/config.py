@@ -1,10 +1,11 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "GovJob Matcher API"
     GROQ_API_KEY: str
-    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_MODEL: str = "openai/gpt-oss-120b"
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/govjobs_db"
     TELEGRAM_BOT_TOKEN: str = ""
     ENVIRONMENT: str = "development"
@@ -18,6 +19,15 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:8080"
     # "memory://" works single-process; point at redis://<host> in multi-worker prod.
     RATE_LIMIT_STORAGE_URL: str = "memory://"
+
+    @field_validator("DATABASE_URL", mode="after")
+    @classmethod
+    def force_asyncpg_driver(cls, v: str) -> str:
+        if v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        elif v.startswith("postgresql+psycopg://"):
+            return v.replace("postgresql+psycopg://", "postgresql+asyncpg://", 1)
+        return v
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

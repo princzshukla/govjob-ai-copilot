@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.api.v1.endpoints import auth, candidate, eligibility, notifications
+from app.api.v1.endpoints import adaptive, auth, candidate, eligibility, notifications
 from app.core.config import settings
 from app.core.database import init_db
 from app.core.rate_limit import limiter
@@ -22,6 +22,17 @@ async def lifespan(app: FastAPI):
     await init_db()  # create missing tables on boot; idempotent
     yield
 
+
+# Keep explicit origins from env and include origins added on main.
+_cors_origins = list(
+    dict.fromkeys(
+        settings.cors_origins_list
+        + [
+            "http://127.0.0.1:5173",
+            "http://localhost:3000",
+        ]
+    )
+)
 
 app = FastAPI(
     title="GovJob Matcher & AI Roadmap API",
@@ -48,7 +59,7 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,  # exact origins only, never "*" with credentials
+    allow_origins=_cors_origins,  # exact origins only, never "*" with credentials
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,6 +69,7 @@ app.include_router(candidate.router, prefix="/api/v1")
 app.include_router(eligibility.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(adaptive.router, prefix="/api/v1/adaptive", tags=["Adaptive Preparation"])
 
 
 @app.get("/health")
