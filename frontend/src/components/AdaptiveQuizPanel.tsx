@@ -85,7 +85,7 @@ export function AdaptiveQuizPanel({
     onSuccess: (data) => {
       // 2. Invalidate mastery cache so the Roadmap badges update immediately
       queryClient.invalidateQueries({
-        queryKey: ["topic-mastery", initialExamId],
+        queryKey: ["mastery"],
       });
 
       if (onDrillEvaluated) {

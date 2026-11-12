@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { GovJobApp } from "@/components/govjob/govjob-app";
+import { indexSearchSchema } from "@/lib/search";
 
 export const Route = createFileRoute("/")({
+  validateSearch: indexSearchSchema.parse,
   head: () => ({
     meta: [
       { title: "GovJob AI Copilot — Resume to Government Exam Eligibility" },

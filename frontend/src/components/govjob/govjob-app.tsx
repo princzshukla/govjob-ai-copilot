@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Award,
@@ -16,14 +18,19 @@ import { toast } from "sonner";
 import { AdaptiveQuizPanel } from "@/components/AdaptiveQuizPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import * as api from "@/lib/govjob/api";
+import { useGovJobStore, getDraftProfile } from "@/stores/govjob-store";
+import { useMe } from "@/hooks/use-me";
+import { useRoadmapQuery, useToggleRoadmapWeek, roadmapKey } from "@/hooks/use-roadmap";
+import { useEligibilityCheck } from "@/hooks/use-eligibility";
 import type {
   CandidateProfile,
-  EligibilityCheckResponse,
+  DiagnosticItem,
   ExamMatchResult,
   MissingFieldPrompt,
-  StudyRoadmapResponse,
+  SavedRoadmap,
 } from "@/types/govjob";
 import { ResumeProfileStep } from "./resume-profile-step";
 import { EligibilityResults } from "./eligibility-results";
@@ -42,23 +49,60 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 export function GovJobApp() {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate({ from: "/" });
+  const { tab: activeTab, exam: examId, week } = useSearch({ from: "/" });
+
+  const setTab = (tab: TabId) =>
+    navigate({ search: (prev) => ({ ...prev, tab }), replace: true });
+  const setExam = (exam: string) =>
+    navigate({ search: (prev) => ({ ...prev, exam }), replace: true });
+  const setWeek = (week: number) =>
+    navigate({ search: (prev) => ({ ...prev, week }), replace: true });
+
+  const setDraftProfile = useGovJobStore((s) => s.setDraftProfile);
+
   const [darkMode, setDarkMode] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabId>("profile");
   const [activeDrillTopic, setActiveDrillTopic] = useState("Percentage");
- const [activeDrillSubject, setActiveDrillSubject] = useState("Quantitative Aptitude");
+  const [activeDrillSubject, setActiveDrillSubject] = useState("Quantitative Aptitude");
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [profile, setProfile] = useState<CandidateProfile | null>(null);
+  // Guests keep their draft across reloads (sessionStorage via the store).
+  const [profile, setProfile] = useState<CandidateProfile | null>(() => getDraftProfile());
   const [missingFields, setMissingFields] = useState<MissingFieldPrompt[]>([]);
   const [statusMessage, setStatusMessage] = useState("");
 
-  const [eligibility, setEligibility] = useState<EligibilityCheckResponse | null>(null);
-  const [primaryExamId, setPrimaryExamId] = useState("ssc-cgl-general");
   const [targetWeeks, setTargetWeeks] = useState(12);
 
-  const [roadmap, setRoadmap] = useState<StudyRoadmapResponse | null>(null);
-  const [roadmapExamId, setRoadmapExamId] = useState<string | null>(null);
-  const [completedWeeks, setCompletedWeeks] = useState<Record<number, boolean>>({});
+  const { data: me } = useMe();
+  const userId = me?.id ?? "guest";
+  const activeExamId = examId || "ssc-cgl-general";
+
+  const eligibilityCheck = useEligibilityCheck();
+  const eligibility = eligibilityCheck.data ?? null;
+  const submitting = eligibilityCheck.isPending;
+
+  const { data: savedRoadmap, isLoading: roadmapLoading } = useRoadmapQuery(activeExamId);
+  const roadmapExamId = savedRoadmap?.exam_id ?? null;
+  const roadmap = savedRoadmap?.roadmap ?? null;
+  const roadmapProgressKey = roadmapKey(userId, activeExamId);
+
+  const toggleWeekMutation = useToggleRoadmapWeek(activeExamId);
+  const completedWeeks = useMemo(
+    () =>
+      Object.fromEntries(
+        (savedRoadmap?.completed_weeks ?? []).map((weekNo) => [weekNo, true]),
+      ) as Record<number, boolean>,
+    [savedRoadmap?.completed_weeks],
+  );
+
+  const generateMutation = useMutation({
+    mutationFn: (vars: { examId: string; targetWeeks: number }) =>
+      api.generateRoadmap(vars.examId, vars.targetWeeks),
+    onSuccess: (_data, vars) => {
+      // Server already saved the roadmap atomically; just refresh the cache.
+      queryClient.invalidateQueries({ queryKey: roadmapKey(userId, vars.examId) });
+    },
+  });
 
   const [selectedJob, setSelectedJob] = useState<ExamMatchResult | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -70,6 +114,11 @@ export function GovJobApp() {
   const [telegramBusy, setTelegramBusy] = useState(false);
   const [alertLoading, setAlertLoading] = useState(false);
   const [alertStatus, setAlertStatus] = useState<string | null>(null);
+
+  // Keep the persisted guest draft in sync with any profile edits.
+  useEffect(() => {
+    if (profile) setDraftProfile(profile);
+  }, [profile, setDraftProfile]);
 
   // Theme: dark by default, persisted to localStorage after mount (SSR-safe).
   useEffect(() => {
@@ -147,45 +196,36 @@ export function GovJobApp() {
   // 3. Eligibility check
   const handleCheckEligibility = async () => {
     if (!profile) return;
-    setSubmitting(true);
     try {
-      const data = await api.checkEligibility(profile, primaryExamId);
-      setEligibility(data);
-      setActiveTab("eligibility");
-      toast.success(`Found ${data.eligible_now.length} eligible exams for you.`);
+      await eligibilityCheck.mutateAsync({ profile, examId: activeExamId });
+      setTab("eligibility");
+      toast.success("Eligibility check complete.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Eligibility check failed");
-    } finally {
-      setSubmitting(false);
     }
   };
 
   // Switch primary target exam and recalculate overlap
   const handleSwitchPrimaryExam = async (newPrimaryId: string) => {
     if (!profile) return;
-    setPrimaryExamId(newPrimaryId);
+    setExam(newPrimaryId);
     try {
-      const data = await api.checkEligibility(profile, newPrimaryId);
-      setEligibility(data);
+      await eligibilityCheck.mutateAsync({ profile, examId: newPrimaryId });
       toast.success("Primary target updated — overlaps recalculated.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not update primary exam");
     }
   };
 
-  // 4. AI study roadmap
+  // 4. AI study roadmap (guests get 401, which this app handles globally)
   const handleGenerateRoadmap = async (exam: ExamMatchResult) => {
-    setRoadmapExamId(exam.exam_id);
+    setExam(exam.exam_id);
     try {
-      const data = await api.generateRoadmap(exam.exam_id, targetWeeks);
-      setRoadmap(data);
-      setCompletedWeeks({});
-      setActiveTab("roadmap");
+      await generateMutation.mutateAsync({ examId: exam.exam_id, targetWeeks });
+      setTab("roadmap");
       toast.success(`Roadmap generated: ${targetWeeks} weeks for ${exam.title}.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not generate roadmap");
-    } finally {
-      setRoadmapExamId(null);
     }
   };
 
@@ -283,12 +323,23 @@ export function GovJobApp() {
       setTelegramBusy(false);
     }
   };
-const handlePracticeTopic = (topic: string, subject: string = "Quantitative Aptitude") => {
-  setActiveDrillTopic(topic);
-  setActiveDrillSubject(subject);
-  setActiveTab("adaptive");
-};
-const handleDrillEvaluated = ({
+
+  const handlePracticeTopic = (topic: string, subject: string = "Quantitative Aptitude") => {
+    setActiveDrillTopic(topic);
+    setActiveDrillSubject(subject);
+    setTab("adaptive");
+  };
+
+  const handleToggleWeek = (weekNumber: number) => {
+    if (!savedRoadmap) return;
+    toggleWeekMutation.mutate({
+      roadmapId: savedRoadmap.roadmap_id,
+      weekNo: weekNumber,
+      done: !completedWeeks[weekNumber],
+    });
+  };
+
+  const handleDrillEvaluated = ({
     topic,
     topicStatus,
     microRevisions,
@@ -296,47 +347,46 @@ const handleDrillEvaluated = ({
     topic: string;
     topicStatus: string;
     microRevisions: string[];
-    diagnostics: any[];
+    diagnostics: DiagnosticItem[];
   }) => {
     if (topicStatus === "Needs Revision" || microRevisions.length > 0) {
-      setRoadmap((prev) => {
-        if (!prev) return prev;
+      queryClient.setQueryData<SavedRoadmap | null | undefined>(
+        roadmapProgressKey,
+        (existing) => {
+          if (!existing) return existing;
 
-        const activeWeekIndex = prev.weekly_breakdown.findIndex(
-          (w) => !completedWeeks[w.week_number]
-        );
-        const targetIdx = activeWeekIndex !== -1 ? activeWeekIndex : 0;
+          const breakdown = [...existing.roadmap.weekly_breakdown];
+          const activeIndex = breakdown.findIndex((w) => !completedWeeks[w.week_number]);
+          const targetIdx = activeIndex !== -1 ? activeIndex : 0;
+          const currentWeek = breakdown[targetIdx];
+          if (!currentWeek) return existing;
 
-        const updatedBreakdown = [...prev.weekly_breakdown];
-        const currentWeek = updatedBreakdown[targetIdx];
-        if (!currentWeek) return prev;
+          const newTopics =
+            microRevisions.length > 0
+              ? microRevisions.map((sub) => `[Micro-Revision] ${topic}: ${sub}`)
+              : [`[High Priority] ${topic} Revision & Practice`];
 
-        const newTopics =
-          microRevisions.length > 0
-            ? microRevisions.map((sub) => `[Micro-Revision] ${topic}: ${sub}`)
-            : [`[High Priority] ${topic} Revision & Practice`];
+          const existingSet = new Set(currentWeek.topics);
+          const filteredNew = newTopics.filter((t) => !existingSet.has(t));
+          if (filteredNew.length === 0) return existing;
 
-        const existingSet = new Set(currentWeek.topics);
-        const filteredNew = newTopics.filter((t) => !existingSet.has(t));
+          breakdown[targetIdx] = {
+            ...currentWeek,
+            topics: [...currentWeek.topics, ...filteredNew],
+          };
 
-        if (filteredNew.length === 0) return prev;
-
-        updatedBreakdown[targetIdx] = {
-          ...currentWeek,
-          topics: [...currentWeek.topics, ...filteredNew],
-        };
-
-        return {
-          ...prev,
-          weekly_breakdown: updatedBreakdown,
-        };
-      });
+          return {
+            ...existing,
+            roadmap: { ...existing.roadmap, weekly_breakdown: breakdown },
+          };
+        },
+      );
 
       toast.warning(`Roadmap adapted! Micro-revision added for "${topic}".`, {
         description: "Scheduled into your current study week based on drill diagnostics.",
         action: {
           label: "View Roadmap",
-          onClick: () => setActiveTab("roadmap"),
+          onClick: () => setTab("roadmap"),
         },
       });
     } else if (topicStatus === "Mastered") {
@@ -345,6 +395,7 @@ const handleDrillEvaluated = ({
       });
     }
   };
+
   return (
     <div className="relative min-h-screen overflow-x-hidden">
       <div className="ambient-glow" />
@@ -418,7 +469,7 @@ const handleDrillEvaluated = ({
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => setTab(tab.id as TabId)}
                 className={cn(
                   "relative flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors duration-200",
                   isActive
@@ -469,9 +520,9 @@ const handleDrillEvaluated = ({
                 (eligibility ? (
                   <EligibilityResults
                     eligibility={eligibility}
-                    primaryExamId={primaryExamId}
+                    primaryExamId={examId}
                     targetWeeks={targetWeeks}
-                    roadmapExamId={roadmapExamId}
+                    roadmapExamId={generateMutation.isPending ? examId : roadmapExamId}
                     onTargetWeeksChange={setTargetWeeks}
                     onOpenJob={setSelectedJob}
                     onRoadmap={handleGenerateRoadmap}
@@ -483,20 +534,22 @@ const handleDrillEvaluated = ({
                     title="No eligibility results yet"
                     description="Upload your resume or enter your profile details manually to see your matched government exams."
                     actionLabel="Go to Resume & Profile"
-                    onAction={() => setActiveTab("profile")}
+                    onAction={() => setTab("profile")}
                   />
                 ))}
 
               {activeTab === "roadmap" &&
-                (roadmap ? (
+                (generateMutation.isPending || roadmapLoading ? (
+                  <RoadmapSkeleton />
+                ) : roadmap ? (
                   <RoadmapStep
                     roadmap={roadmap}
                     completedWeeks={completedWeeks}
-                    onToggleWeek={(week) =>
-                      setCompletedWeeks((prev) => ({ ...prev, [week]: !prev[week] }))
-                    }
+                    onToggleWeek={handleToggleWeek}
                     onPracticeTopic={handlePracticeTopic}
-                    examId={roadmapExamId || primaryExamId}
+                    examId={activeExamId}
+                    activeWeek={week}
+                    onWeekSelect={setWeek}
                   />
                 ) : (
                   <EmptyTabState
@@ -504,7 +557,7 @@ const handleDrillEvaluated = ({
                     title="No study roadmap yet"
                     description="Pick an eligible exam and hit Roadmap to generate an adaptive, week-by-week AI preparation plan."
                     actionLabel="Go to Eligibility"
-                    onAction={() => setActiveTab("eligibility")}
+                    onAction={() => setTab("eligibility")}
                   />
                 ))}
 
@@ -512,7 +565,7 @@ const handleDrillEvaluated = ({
 
               {activeTab === "adaptive" && (
                 <AdaptiveQuizPanel
-                  initialExamId={roadmapExamId || primaryExamId}
+                  initialExamId={roadmapExamId || examId}
                   initialTopic={activeDrillTopic}
                   initialSubject={activeDrillSubject}
                   onDrillEvaluated={handleDrillEvaluated}
@@ -538,6 +591,17 @@ const handleDrillEvaluated = ({
         onRoadmap={handleGenerateRoadmap}
         onClose={() => setSelectedJob(null)}
       />
+    </div>
+  );
+}
+
+function RoadmapSkeleton() {
+  return (
+    <div className="space-y-4">
+      <Skeleton className="h-24 w-full rounded-xl" />
+      {[...Array(4)].map((_, i) => (
+        <Skeleton key={i} className="h-28 w-full rounded-xl" />
+      ))}
     </div>
   );
 }

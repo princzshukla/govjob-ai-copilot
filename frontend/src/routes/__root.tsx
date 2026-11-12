@@ -10,6 +10,9 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { setUnauthorizedHandler } from "@/lib/govjob/api";
+import { useGovJobStore } from "@/stores/govjob-store";
 
 import appCss from "../style.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -26,6 +29,7 @@ function NotFoundComponent() {
         <div className="mt-6">
           <Link
             to="/"
+            search={{ tab: "profile", exam: "ssc-cgl-general", week: 1 }}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Go home
@@ -121,12 +125,32 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Registers the app-wide 401 handler once: any API call answered with 401
+ * clears the cached user/server data and flips the sign-in-requested flag
+ * (the sign-in dialog, added in the auth UI phase, renders from that flag).
+ */
+function GlobalUnauthorizedHandler() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      queryClient.clear();
+      useGovJobStore.getState().requestSignIn();
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [queryClient]);
+
+  return null;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+      <GlobalUnauthorizedHandler />
       <Outlet />
       <Toaster richColors position="top-right" />
     </QueryClientProvider>
