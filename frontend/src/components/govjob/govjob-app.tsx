@@ -3,11 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Award,
   BookOpen,
-<<<<<<< HEAD
   BrainCircuit,
-  CircleAlert,
-=======
->>>>>>> 48eff3084592803c8a6cf3556c304aa6936a3a3d
   Crop,
   Loader2,
   Moon,
@@ -346,28 +342,8 @@ const handleDrillEvaluated = ({
           </div>
         )}
 
-<<<<<<< HEAD
-        {demoNotice && (
-          <div className="mt-4 flex items-center justify-between rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-xs">
-            <span className="flex items-center gap-2 text-warning">
-              <CircleAlert className="size-4 shrink-0" />
-              {demoNotice}
-            </span>
-            <button
-              onClick={() => setDemoNotice(null)}
-              className="font-bold text-warning hover:opacity-70"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-        )}
-
         {/* Tabbed navigation with sliding pill (5 columns on desktop) */}
         <nav className="mt-8 grid w-full grid-cols-2 gap-2 rounded-2xl border bg-card/60 p-1.5 backdrop-blur sm:grid-cols-5">
-=======
-        {/* Tabbed navigation with sliding pill */}
-        <nav className="mt-8 grid w-full grid-cols-2 gap-2 rounded-2xl border bg-card/60 p-1.5 backdrop-blur sm:grid-cols-4">
->>>>>>> 48eff3084592803c8a6cf3556c304aa6936a3a3d
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -453,7 +429,7 @@ const handleDrillEvaluated = ({
                       setCompletedWeeks((prev) => ({ ...prev, [week]: !prev[week] }))
                     }
                     onPracticeTopic={handlePracticeTopic}
-                    examId={roadmap.exam_id || primaryExamId}
+                    examId={roadmapExamId || primaryExamId}
                   />
                 ) : (
                   <EmptyTabState
@@ -469,7 +445,7 @@ const handleDrillEvaluated = ({
 
               {activeTab === "adaptive" && (
                 <AdaptiveQuizPanel
-                  initialExamId={roadmap?.exam_id || primaryExamId}
+                  initialExamId={roadmapExamId || primaryExamId}
                   initialTopic={activeDrillTopic}
                   initialSubject={activeDrillSubject}
                   onDrillEvaluated={handleDrillEvaluated}
