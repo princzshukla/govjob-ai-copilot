@@ -68,6 +68,10 @@ jobs:
           alembic upgrade head
           alembic check
           test "$(alembic heads | wc -l)" -eq 1
+          # Every migration must be reversible, not just the latest one.
+          alembic downgrade base
+          alembic upgrade head
+          alembic check
 
       - name: Run tests
         run: python -m pytest -q
