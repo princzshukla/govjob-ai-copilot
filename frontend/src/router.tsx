@@ -18,6 +18,8 @@ export const getRouter = () => {
     context: { queryClient },
     scrollRestoration: true,
     defaultPreloadStaleTime: 0,
+    // Hover-intent preloading: route chunks load on hover, not only on click.
+    defaultPreload: "intent",
   });
 
   return router;
