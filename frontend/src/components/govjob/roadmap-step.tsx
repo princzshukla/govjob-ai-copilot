@@ -23,7 +23,6 @@ interface RoadmapStepProps {
   onToggleWeek: (weekNumber: number) => void;
   onPracticeTopic?: (topic: string, subject: string) => void;
   examId?: string;
-  userId?: string;
 }
 
 export function RoadmapStep({
@@ -32,9 +31,8 @@ export function RoadmapStep({
   onToggleWeek,
   onPracticeTopic,
   examId = "ssc-cgl-tier1",
-  userId = "usr_demo_001",
 }: RoadmapStepProps) {
-  const { data: masteryData } = useTopicMastery(userId, examId);
+  const { data: masteryData } = useTopicMastery(examId);
 
   if (!roadmap) return null;
 

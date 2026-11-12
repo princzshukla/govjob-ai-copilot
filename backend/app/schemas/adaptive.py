@@ -6,14 +6,18 @@ from pydantic import BaseModel, Field
 # Base Question Schema
 # ----------------------------------------------------
 class QuestionItem(BaseModel):
+    """A question as shown while the drill is in progress.
+
+    Deliberately excludes ``correct_option`` and ``explanation``: those are
+    graded material and must not be readable before the attempt is submitted.
+    """
+
     id: str
     subject: str
     topic: str
     sub_topic: str
     question: str
     options: Dict[str, str]
-    correct_option: str
-    explanation: Optional[str] = None
     difficulty: str = "Medium"
     expected_time_sec: int = 45
 
@@ -33,16 +37,17 @@ class QuizGenerateResponse(BaseModel):
 # Quiz Submission & Diagnostics Schemas
 # ----------------------------------------------------
 class QuestionAnswerItem(BaseModel):
-    question_id: str
-    selected_option: str
-    time_taken_sec: int = 0
+    question_id: str = Field(min_length=1, max_length=64)
+    # The UI only ever sends the option key, never free text.
+    selected_option: str = Field(pattern=r"^[A-Da-d]$")
+    time_taken_sec: int = Field(default=0, ge=0, le=3600)
 
 
 class SubmitQuizPayload(BaseModel):
-    user_id: str
-    exam_id: str
-    topic: str
-    answers: List[QuestionAnswerItem]
+    exam_id: str = Field(min_length=1, max_length=100)
+    topic: str = Field(min_length=1, max_length=200)
+    # No user_id: the owner always comes from the session cookie.
+    answers: List[QuestionAnswerItem] = Field(min_length=1, max_length=50)
 
 
 class DiagnosticItem(BaseModel):
@@ -51,6 +56,23 @@ class DiagnosticItem(BaseModel):
     sub_topic: str
     mistake_type: str
     is_repeated: bool = False
+
+
+class QuestionReviewItem(BaseModel):
+    """Post-submission feedback for one question.
+
+    Returned only after the attempt is graded, which is why it may contain the
+    answer and the solution.
+    """
+
+    question_id: str
+    question: str
+    options: Dict[str, str]
+    selected_option: str
+    correct_option: str
+    explanation: Optional[str] = None
+    is_correct: bool
+    time_taken_sec: int
 
 
 class QuizEvaluationResponse(BaseModel):
@@ -62,6 +84,7 @@ class QuizEvaluationResponse(BaseModel):
     diagnostics: List[DiagnosticItem] = []
     micro_revisions_added: List[str] = []
     roadmap_structure_changed: bool = False
+    results: List[QuestionReviewItem] = []
 
 
 # ----------------------------------------------------
@@ -77,6 +100,6 @@ class TopicMasteryItem(BaseModel):
 
 
 class UserMasteryResponse(BaseModel):
-    user_id: str
+    user_id: int
     exam_id: str
     topics: List[TopicMasteryItem]

@@ -5,6 +5,8 @@ import type {
   StudyRoadmapResponse,
   SyncLiveJobsResponse,
   TelegramAlertResponse,
+  TelegramLinkStartResponse,
+  TelegramLinkStatusResponse,
   QuizGenerateResponse,
   QuizEvaluationResponse,
   SubmitQuizPayload,
@@ -32,7 +34,12 @@ async function fetchWithTimeout(input: string, init?: RequestInit): Promise<Resp
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    return await fetch(input, { ...init, signal: controller.signal });
+    return await fetch(input, {
+      ...init,
+      // Session auth is an HttpOnly cookie, so cross-origin calls must include it.
+      credentials: "include",
+      signal: controller.signal,
+    });
   } finally {
     clearTimeout(timer);
   }
@@ -183,15 +190,31 @@ export function syncLiveJobs(): Promise<SyncLiveJobsResponse> {
 }
 
 export function sendTelegramAlert(payload: {
-  chat_id: string;
   exam_title: string;
   application_deadline: string;
   days_left: number;
 }): Promise<TelegramAlertResponse> {
+  // No chat_id: the backend sends only to the session user's verified chat.
   return callApi<TelegramAlertResponse>("/notifications/send-deadline-alert", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+  });
+}
+
+export function createTelegramLink(): Promise<TelegramLinkStartResponse> {
+  return callApi<TelegramLinkStartResponse>("/notifications/telegram/link", {
+    method: "POST",
+  });
+}
+
+export function getTelegramStatus(): Promise<TelegramLinkStatusResponse> {
+  return callApi<TelegramLinkStatusResponse>("/notifications/telegram/status");
+}
+
+export function unlinkTelegram(): Promise<{ status: string }> {
+  return callApi<{ status: string }>("/notifications/telegram/link", {
+    method: "DELETE",
   });
 }
 
@@ -223,10 +246,9 @@ export async function submitAdaptiveQuiz(
 }
 
 export async function fetchUserMastery(
-  userId: string,
   examId: string,
 ): Promise<UserMasteryResponse> {
   return callApi<UserMasteryResponse>(
-    `/adaptive/mastery/${encodeURIComponent(userId)}/${encodeURIComponent(examId)}`,
+    `/adaptive/mastery/${encodeURIComponent(examId)}`,
   );
 }

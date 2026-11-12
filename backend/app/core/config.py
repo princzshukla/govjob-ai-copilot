@@ -8,6 +8,11 @@ class Settings(BaseSettings):
     GROQ_MODEL: str = "openai/gpt-oss-120b"
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/govjobs_db"
     TELEGRAM_BOT_TOKEN: str = ""
+    # Only used to render the "message @bot" instruction; no secret here.
+    TELEGRAM_BOT_USERNAME: str = ""
+    # Telegram echoes this value in X-Telegram-Bot-Api-Secret-Token.
+    TELEGRAM_WEBHOOK_SECRET: str = ""
+    TELEGRAM_LINK_CODE_TTL_MINUTES: int = 10
     ENVIRONMENT: str = "development"
 
     # --- Auth / session config (all env-driven, no hardcoded secrets) ---

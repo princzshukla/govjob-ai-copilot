@@ -17,6 +17,7 @@ from alembic import command
 from alembic.config import Config as AlembicConfig
 from sqlalchemy import text
 
+from app.api.v1.endpoints import eligibility
 from app.core.database import AsyncSessionLocal
 from app.core.rate_limit import limiter
 from app.main import app
@@ -67,12 +68,17 @@ def _reset_rate_limits():
     # Every test hits login/register from the same test IP; reset the
     # 5-per-minute buckets so tests don't interfere with each other.
     limiter.reset()
+    # The live-job sync cooldown is process-wide by design; reset it per test.
+    eligibility._last_sync_started_at = None
     yield
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _prepare_db():
     async with AsyncSessionLocal() as db:
+        # question_bank has no owner column, so it is not cleared by the user
+        # cascade and would otherwise leak generated questions between tests.
+        await db.execute(text("DELETE FROM question_bank"))
         await db.execute(text("DELETE FROM sessions"))
         await db.execute(text("DELETE FROM users"))
         await db.commit()

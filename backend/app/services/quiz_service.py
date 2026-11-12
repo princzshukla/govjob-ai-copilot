@@ -1,12 +1,12 @@
 import json
 import uuid
-from typing import List, Optional
+from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from groq import AsyncGroq
 
 from app.core.config import settings
-from app.models.adaptive import QuestionBank, QuizAttempt
+from app.models.adaptive import QuestionBank
 from app.schemas.adaptive import QuestionItem
 
 groq_client = (
@@ -16,6 +16,7 @@ groq_client = (
 )
 
 def _build_question_item(record_id: str, subject: str, topic: str, sub_topic: str, difficulty: str, data: dict) -> QuestionItem:
+    # Never copy correct_option/explanation into the client payload.
     return QuestionItem(
         id=record_id,
         subject=subject,
@@ -23,8 +24,6 @@ def _build_question_item(record_id: str, subject: str, topic: str, sub_topic: st
         sub_topic=sub_topic,
         question=data.get("question", ""),
         options=data.get("options", {}),
-        correct_option=data.get("correct_option", "A"),
-        explanation=data.get("explanation", ""),
         difficulty=difficulty,
         expected_time_sec=data.get("expected_time_sec", 45),
     )
@@ -34,24 +33,15 @@ async def get_or_generate_quiz(
     exam_id: str,
     subject: str,
     topic: str,
-    user_id: Optional[str] = None,
     count: int = 3,
 ) -> List[QuestionItem]:
     """
     1. Queries PostgreSQL for cached questions matching topic/exam.
-    2. Excludes questions already attempted by the user.
-    3. If cache has fewer than `count` unseen questions, synthesizes the delta via Groq.
-    4. Persists new questions to QuestionBank and returns the combined batch.
+    2. If cache has fewer than `count` questions, synthesizes the delta via Groq.
+    3. Persists new questions to QuestionBank and returns the combined batch.
     """
-    # 1. Base query for cached questions matching topic
-    filters = [QuestionBank.topic == topic]
-    if hasattr(QuestionBank, "exam_id"):
-        filters.append(QuestionBank.exam_id == exam_id)
-
-    # Exclude questions already attempted if the column exists
-    if user_id and hasattr(QuizAttempt, "question_id"):
-        attempted_subquery = select(QuizAttempt.question_id).where(QuizAttempt.user_id == user_id)
-        filters.append(QuestionBank.id.not_in(attempted_subquery))
+    # 1. Base query for cached questions matching topic and exam
+    filters = [QuestionBank.topic == topic, QuestionBank.exam_id == exam_id]
 
     stmt = (
         select(QuestionBank)
@@ -74,7 +64,7 @@ async def get_or_generate_quiz(
         for r in cached_records
     ]
 
-    # If cache has enough fresh unseen questions, return immediately ($0 LLM cost)
+    # If cache has enough questions, return immediately ($0 LLM cost)
     if len(cached_items) >= count:
         return cached_items[:count]
 

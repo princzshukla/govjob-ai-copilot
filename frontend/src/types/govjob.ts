@@ -81,6 +81,18 @@ export interface TelegramAlertResponse {
   message?: string;
 }
 
+export interface TelegramLinkStartResponse {
+  code: string;
+  expires_at: string;
+  bot_username: string;
+}
+
+export interface TelegramLinkStatusResponse {
+  linked: boolean;
+  chat_id?: string | null;
+  verified_at?: string | null;
+}
+
 // ==========================================
 // ADAPTIVE QUIZ & MASTERY TYPES
 // ==========================================
@@ -100,8 +112,7 @@ export interface QuizQuestion {
   sub_topic: string;
   question: string;
   options: Record<string, string>; // e.g. { "A": "600", "B": "750", ... }
-  correct_option: string;
-  explanation: string;
+  // No correct_option/explanation: the server reveals them only after submit.
   difficulty: "Easy" | "Medium" | "Hard" | string;
   expected_time_sec: number;
 }
@@ -121,7 +132,6 @@ export interface QuestionSubmissionItem {
 }
 
 export interface SubmitQuizPayload {
-  user_id: string;
   exam_id: string;
   topic: string;
   answers: QuestionSubmissionItem[];
@@ -135,6 +145,17 @@ export interface DiagnosticItem {
   is_repeated: boolean;
 }
 
+export interface QuestionReviewItem {
+  question_id: string;
+  question: string;
+  options: Record<string, string>;
+  selected_option: string;
+  correct_option: string;
+  explanation?: string | null;
+  is_correct: boolean;
+  time_taken_sec: number;
+}
+
 export interface QuizEvaluationResponse {
   quiz_id: string;
   total_attempted: number;
@@ -144,6 +165,7 @@ export interface QuizEvaluationResponse {
   diagnostics: DiagnosticItem[];
   micro_revisions_added: string[];
   roadmap_structure_changed: boolean;
+  results: QuestionReviewItem[];
 }
 
 export interface TopicMasteryItem {
@@ -156,7 +178,7 @@ export interface TopicMasteryItem {
 }
 
 export interface UserMasteryResponse {
-  user_id: string;
+  user_id: number;
   exam_id: string;
   topics: TopicMasteryItem[];
 }

@@ -15,7 +15,8 @@ const quizQueryOptions = (examId: string, topic: string) =>
     queryKey: ["adaptive-quiz", examId, topic],
     queryFn: async () => {
       const res = await fetch(
-        `${API_BASE}/quiz?exam_id=${encodeURIComponent(examId)}&subject=Quantitative%20Aptitude&topic=${encodeURIComponent(topic)}&count=3`
+        `${API_BASE}/quiz?exam_id=${encodeURIComponent(examId)}&subject=Quantitative%20Aptitude&topic=${encodeURIComponent(topic)}&count=3`,
+        { credentials: "include" },
       );
       if (!res.ok) throw new Error("Failed to load adaptive quiz");
       return res.json();
@@ -36,7 +37,6 @@ export const Route = createFileRoute("/quiz/")({
 
 function QuizPageComponent() {
   const { examId, topic } = Route.useParams() as { examId: string; topic: string };
-  const userId = "usr_demo_001";
 
   const { data: quiz } = useSuspenseQuery(quizQueryOptions(examId, topic));
 
@@ -61,6 +61,7 @@ function QuizPageComponent() {
     mutationFn: async (payload: any) => {
       const res = await fetch(`${API_BASE}/submit-quiz`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -81,7 +82,6 @@ function QuizPageComponent() {
 
   const handleSubmit = () => {
     submitMutation.mutate({
-      user_id: userId,
       exam_id: examId,
       topic: topic,
       answers: Object.entries(answers).map(([qId, val]) => ({

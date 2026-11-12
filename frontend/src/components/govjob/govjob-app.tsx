@@ -64,7 +64,10 @@ export function GovJobApp() {
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
-  const [telegramChatId, setTelegramChatId] = useState("");
+  const [telegramLinked, setTelegramLinked] = useState(false);
+  const [telegramCode, setTelegramCode] = useState<string | null>(null);
+  const [telegramBotUsername, setTelegramBotUsername] = useState("");
+  const [telegramBusy, setTelegramBusy] = useState(false);
   const [alertLoading, setAlertLoading] = useState(false);
   const [alertStatus, setAlertStatus] = useState<string | null>(null);
 
@@ -82,6 +85,22 @@ export function GovJobApp() {
       window.localStorage.setItem("govjob_theme", darkMode ? "dark" : "light");
     }
   }, [darkMode]);
+
+  // Telegram status is per session; guests get 401 and simply stay unlinked.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getTelegramStatus()
+      .then((status) => {
+        if (!cancelled) setTelegramLinked(status.linked);
+      })
+      .catch(() => {
+        if (!cancelled) setTelegramLinked(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 1. Upload resume
   const handleFileUpload = async (file: File) => {
@@ -190,15 +209,14 @@ export function GovJobApp() {
   };
 
   const handleSendTelegramAlert = async (exam: ExamMatchResult) => {
-    if (!telegramChatId.trim()) {
-      toast.error("Please enter your Telegram Chat ID first!");
+    if (!telegramLinked) {
+      toast.error("Link your Telegram account first.");
       return;
     }
     setAlertLoading(true);
     setAlertStatus(null);
     try {
       const data = await api.sendTelegramAlert({
-        chat_id: telegramChatId.trim(),
         exam_title: exam.title,
         application_deadline: exam.application_deadline,
         days_left: Math.ceil(
@@ -214,6 +232,55 @@ export function GovJobApp() {
       setAlertStatus("Network error sending alert.");
     } finally {
       setAlertLoading(false);
+    }
+  };
+
+  const handleStartTelegramLink = async () => {
+    setTelegramBusy(true);
+    setAlertStatus(null);
+    try {
+      const data = await api.createTelegramLink();
+      setTelegramCode(data.code);
+      setTelegramBotUsername(data.bot_username);
+      setAlertStatus(
+        `Send /start ${data.code} to @${data.bot_username || "the bot"} in Telegram, then check status.`,
+      );
+    } catch (err) {
+      setAlertStatus(err instanceof Error ? err.message : "Could not create a Telegram link code.");
+    } finally {
+      setTelegramBusy(false);
+    }
+  };
+
+  const handleRefreshTelegramStatus = async () => {
+    setTelegramBusy(true);
+    try {
+      const status = await api.getTelegramStatus();
+      setTelegramLinked(status.linked);
+      if (status.linked) {
+        setTelegramCode(null);
+        setAlertStatus("Telegram linked! Deadline alerts can now be sent.");
+      } else {
+        setAlertStatus("Not linked yet. Send the code to the bot, then check again.");
+      }
+    } catch (err) {
+      setAlertStatus(err instanceof Error ? err.message : "Could not check Telegram status.");
+    } finally {
+      setTelegramBusy(false);
+    }
+  };
+
+  const handleUnlinkTelegram = async () => {
+    setTelegramBusy(true);
+    try {
+      await api.unlinkTelegram();
+      setTelegramLinked(false);
+      setTelegramCode(null);
+      setAlertStatus("Telegram unlinked.");
+    } catch (err) {
+      setAlertStatus(err instanceof Error ? err.message : "Could not unlink Telegram.");
+    } finally {
+      setTelegramBusy(false);
     }
   };
 const handlePracticeTopic = (topic: string, subject: string = "Quantitative Aptitude") => {
@@ -458,10 +525,15 @@ const handleDrillEvaluated = ({
 
       <JobDetailDialog
         exam={selectedJob}
-        telegramChatId={telegramChatId}
+        telegramLinked={telegramLinked}
+        telegramCode={telegramCode}
+        telegramBotUsername={telegramBotUsername}
+        telegramBusy={telegramBusy}
         alertLoading={alertLoading}
         alertStatus={alertStatus}
-        onTelegramChange={setTelegramChatId}
+        onStartTelegramLink={handleStartTelegramLink}
+        onRefreshTelegramStatus={handleRefreshTelegramStatus}
+        onUnlinkTelegram={handleUnlinkTelegram}
         onSendAlert={handleSendTelegramAlert}
         onRoadmap={handleGenerateRoadmap}
         onClose={() => setSelectedJob(null)}
