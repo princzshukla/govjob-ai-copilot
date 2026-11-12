@@ -1,4 +1,11 @@
-# app/api/v1/endpoints/me.py
+# app/api/v1/endpoints/user_data.py
+"""User-owned profile, roadmap and progress endpoints.
+
+All routes live under ``/users/me`` so the account area of the API is one
+prefix (the session cookie, never a URL parameter, identifies the owner).
+Account-level actions (change password, delete account) stay in
+``endpoints/users.py``; this module only handles own data.
+"""
 import logging
 import uuid
 
@@ -22,7 +29,7 @@ from app.schemas.me import (
     ClaimDraftOut,
     ProgressOut,
     RoadmapConcreteOut,
-    WeekDoneIn,
+    WeekToggleIn,
 )
 from app.schemas.roadmap import StudyRoadmapResponse
 from app.services.roadmap_store import (
@@ -32,7 +39,7 @@ from app.services.roadmap_store import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/me", tags=["Me"])
+router = APIRouter(prefix="/users/me", tags=["Users"])
 
 ROADMAP_NOT_FOUND = "Roadmap not found"
 
@@ -78,8 +85,8 @@ async def _get_owned_roadmap(
     db: AsyncSession, user_id: int, roadmap_id: str
 ) -> SavedRoadmap:
     roadmap = await db.get(SavedRoadmap, roadmap_id)
-    # Existence and ownership failure look identical (404): never leak which id
-    # exists.
+    # Existence and ownership failure look identical (404): never leak which
+    # roadmap id exists.
     if roadmap is None or roadmap.user_id != user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ROADMAP_NOT_FOUND)
     return roadmap
@@ -163,34 +170,35 @@ async def get_progress(
     return ProgressOut(**progress_payload(roadmap.id, roadmap.target_weeks, completed))
 
 
-@router.put("/roadmaps/{roadmap_id}/weeks/{week_no}", response_model=ProgressOut)
+@router.put("/roadmaps/{roadmap_id}/progress", response_model=ProgressOut)
 @limiter.limit("120/minute", key_func=user_or_ip_key)
 async def set_week_done(
     request: Request,
     roadmap_id: str,
-    week_no: int,
-    payload: WeekDoneIn,
+    payload: WeekToggleIn,
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ProgressOut:
     roadmap = await _get_owned_roadmap(db, user.id, roadmap_id)
 
-    if week_no < 1 or week_no > roadmap.target_weeks:
+    if payload.week_no > roadmap.target_weeks:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"week_no must be between 1 and {roadmap.target_weeks}",
+            status_code=422,
+            detail=f"week_no must be between 1 and {roadmap.target_weeks} for this roadmap",
         )
 
     if payload.done:
-        # Idempotent insert; a repeat tap cannot create a duplicate row.
-        stmt = pg_insert(RoadmapProgress).values(roadmap_id=roadmap.id, week_no=week_no)
+        # Idempotent insert; a repeat toggle cannot create a duplicate row.
+        stmt = pg_insert(RoadmapProgress).values(
+            roadmap_id=roadmap.id, week_no=payload.week_no
+        )
         stmt = stmt.on_conflict_do_nothing()
         await db.execute(stmt)
     else:
         await db.execute(
             delete(RoadmapProgress).where(
                 RoadmapProgress.roadmap_id == roadmap.id,
-                RoadmapProgress.week_no == week_no,
+                RoadmapProgress.week_no == payload.week_no,
             )
         )
     await db.commit()

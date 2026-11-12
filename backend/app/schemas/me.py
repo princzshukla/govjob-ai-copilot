@@ -1,5 +1,5 @@
 # app/schemas/me.py
-"""Schemas for the session-owned ``/me`` persistence endpoints.
+"""Schemas for the session-owned ``/users/me`` persistence endpoints.
 
 The candidate profile is stored one-row-per-user. Resume parsing can produce
 incomplete profiles, so every field except the ones ``candidate_profiles``
@@ -94,11 +94,12 @@ class ClaimDraftIn(CandidateProfileIn):
         return self
 
 
-class WeekDoneIn(BaseModel):
+class WeekToggleIn(BaseModel):
     """Toggle a roadmap week done/undone. Extras (e.g. fake percentages) are rejected."""
 
     model_config = ConfigDict(extra="forbid")
 
+    week_no: int = Field(ge=1, le=52)
     done: bool
 
 
