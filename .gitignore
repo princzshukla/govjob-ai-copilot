@@ -7,6 +7,7 @@
 bug.MD
 bugfixed.md
 IMPLEMENTATION_PLAN.md
+pre-production.md
 docs/implementation/
 # Node & Bun
 **/node_modules/
@@ -25,3 +26,4 @@ docs/implementation/
 .idea/
 .DS_Store
 Thumbs.db
+root-cause-flaky-tests.md
