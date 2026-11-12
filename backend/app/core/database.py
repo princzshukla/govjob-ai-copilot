@@ -30,6 +30,10 @@ _engine_kwargs = {
     },
 }
 if settings.ENVIRONMENT == "test":
+    # Tests must fail fast instead of queuing behind locks held by stale
+    # backends; a hung suite used to produce random FK violations.
+    _engine_kwargs["connect_args"]["server_settings"] = {"lock_timeout": "5000"}
+if settings.ENVIRONMENT == "test":
     engine = create_async_engine(db_url, poolclass=NullPool, **_engine_kwargs)
 else:
     engine = create_async_engine(

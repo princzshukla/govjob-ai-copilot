@@ -76,11 +76,12 @@ def _reset_rate_limits():
 @pytest_asyncio.fixture(autouse=True)
 async def _prepare_db():
     async with AsyncSessionLocal() as db:
-        # question_bank has no owner column, so it is not cleared by the user
-        # cascade and would otherwise leak generated questions between tests.
-        await db.execute(text("DELETE FROM question_bank"))
-        await db.execute(text("DELETE FROM sessions"))
-        await db.execute(text("DELETE FROM users"))
+        # One atomic reset of everything user-reachable, instead of three
+        # separate DELETEs (which aborted mid-way under lock pressure and
+        # left partially-deleted state between tests).
+        await db.execute(
+            text("TRUNCATE question_bank, sessions, users RESTART IDENTITY CASCADE")
+        )
         await db.commit()
     yield
 
