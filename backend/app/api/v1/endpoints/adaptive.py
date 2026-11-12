@@ -1,9 +1,11 @@
 import uuid
+from datetime import datetime, timezone
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.api.v1.deps import current_user, user_or_ip_key
 from app.core.database import get_db
@@ -19,7 +21,7 @@ from app.schemas.adaptive import (
     TopicMasteryItem,
     DiagnosticItem,
 )
-from app.services.quiz_service import get_or_generate_quiz
+from app.services.quiz_service import QuizGenerationError, get_or_generate_quiz
 
 router = APIRouter()
 
@@ -28,9 +30,9 @@ router = APIRouter()
 @limiter.limit("30/hour", key_func=user_or_ip_key)
 async def get_quiz(
     request: Request,
-    exam_id: str = Query(..., description="Target exam ID (e.g. ssc-cgl-tier1)"),
-    subject: str = Query(..., description="Subject domain"),
-    topic: str = Query(..., description="Specific syllabus topic"),
+    exam_id: str = Query(..., pattern=r"^[a-z0-9-]{1,64}$", description="Target exam ID (e.g. ssc-cgl-tier1)"),
+    subject: str = Query(..., pattern=r"^[A-Za-z0-9][A-Za-z0-9 &()./-]{0,63}$", description="Subject domain"),
+    topic: str = Query(..., pattern=r"^[A-Za-z0-9][A-Za-z0-9 &()./-]{0,79}$", description="Specific syllabus topic"),
     count: int = Query(3, ge=1, le=10),
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
@@ -41,13 +43,20 @@ async def get_quiz(
 
     The owner is always the session user; there is no user_id input.
     """
-    questions = await get_or_generate_quiz(
-        db=db,
-        exam_id=exam_id,
-        subject=subject,
-        topic=topic,
-        count=count,
-    )
+    try:
+        questions = await get_or_generate_quiz(
+            db=db,
+            exam_id=exam_id,
+            subject=subject,
+            topic=topic,
+            count=count,
+        )
+    except QuizGenerationError as exc:
+        # Never leak model output/upstream text; short generic 502 instead of 500.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc) if str(exc) else "The question generator is unavailable right now.",
+        )
 
     quiz_id = f"quiz_{uuid.uuid4().hex[:8]}"
     return QuizGenerateResponse(
@@ -86,7 +95,17 @@ async def submit_quiz(
     # Fetch questions to evaluate correctness and baseline expected timings.
     # The topic/exam filters stop a client from grading questions from another
     # drill while recording the attempt against this one.
-    q_ids = [ans.question_id for ans in payload.answers]
+    # De-duplicate answers on question_id (first occurrence wins); identical
+    # ids graded twice would double count attempts and score.
+    seen_ids: set[str] = set()
+    deduped_answers = []
+    for ans in payload.answers:
+        if ans.question_id in seen_ids:
+            continue
+        seen_ids.add(ans.question_id)
+        deduped_answers.append(ans)
+
+    q_ids = [ans.question_id for ans in deduped_answers]
     stmt = select(QuestionBank).where(
         QuestionBank.id.in_(q_ids),
         QuestionBank.topic == payload.topic,
@@ -95,7 +114,7 @@ async def submit_quiz(
     result = await db.execute(stmt)
     db_questions = {q.id: q for q in result.scalars().all()}
 
-    for ans in payload.answers:
+    for ans in deduped_answers:
         q_record = db_questions.get(ans.question_id)
         if not q_record:
             # Unknown/foreign question ids are ignored, not counted as attempts.
@@ -157,57 +176,70 @@ async def submit_quiz(
         score=correct_count,
         total_questions=total_attempted,
         accuracy_percentage=accuracy_pct,
-        time_taken_seconds=sum(ans.time_taken_sec for ans in payload.answers),
+        time_taken_seconds=sum(r.time_taken_sec for r in results),
         diagnostics_log=[d.model_dump() for d in diagnostics],
     )
     db.add(attempt)
 
-    # Update or Insert TopicMastery with Exponential Moving Average (EMA)
+    # Update or insert TopicMastery with Exponential Moving Average (EMA).
+    # ON CONFLICT keeps one row per (user, exam, topic) even under concurrent
+    # submissions; the unique index is created by migration 6f5be5e32e17.
     ALPHA = 0.35
     normalized_acc = accuracy_pct / 100.0
 
-    mastery_stmt = select(TopicMastery).where(
-        TopicMastery.user_id == user.id,
-        TopicMastery.exam_id == payload.exam_id,
-        TopicMastery.topic == payload.topic,
-    )
-    mastery_res = await db.execute(mastery_stmt)
-    mastery_record = mastery_res.scalars().first()
+    def _classify(ema: float) -> str:
+        if ema >= 0.75:
+            return "Mastered"
+        elif ema <= 0.45:
+            return "Needs Revision"
+        return "Moderate"
 
-    if mastery_record:
-        mastery_record.accuracy_ema = round(
-            (normalized_acc * ALPHA) + (mastery_record.accuracy_ema * (1 - ALPHA)), 3
-        )
-        mastery_record.attempts_count += 1
-    else:
-        mastery_record = TopicMastery(
+    # Subject detail comes from the graded question rows (all belong to the
+    # subject the drill was generated for); fallback "General" otherwise.
+    subject_for_row = next(
+        (getattr(q, "subject", None) for q in db_questions.values() if getattr(q, "subject", None)),
+        "General",
+    )
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    upsert = (
+        pg_insert(TopicMastery)
+        .values(
             id=str(uuid.uuid4()),
             user_id=user.id,
             exam_id=payload.exam_id,
-            subject="General",
+            subject=subject_for_row[:100],
             topic=payload.topic,
             accuracy_ema=normalized_acc,
             attempts_count=1,
+            status=_classify(normalized_acc),
+            consecutive_fails=0,
+            last_reviewed_at=now,
         )
-        db.add(mastery_record)
-
-    # Classify Mastery Status
-    ema = mastery_record.accuracy_ema
-    if ema >= 0.75:
-        topic_status = "Mastered"
-    elif ema <= 0.45:
-        topic_status = "Needs Revision"
-    else:
-        topic_status = "Moderate"
-
-    mastery_record.status = topic_status
+        .on_conflict_do_update(
+            index_elements=["user_id", "exam_id", "topic"],
+            set_={
+                "accuracy_ema": (normalized_acc * ALPHA)
+                + TopicMastery.accuracy_ema * (1 - ALPHA),
+                "attempts_count": TopicMastery.attempts_count + 1,
+                "last_reviewed_at": now,
+            },
+        )
+        .returning(TopicMastery.id, TopicMastery.accuracy_ema)
+    )
+    mastery_id, ema = (await db.execute(upsert)).one()
+    ema = float(ema or 0.5)
+    topic_status = _classify(ema)
+    await db.execute(
+        update(TopicMastery).where(TopicMastery.id == mastery_id).values(status=topic_status)
+    )
 
     # Generate micro-revisions if needed
     micro_revisions = []
     if topic_status == "Needs Revision" or any(
         d.mistake_type == "Conceptual Gap" for d in diagnostics
     ):
-        micro_revisions = list({d.sub_topic for d in diagnostics}) or [
+        micro_revisions = list(dict.fromkeys(d.sub_topic for d in diagnostics)) or [
             f"{payload.topic} Basics"
         ]
 
@@ -221,7 +253,6 @@ async def submit_quiz(
         topic_status=topic_status,
         diagnostics=diagnostics,
         micro_revisions_added=micro_revisions,
-        roadmap_structure_changed=len(micro_revisions) > 0,
         results=results,
     )
 
