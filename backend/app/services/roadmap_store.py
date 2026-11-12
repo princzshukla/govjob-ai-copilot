@@ -1,7 +1,7 @@
 # app/services/roadmap_store.py
 """Atomic, idempotent helpers for saved roadmaps and week progress.
 
-All persistence for the ``/me`` endpoints goes through PostgreSQL upserts so a
+All persistence for the ``/users/me`` endpoints goes through PostgreSQL upserts so a
 repeated request produces the same state instead of a duplicate row or a 500.
 """
 import uuid

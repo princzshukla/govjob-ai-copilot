@@ -10,10 +10,10 @@ from app.schemas.roadmap import StudyRoadmapResponse, WeeklyMilestone
 
 REGISTER_URL = "/api/v1/auth/register"
 LOGIN_URL = "/api/v1/auth/login"
-PROFILE_URL = "/api/v1/me/profile"
-CLAIM_URL = "/api/v1/me/claim-draft"
+PROFILE_URL = "/api/v1/users/me/profile"
+CLAIM_URL = "/api/v1/users/me/claim-draft"
 GENERATE_ROADMAP_URL = "/api/v1/eligibility/generate-roadmap/ssc-cgl-general"
-ROADMAP_GET_URL = "/api/v1/me/roadmaps/ssc-cgl-general"
+ROADMAP_GET_URL = "/api/v1/users/me/roadmaps/ssc-cgl-general"
 
 EMAIL = "me-student@example.com"
 OTHER_EMAIL = "me-other@example.com"
@@ -209,21 +209,21 @@ async def test_week_completion_roundtrip_and_idempotency(client, _fixed_roadmap)
     await client.post(f"{GENERATE_ROADMAP_URL}?target_weeks=4")
     roadmap_id = (await client.get(ROADMAP_GET_URL)).json()["roadmap_id"]
 
-    put = await client.put(f"/api/v1/me/roadmaps/{roadmap_id}/weeks/1", json={"done": True})
+    put = await client.put(f"/api/v1/users/me/roadmaps/{roadmap_id}/progress", json={"week_no": 1, "done": True})
     assert put.status_code == 200, put.text
     assert put.json()["completed_weeks"] == [1]
     assert put.json()["percent"] == 25
 
     # Marking week 1 done twice does not create duplicates.
-    put2 = await client.put(f"/api/v1/me/roadmaps/{roadmap_id}/weeks/1", json={"done": True})
+    put2 = await client.put(f"/api/v1/users/me/roadmaps/{roadmap_id}/progress", json={"week_no": 1, "done": True})
     assert put2.json()["completed_weeks"] == [1]
 
-    await client.put(f"/api/v1/me/roadmaps/{roadmap_id}/weeks/3", json={"done": True})
-    progress = await client.get(f"/api/v1/me/roadmaps/{roadmap_id}/progress")
+    await client.put(f"/api/v1/users/me/roadmaps/{roadmap_id}/progress", json={"week_no": 3, "done": True})
+    progress = await client.get(f"/api/v1/users/me/roadmaps/{roadmap_id}/progress")
     assert progress.json()["completed_weeks"] == [1, 3]
     assert progress.json()["percent"] == 50
 
-    undone = await client.put(f"/api/v1/me/roadmaps/{roadmap_id}/weeks/1", json={"done": False})
+    undone = await client.put(f"/api/v1/users/me/roadmaps/{roadmap_id}/progress", json={"week_no": 1, "done": False})
     assert undone.json()["completed_weeks"] == [3]
     assert undone.json()["percent"] == 25
 
@@ -238,8 +238,8 @@ async def test_week_out_of_range_is_rejected(client, _fixed_roadmap):
     roadmap_id = (await client.get(ROADMAP_GET_URL)).json()["roadmap_id"]
 
     for week in (0, 5, 99):
-        resp = await client.put(f"/api/v1/me/roadmaps/{roadmap_id}/weeks/{week}", json={"done": True})
-        assert resp.status_code == 400, f"week {week} was accepted"
+        resp = await client.put(f"/api/v1/users/me/roadmaps/{roadmap_id}/progress", json={"week_no": week, "done": True})
+        assert resp.status_code == 422, f"week {week} was accepted"
 
 
 async def test_week_out_of_user_ownership_is_rejected(client, _fixed_roadmap):
@@ -248,10 +248,10 @@ async def test_week_out_of_user_ownership_is_rejected(client, _fixed_roadmap):
     roadmap_id = (await client.get(ROADMAP_GET_URL)).json()["roadmap_id"]
 
     await _register_and_login(client, OTHER_EMAIL)
-    resp = await client.put(f"/api/v1/me/roadmaps/{roadmap_id}/weeks/1", json={"done": True})
+    resp = await client.put(f"/api/v1/users/me/roadmaps/{roadmap_id}/progress", json={"week_no": 1, "done": True})
     assert resp.status_code == 404
 
-    GET_ROW = f"/api/v1/me/roadmaps/{roadmap_id}/progress"
+    GET_ROW = f"/api/v1/users/me/roadmaps/{roadmap_id}/progress"
     assert (await client.get(GET_ROW)).status_code == 404
 
 
@@ -261,22 +261,48 @@ async def test_week_body_rejects_fake_fields(client, _fixed_roadmap):
     roadmap_id = (await client.get(ROADMAP_GET_URL)).json()["roadmap_id"]
 
     resp = await client.put(
-        f"/api/v1/me/roadmaps/{roadmap_id}/weeks/1",
-        json={"done": True, "percentage": 100},
+        f"/api/v1/users/me/roadmaps/{roadmap_id}/progress", json={"week_no": 1, "done": True, "percentage": 100},
     )
     assert resp.status_code == 422
 
     resp = await client.put(
-        f"/api/v1/me/roadmaps/{roadmap_id}/weeks/1",
-        json={"done": True, "score": 10},
+        f"/api/v1/users/me/roadmaps/{roadmap_id}/progress", json={"week_no": 1, "done": True, "score": 10},
     )
     assert resp.status_code == 422
 
 
 async def test_week_requires_auth(client, _fixed_roadmap):
-    resp = await client.put("/api/v1/me/roadmaps/nonexistent/weeks/1", json={"done": True})
+    resp = await client.put(
+        "/api/v1/users/me/roadmaps/nonexistent/progress",
+        json={"week_no": 1, "done": True},
+    )
     assert resp.status_code == 401
 
 
 async def test_roadmaps_get_requires_auth(client):
     assert (await client.get(ROADMAP_GET_URL)).status_code == 401
+
+
+# ------------------------------------- Old account endpoints unchanged
+
+
+async def test_old_account_endpoints_still_behave(client):
+    """The account actions live in endpoints/users.py under /users/me alongside
+    the data routes owned by endpoints/user_data.py; both must keep working."""
+    await _register_and_login(client)
+
+    # PATCH /users/me (account action) still works next to the new routes.
+    patched = await client.patch("/api/v1/users/me", json={"full_name": "New Name"})
+    assert patched.status_code == 200
+    assert patched.json()["full_name"] == "New Name"
+
+    # POST /users/me/change-password still verifies the current password.
+    wrong = await client.post(
+        "/api/v1/users/me/change-password",
+        json={"current_password": "definitely-wrong", "new_password": "new-secure-password-123"},
+    )
+    assert wrong.status_code == 400
+
+    # DELETE /users/me still requires the password.
+    bad_delete = await client.request("DELETE", "/api/v1/users/me", json={"password": "definitely-wrong"})
+    assert bad_delete.status_code == 400
