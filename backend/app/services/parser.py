@@ -121,7 +121,7 @@ async def parse_resume_with_groq(raw_text: str) -> ResumeParseResponse:
         try:
             date.fromisoformat(str(dob_value))
         except ValueError:
-            logger.warning("Discarding unparseable resume DOB: %r", dob_value)
+            logger.warning("Discarding unparseable resume DOB")
             parsed_dict["dob"] = None
 
     extracted_profile = ParsedResumeProfile(**parsed_dict)
