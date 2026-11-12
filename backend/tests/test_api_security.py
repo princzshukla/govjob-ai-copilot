@@ -36,7 +36,10 @@ async def _register(client, email: str = EMAIL_A) -> None:
     Register itself does not set a cookie (users must sign in), so the helper
     logs in immediately: every test below needs an authenticated client.
     """
-    resp = await client.post(REGISTER_URL, json={"email": email, "password": PASSWORD})
+    resp = await client.post(
+        REGISTER_URL,
+        json={"email": email, "password": PASSWORD, "full_name": "Test User"},
+    )
     assert resp.status_code == 201, resp.text
     await _login(client, email)
 
