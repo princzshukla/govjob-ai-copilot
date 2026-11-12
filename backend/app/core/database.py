@@ -21,17 +21,19 @@ elif db_url.startswith("postgresql+psycopg://"):
     db_url = db_url.replace("postgresql+psycopg://", "postgresql+asyncpg://", 1)
 
 # Tests run each case in a fresh event loop and asyncpg connections are
-# loop-bound, so pooling is disabled there to avoid cross-loop reuse.
+# loop-bound, so pooling and prepared-statement caching are disabled there.
 _engine_kwargs = {
     "echo": False,
-    "connect_args": {
-        "statement_cache_size": 0,  # Disables asyncpg prepared statement caching
-        "prepared_statement_cache_size": 0,  # Extra safety for asyncpg variants
-    },
+    "connect_args": {},
 }
 if settings.ENVIRONMENT == "test":
+    # Prepared-statement caching breaks across per-test loops; keep it off.
+    _engine_kwargs["connect_args"] = {
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+    }
     # Tests must fail fast instead of queuing behind locks held by stale
-    # backends; a hung suite used to produce random FK violations.
+    # backends, otherwise a hung suite produces random FK violations.
     _engine_kwargs["connect_args"]["server_settings"] = {"lock_timeout": "5000"}
 if settings.ENVIRONMENT == "test":
     engine = create_async_engine(db_url, poolclass=NullPool, **_engine_kwargs)
