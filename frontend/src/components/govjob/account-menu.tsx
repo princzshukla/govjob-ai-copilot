@@ -1,7 +1,6 @@
 // src/components/govjob/account-menu.tsx
-import { FormEvent, useEffect, useState } from "react";
+import { useState } from "react";
 import {
-  Loader2,
   LogIn,
   LogOut,
   Settings,
@@ -19,30 +18,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Link } from "@tanstack/react-router";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { useGovJobStore } from "@/stores/govjob-store";
+import { DeleteAccountDialog } from "./delete-account-dialog";
 
 /** Header account control: avatar dropdown with account actions. */
 export function AccountMenu() {
-  const { user, isLoading, signOut, removeAccount } = useAuth();
+  const { user, isLoading, signOut } = useAuth();
   const requestSignIn = useGovJobStore((s) => s.requestSignIn);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (deleteOpen) {
-      setPassword("");
-      setError(null);
-      setBusy(false);
-    }
-  }, [deleteOpen]);
 
   if (isLoading) {
     return <Skeleton className="size-9 rounded-full" aria-label="Loading account" />;
@@ -66,21 +53,6 @@ export function AccountMenu() {
       toast.success("Signed out.");
     } catch {
       toast.error("Could not sign out cleanly; local state was cleared.");
-    }
-  };
-
-  const onDelete = async (event: FormEvent) => {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      await removeAccount(password);
-      setDeleteOpen(false);
-      toast.success("Account deleted.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not delete the account.");
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -111,10 +83,14 @@ export function AccountMenu() {
             ) : null}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem disabled title="Coming soon — the account page ships in the next phase">
-            <Settings className="text-muted-foreground" />
-            Account settings
-            <span className="ml-auto text-[10px] uppercase text-muted-foreground">Soon</span>
+          <DropdownMenuItem asChild>
+            <Link
+              to="/account"
+              className="flex w-full items-center gap-2"
+            >
+              <Settings className="text-muted-foreground" />
+              Account settings
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={onLogout}>
             <LogOut />
@@ -131,55 +107,7 @@ export function AccountMenu() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <div className="flex size-10 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
-              <Trash2 className="size-5" />
-            </div>
-            <DialogTitle className="font-display">Delete account</DialogTitle>
-            <DialogDescription>
-              This permanently removes your account, profile, roadmaps, progress and drill
-              history. There is no undo. Enter your password to confirm.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={onDelete} className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="delete-password">Current password</Label>
-              <Input
-                id="delete-password"
-                type="password"
-                autoComplete="current-password"
-                required
-                placeholder="Your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            {error && (
-              <p
-                role="alert"
-                className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive"
-              >
-                {error}
-              </p>
-            )}
-            <div className="flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setDeleteOpen(false)}
-                className="rounded-xl"
-              >
-                Keep account
-              </Button>
-              <Button type="submit" variant="destructive" disabled={busy} className="rounded-xl">
-                {busy ? <Loader2 className="size-4 animate-spin" /> : "Delete forever"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <DeleteAccountDialog open={deleteOpen} onOpenChange={setDeleteOpen} />
     </>
   );
 }

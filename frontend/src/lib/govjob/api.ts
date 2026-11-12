@@ -371,6 +371,14 @@ export async function logout(): Promise<void> {
   await callApi<{ message: string }>("/auth/logout", { method: "POST" });
 }
 
+export function updateMyFullName(fullName: string): Promise<UserOut> {
+  return callApi<UserOut>("/users/me", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ full_name: fullName }),
+  });
+}
+
 export function changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
   return callApi<{ message: string }>("/users/me/change-password", {
     method: "POST",
