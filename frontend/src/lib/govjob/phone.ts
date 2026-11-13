@@ -3,7 +3,7 @@
 export const COUNTRY_CODE = "91";
 export const NATIONAL_LENGTH = 10;
 
-const S10 = /^[6-9]\d{9}$/;
+const S10 = /^\d{10}$/;
 
 /** Returns the canonical stored value, `+91…`, or null when invalid/empty. */
 export function toIndianMobile(value: string): string | null {

@@ -169,7 +169,7 @@ export function AuthDialog() {
                     type="tel"
                     autoComplete="tel-national"
                     inputMode="numeric"
-                    pattern="[6-9][0-9]{9}"
+                    pattern="[0-9]{10}"
                     maxLength={10}
                     placeholder="9876543210"
                     value={phone}

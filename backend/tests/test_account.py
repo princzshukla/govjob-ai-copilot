@@ -80,7 +80,7 @@ async def test_register_silently_prefixes_country_code(client):
 
 
 async def test_register_rejects_phone_with_country_code_and_bad_digits(client):
-    for bad in ("+919876543210", "1234567890", "987654"):
+    for bad in ("+919876543210", "987654"):
         resp = await _register(client, phone=bad)
         assert resp.status_code == 422, f"bad phone {bad} was accepted"
 

@@ -27,7 +27,7 @@ class _FullNameMixin(BaseModel):
         return " ".join(value.split()) if isinstance(value, str) else value
 
 
-_INDIA_NATIONAL_PATTERN = re.compile(r"^[6-9]\d{9}$")
+_TEN_DIGIT_PATTERN = re.compile(r"^\d{10}$")
 
 
 class _PhoneMixin(BaseModel):
@@ -49,9 +49,9 @@ class _PhoneMixin(BaseModel):
             raise ValueError(
                 "Enter your 10-digit mobile number without the country code; +91 is added automatically."
             )
-        if not _INDIA_NATIONAL_PATTERN.fullmatch(digits):
+        if not _TEN_DIGIT_PATTERN.fullmatch(digits):
             raise ValueError(
-                "Enter your 10-digit Indian mobile number (starts 6, 7, 8 or 9)."
+                "Enter a 10-digit number; +91 will be prefixed automatically."
             )
         return f"+91{digits}"
 

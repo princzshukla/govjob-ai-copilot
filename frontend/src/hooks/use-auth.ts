@@ -87,6 +87,7 @@ export function useAuth(): UseAuth {
     queryClient.removeQueries({ queryKey: ["mastery"] });
     queryClient.removeQueries({ queryKey: ["profile"] });
     useGovJobStore.getState().clearDraftProfile();
+    useGovJobStore.getState().clearSessionUi();
     useGovJobStore.getState().closeSignIn();
   }, [queryClient]);
 

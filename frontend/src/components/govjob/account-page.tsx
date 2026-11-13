@@ -1,6 +1,6 @@
 // src/components/govjob/account-page.tsx
 import { FormEvent, useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -30,10 +30,27 @@ import { DeleteAccountDialog } from "./delete-account-dialog";
 
 export function AccountPage() {
   const { user, isLoading } = useAuth();
+  const router = useRouter();
+
+  // TanStack Router keeps `__TSR_index` in history.state; > 0 means there is an
+  // in-app entry to return to. Blindly linking to a hardcoded
+  // /?tab=profile&exam=... wiped the user's exam/tab selection.
+  const handleBackToApp = () => {
+    const idx =
+      (window.history.state as { __TSR_index?: number } | null | undefined)?.__TSR_index ?? 0;
+    if (idx > 0) {
+      router.history.back();
+    } else {
+      void router.navigate({
+        to: "/",
+        search: { tab: "profile", exam: "ssc-cgl-general", week: 1 },
+      });
+    }
+  };
 
   if (isLoading) return <AccountPageSkeleton />;
   if (!user) return <GuestGate />;
-  return <AccountContent user={user} />;
+  return <AccountContent user={user} onBack={handleBackToApp} />;
 }
 
 function GuestGate() {
@@ -55,7 +72,7 @@ function GuestGate() {
   );
 }
 
-function AccountContent({ user }: { user: api.UserOut }) {
+function AccountContent({ user, onBack }: { user: api.UserOut; onBack: () => void }) {
   const queryClient = useQueryClient();
   const { user: liveUser } = useAuth(); // kept fresh after a name update
 
@@ -125,11 +142,9 @@ function AccountContent({ user }: { user: api.UserOut }) {
             Profile, security and plan — saved to your GovJob Copilot account.
           </p>
         </div>
-        <Button asChild variant="ghost" size="sm" className="gap-2 rounded-xl">
-          <Link to="/" search={{ tab: "profile", exam: "ssc-cgl-general", week: 1 }}>
-            <ArrowLeft className="size-4" />
-            Back to app
-          </Link>
+        <Button variant="ghost" size="sm" className="gap-2 rounded-xl" onClick={onBack}>
+          <ArrowLeft className="size-4" />
+          Back to app
         </Button>
       </div>
 
@@ -211,6 +226,17 @@ function AccountContent({ user }: { user: api.UserOut }) {
         </CardHeader>
         <CardContent>
           <form onSubmit={onChangePassword} className="space-y-4">
+            {/* Password managers need a username field alongside the passwords. */}
+            <input
+              type="text"
+              name="username"
+              autoComplete="username"
+              value={user.email}
+              readOnly
+              hidden
+              aria-hidden="true"
+              tabIndex={-1}
+            />
             <div className="space-y-1.5">
               <Label htmlFor="current-password">Current password</Label>
               <Input
