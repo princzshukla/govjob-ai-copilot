@@ -22,8 +22,11 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Single source of truth: same normalized URL the API engine uses.
-config.set_main_option("sqlalchemy.url", db_url)
+# NOTE: pass the URL directly (offline) or via create_async_engine (online).
+# Do NOT do config.set_main_option("sqlalchemy.url", db_url) — it goes through
+# configparser, which rejects URLs whose password contains % (percent-encoded
+# "@" and friends). The password in the Postgres URL comes pre-encoded, and
+# the parser treats "%" as a variable interpolation marker and crashes.
 
 target_metadata = Base.metadata
 
