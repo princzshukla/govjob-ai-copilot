@@ -18,14 +18,15 @@ class CandidateProfile(Base):
     __tablename__ = "candidate_profiles"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    # One profile per account. Guests cannot persist a profile (Phase 4 adds
-    # the draft-claim flow), so the owner is always known here.
-    user_id: Mapped[int] = mapped_column(
+    # Owner is set for account-created profiles. Guests may persist an
+    # anonymous profile reachable only by its unguessable id (user_id NULL);
+    # the unique constraint still limits accounts to one profile each.
+    user_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey(
             "users.id", ondelete="CASCADE", name="fk_candidate_profiles_user_id"
         ),
-        nullable=False,
+        nullable=True,
     )
     full_name: Mapped[str] = mapped_column(String(120), nullable=True)
     dob: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -38,7 +39,14 @@ class CandidateProfile(Base):
     stream: Mapped[str] = mapped_column(String(100), nullable=True)
     percentage_cgpa: Mapped[float] = mapped_column(Numeric(5, 2), nullable=True)
     passing_year: Mapped[int] = mapped_column(Integer, nullable=True)
-    
+
+    graduation_status: Mapped[str] = mapped_column(
+        String(30), default="Completed", server_default="Completed"
+    )
+    previous_attempts: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0"
+    )
+
     skills: Mapped[list[str]] = mapped_column(ARRAY(String), default=[])
     raw_resume_text: Mapped[str] = mapped_column(Text, nullable=True)
 

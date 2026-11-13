@@ -139,9 +139,9 @@ export function ResumeProfileStep({
     <div className="space-y-6">
       {/* Step 1: Upload resume or Manual Entry */}
       <Card className="overflow-hidden border-dashed">
-        <CardHeader className="py-4 px-6">
+        <CardHeader className="px-4 py-4 sm:px-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-start gap-3 max-w-xl">
+            <div className="flex max-w-xl items-start gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Upload className="size-5" />
               </span>
@@ -154,8 +154,8 @@ export function ResumeProfileStep({
               </div>
             </div>
 
-            {/* Buttons pushed right with reduced padding */}
-            <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+            {/* Buttons stacked full-width on mobile, pushed right on larger screens */}
+            <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
               <label
                 className={cn(
                   "group relative inline-flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition hover:bg-primary/90",
@@ -208,14 +208,14 @@ export function ResumeProfileStep({
           }}
         >
           <Card>
-            <CardHeader className="flex-row items-start justify-between gap-3 space-y-0 border-b pb-4">
-              <div>
+            <CardHeader className="flex-col items-start justify-between gap-3 space-y-0 border-b pb-4 sm:flex-row">
+              <div className="min-w-0">
                 <CardTitle className="text-lg">Complete Statutory Eligibility Profile</CardTitle>
                 {statusMessage && (
                   <CardDescription className="mt-1 text-warning">{statusMessage}</CardDescription>
                 )}
               </div>
-              <Badge variant="secondary" className="shrink-0">
+              <Badge variant="secondary" className="max-w-full shrink-0 truncate">
                 {stringValue("full_name") || (isManual ? "Manual Entry" : "Candidate Profile")}
               </Badge>
             </CardHeader>
@@ -227,7 +227,7 @@ export function ResumeProfileStep({
                     <Sparkles className="size-4" />
                     Missing details required for government exams
                   </h3>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {missingFields.map((item) => (
                       <div key={item.field_name} className="space-y-1.5">
                         <Label className="text-sm font-medium">{item.label} *</Label>
@@ -265,7 +265,7 @@ export function ResumeProfileStep({
               )}
 
               {isManual && (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground">Full Name *</Label>
                     <Input
@@ -339,7 +339,7 @@ export function ResumeProfileStep({
               )}
 
               {/* Core qualification fields */}
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Highest Qualification *</Label>
                   {isManual ? (
@@ -431,7 +431,7 @@ export function ResumeProfileStep({
                   type="submit"
                   size="lg"
                   disabled={submitting}
-                  className="gap-2 rounded-xl font-semibold"
+                  className="w-full gap-2 rounded-xl font-semibold sm:w-auto"
                 >
                   {submitting ? (
                     <Loader2 className="size-4 animate-spin" />

@@ -47,6 +47,8 @@ async def structure_jobs_with_groq(raw_jobs: list[dict]) -> list[dict]:
     - "application_deadline": "YYYY-MM-DD" (estimate 25 days from today)
     - "exam_date": "YYYY-MM-DD" or null
     - "official_pdf_url": string (use the provided link)
+    - "source_url": string (use the provided link; never leave empty)
+    - "last_checked_at": "YYYY-MM-DD" (today's date)
     - "min_age": integer (usually 18 or 21)
     - "max_age_general": integer (usually 27, 30, or 32)
     - "age_cutoff_date": "YYYY-MM-DD" (use today's date)
@@ -54,6 +56,8 @@ async def structure_jobs_with_groq(raw_jobs: list[dict]) -> list[dict]:
     - "allowed_streams": list of strings (e.g., ["Any"] or ["Computer Science", "Information Technology"])
     - "min_percentage": float (default 0.0)
     - "state_restriction": string or null
+    - "allows_final_year": true, false, or null (null if the notification does not say)
+    - "max_attempts": integer or null (null if the notification does not say)
     - "topics": list of 6-10 standard syllabus topics for this exam
 
     Raw Scraped Data:

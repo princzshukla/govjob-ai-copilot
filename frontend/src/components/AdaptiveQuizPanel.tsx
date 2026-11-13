@@ -181,20 +181,24 @@ export function AdaptiveQuizPanel({
   return (
     <Card className="border-border/50 bg-card/60 backdrop-blur">
       <CardHeader className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
+        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="shrink-0 rounded-xl bg-primary/10 p-2.5 text-primary">
               <BrainCircuit className="h-5 w-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <CardTitle className="text-lg">AI Adaptive Topic Drill</CardTitle>
-                <Badge variant="outline" className="text-[11px] uppercase tracking-wide text-primary border-primary/30">
+                <Badge
+                  variant="outline"
+                  className="max-w-full truncate text-[11px] uppercase tracking-wide text-primary border-primary/30"
+                >
                   {initialExamId}
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground">
-                Targeted practice calibrated for statutory exam patterns with real-time diagnostic evaluation
+                Targeted practice calibrated for statutory exam patterns with real-time diagnostic
+                evaluation
               </p>
             </div>
           </div>
@@ -220,10 +224,10 @@ export function AdaptiveQuizPanel({
           /* Comprehensive Evaluation & Solutions Breakdown */
           <div className="space-y-6 py-2">
             {/* REPLACE THE OLD HEADER WITH THIS BLOCK */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-emerald-400 font-semibold">
-                <CheckCircle2 className="h-5 w-5" />
-                <span>Drill Evaluated — {selectedTopic}</span>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2 font-semibold text-emerald-400">
+                <CheckCircle2 className="h-5 w-5 shrink-0" />
+                <span className="min-w-0">Drill Evaluated — {selectedTopic}</span>
               </div>
               <Badge variant="secondary" className="text-xs">
                 Exam: {initialExamId}
@@ -283,14 +287,14 @@ export function AdaptiveQuizPanel({
                       key={result.question_id}
                       className="p-4 rounded-xl border border-border/60 bg-muted/20 space-y-3 text-sm"
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2 font-medium">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2 font-medium">
                           {isCorrect ? (
-                            <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
                           ) : (
-                            <XCircle className="h-4 w-4 text-destructive shrink-0" />
+                            <XCircle className="h-4 w-4 shrink-0 text-destructive" />
                           )}
-                          <span>
+                          <span className="min-w-0 break-words">
                             Q{idx + 1}. {result.question}
                           </span>
                         </div>
@@ -343,13 +347,13 @@ export function AdaptiveQuizPanel({
         ) : (
           /* Active Question View */
           <div className="space-y-5">
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <Badge variant="secondary">{currentQ.difficulty}</Badge>
                 <span className="text-muted-foreground">{currentQ.sub_topic}</span>
               </div>
               <div className="flex items-center gap-1.5 font-mono text-muted-foreground">
-                <Clock className="h-3.5 w-3.5" />
+                <Clock className="h-3.5 w-3.5 shrink-0" />
                 <span>
                   {secondsSpent}s (Expected: {currentQ.expected_time_sec}s)
                 </span>

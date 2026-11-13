@@ -1,5 +1,7 @@
 # app/models/exam.py
 from datetime import date
+from typing import Optional
+
 from sqlalchemy import ARRAY, Boolean, Date, Integer, Numeric, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -36,5 +38,14 @@ class ExamNotification(Base):
 
     # Domicile Constraints (Null = Pan-India Central Vacancy)
     state_restriction: Mapped[str] = mapped_column(String(50), nullable=True)
+
+    # T7: tri-state because many notifications do not mention final-year students.
+    # True = allowed, False = not allowed, None = engine must ask for manual check.
+    allows_final_year: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    max_attempts: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # Provenance shown on every exam/job result.
+    source_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    last_checked_at: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

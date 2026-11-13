@@ -14,6 +14,8 @@ import type {
   QuizEvaluationResponse,
   SubmitQuizPayload,
   UserMasteryResponse,
+  SaveProfileResponse,
+  ReportQuestionResponse,
 } from "@/types/govjob";
 
 // Both names are read so the app keeps working with either the value written
@@ -23,7 +25,7 @@ const API_BASE =
   import.meta.env["VITE_GOVJOB_API_BASE"] ??
   "http://localhost:8000/api/v1";
 
-const REQUEST_TIMEOUT_MS = 25000; // Increased to 25s to account for AI Groq question generation
+const REQUEST_TIMEOUT_MS = 25000; // Increased to 25s to account for Sathi AI verification & generation
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -246,7 +248,7 @@ export function buildProfilePayload(profile: CandidateProfile): Record<string, u
 }
 
 // ==========================================
-// RESUME & ELIGIBILITY ENDPOINTS
+// RESUME, PROFILE PERSISTENCE & ELIGIBILITY ENDPOINTS
 // ==========================================
 
 export function parseResume(file: File): Promise<ParseResumeResult> {
@@ -256,6 +258,39 @@ export function parseResume(file: File): Promise<ParseResumeResult> {
     method: "POST",
     body: formData,
   });
+}
+
+export function saveCandidateProfile(
+  profile: CandidateProfile,
+  existingProfileId?: string | null,
+): Promise<SaveProfileResponse> {
+  const payload = buildCandidatePayload(profile);
+  const query = existingProfileId
+    ? `?profile_id=${encodeURIComponent(existingProfileId)}`
+    : "";
+
+  return callApi<SaveProfileResponse>(`/candidate/profile${query}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchCandidateProfile(profileId: string): Promise<CandidateProfile> {
+  return callApi<CandidateProfile>(
+    `/candidate/profile/${encodeURIComponent(profileId)}`,
+  );
+}
+
+export function checkSavedProfileEligibility(
+  profileId: string,
+  primaryExamId: string = "ssc-cgl-general",
+): Promise<EligibilityCheckResponse> {
+  return callApi<EligibilityCheckResponse>(
+    `/candidate/profile/${encodeURIComponent(
+      profileId,
+    )}/eligibility?primary_exam_id=${encodeURIComponent(primaryExamId)}`,
+  );
 }
 
 export function checkEligibility(
@@ -320,7 +355,7 @@ export function unlinkTelegram(): Promise<{ status: string }> {
 }
 
 // ==========================================
-// ADAPTIVE DRILL & MASTERY ENDPOINTS
+// SATHI AI DRILL, TELEMETRY & MASTERY ENDPOINTS
 // ==========================================
 
 export async function fetchAdaptiveQuiz(
@@ -344,6 +379,20 @@ export async function submitAdaptiveQuiz(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+}
+
+export async function reportAdaptiveQuestion(
+  questionId: string,
+  reason: string = "Ambiguous or incorrect answer key",
+): Promise<ReportQuestionResponse> {
+  return callApi<ReportQuestionResponse>(
+    `/adaptive/report-question/${encodeURIComponent(questionId)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    },
+  );
 }
 
 export async function fetchUserMastery(

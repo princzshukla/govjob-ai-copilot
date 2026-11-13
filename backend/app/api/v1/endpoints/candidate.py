@@ -36,6 +36,16 @@ def _resume_upload_limit(key: str) -> str:
     return "20/day" if key.startswith("user:") else "3/day"
 
 
+def _ensure_profile_access(profile: CandidateProfile, user: User | None) -> None:
+    """404s when an owned profile is requested by anyone but its owner.
+
+    Guest (unowned) profiles stay reachable by their unguessable id. The 404,
+    rather than 403, avoids confirming that a profile id exists.
+    """
+    if profile.user_id is not None and (user is None or user.id != profile.user_id):
+        raise HTTPException(status_code=404, detail="Candidate profile not found")
+
+
 @router.post("/parse-resume", response_model=ResumeParseResponse)
 @limiter.limit(_resume_upload_limit, key_func=user_or_ip_key)
 async def upload_and_parse_resume(
@@ -100,11 +110,14 @@ async def save_candidate_profile(
         default=None,
         description="Pass an existing profile_id to update instead of creating a new record",
     ),
+    user: User | None = Depends(optional_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Persists a manual or resume-parsed CandidateProfile to PostgreSQL.
     Returns the profile_id so the frontend can store it and re-run matches anytime.
+    Signed-in callers own the profile; guests get an anonymous profile that is
+    reachable only by its unguessable id.
     """
     data = payload.model_dump()
 
@@ -114,9 +127,13 @@ async def save_candidate_profile(
         )
         existing = res.scalar_one_or_none()
         if existing:
+            _ensure_profile_access(existing, user)
             for key, value in data.items():
                 if hasattr(existing, key):
                     setattr(existing, key, value)
+            if user is not None and existing.user_id is None:
+                # Adopt the guest profile into the caller's account.
+                existing.user_id = user.id
             await db.commit()
             await db.refresh(existing)
             return {
@@ -129,7 +146,11 @@ async def save_candidate_profile(
     valid_cols = {c.key for c in CandidateProfile.__table__.columns}
     filtered_data = {k: v for k, v in data.items() if k in valid_cols}
 
-    candidate = CandidateProfile(id=new_id, **filtered_data)
+    candidate = CandidateProfile(
+        id=new_id,
+        user_id=user.id if user is not None else None,
+        **filtered_data,
+    )
     db.add(candidate)
     await db.commit()
     await db.refresh(candidate)
@@ -144,6 +165,7 @@ async def save_candidate_profile(
 @router.get("/profile/{profile_id}", response_model=CandidateProfileResponse)
 async def get_candidate_profile(
     profile_id: str,
+    user: User | None = Depends(optional_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Fetches a persisted candidate profile from PostgreSQL."""
@@ -153,6 +175,8 @@ async def get_candidate_profile(
     candidate = res.scalar_one_or_none()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate profile not found")
+
+    _ensure_profile_access(candidate, user)
 
     return CandidateProfileResponse(
         profile_id=candidate.id,
@@ -168,6 +192,8 @@ async def get_candidate_profile(
         if candidate.percentage_cgpa is not None
         else 0.0,
         passing_year=candidate.passing_year,
+        graduation_status=candidate.graduation_status or "Completed",
+        previous_attempts=candidate.previous_attempts or 0,
         skills=candidate.skills or [],
         raw_resume_text=candidate.raw_resume_text,
     )
@@ -180,6 +206,7 @@ async def check_saved_profile_eligibility(
         default="ssc-cgl-general",
         description="Exam ID used to calculate Plan-B syllabus overlap percentages",
     ),
+    user: User | None = Depends(optional_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -192,6 +219,8 @@ async def check_saved_profile_eligibility(
     candidate_row = res.scalar_one_or_none()
     if not candidate_row:
         raise HTTPException(status_code=404, detail="Candidate profile not found")
+
+    _ensure_profile_access(candidate_row, user)
 
     profile_schema = CandidateProfileCreate(
         full_name=candidate_row.full_name,
@@ -206,6 +235,8 @@ async def check_saved_profile_eligibility(
         if candidate_row.percentage_cgpa is not None
         else 0.0,
         passing_year=candidate_row.passing_year,
+        graduation_status=candidate_row.graduation_status or "Completed",
+        previous_attempts=candidate_row.previous_attempts or 0,
         skills=candidate_row.skills or [],
         raw_resume_text=candidate_row.raw_resume_text,
     )

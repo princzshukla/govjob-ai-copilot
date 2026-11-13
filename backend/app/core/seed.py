@@ -321,3 +321,10 @@ SEED_EXAMS = [
         }
     }
 ]
+
+# Every seeded notification must expose provenance. The PDF/homepage URL is the
+# best available source for the seed rows; `last_checked_at` is the day the seed
+# data was loaded, not a claim that the notification is still live.
+for _seed_exam in SEED_EXAMS:
+    _seed_exam.setdefault("source_url", _seed_exam.get("official_pdf_url"))
+    _seed_exam.setdefault("last_checked_at", date.today())

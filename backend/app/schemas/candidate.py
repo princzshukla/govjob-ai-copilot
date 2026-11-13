@@ -82,6 +82,10 @@ class CandidateProfileCreate(BaseModel):
         ..., description="Required: Aggregate percentage (e.g., 65.5)"
     )
     passing_year: Optional[int] = None
+    # "Completed" or "Final Year / Appearing". Defaults keep older clients working.
+    graduation_status: str = Field(default="Completed")
+    # Attempts already taken. The current attempt is not included.
+    previous_attempts: int = Field(default=0, ge=0)
     skills: List[str] = Field(default_factory=list)
     raw_resume_text: Optional[str] = None
 

@@ -96,64 +96,75 @@ function QuizPageComponent() {
   if (submitMutation.data) {
     const res = submitMutation.data;
     return (
-      <Card className="max-w-2xl mx-auto my-10 border-border shadow-md">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CheckCircle2 className="h-6 w-6 text-emerald-500" />
-            Evaluation Report: {topic}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div className="p-4 rounded-lg bg-muted">
-              <span className="text-xs text-muted-foreground uppercase font-medium">Accuracy</span>
-              <p className="text-2xl font-bold">{res.accuracy_pct}%</p>
-            </div>
-            <div className="p-4 rounded-lg bg-muted">
-              <span className="text-xs text-muted-foreground uppercase font-medium">Score</span>
-              <p className="text-2xl font-bold">{res.correct_count} / {res.total_attempted}</p>
-            </div>
-            <div className="p-4 rounded-lg bg-muted">
-              <span className="text-xs text-muted-foreground uppercase font-medium">Mastery</span>
-              <p className="text-2xl font-bold text-primary">{res.topic_status}</p>
-            </div>
-          </div>
-
-          {res.diagnostics?.length > 0 && (
-            <div className="space-y-3">
-              <h4 className="font-semibold text-sm flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-500" />
-                Adaptive Diagnostics
-              </h4>
-              <div className="space-y-2">
-                {res.diagnostics.map((diag: any, i: number) => (
-                  <div key={i} className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-md text-sm">
-                    <span className="font-semibold">{diag.sub_topic}:</span> {diag.mistake_type}
-                  </div>
-                ))}
+      <div className="px-4 py-6 sm:py-10">
+        <Card className="mx-auto max-w-2xl border-border shadow-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500 sm:h-6 sm:w-6" />
+              <span className="min-w-0">Evaluation Report: {topic}</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 gap-3 text-center sm:grid-cols-3 sm:gap-4">
+              <div className="p-4 rounded-lg bg-muted">
+                <span className="text-xs text-muted-foreground uppercase font-medium">
+                  Accuracy
+                </span>
+                <p className="text-2xl font-bold">{res.accuracy_pct}%</p>
+              </div>
+              <div className="p-4 rounded-lg bg-muted">
+                <span className="text-xs text-muted-foreground uppercase font-medium">Score</span>
+                <p className="text-2xl font-bold">
+                  {res.correct_count} / {res.total_attempted}
+                </p>
+              </div>
+              <div className="p-4 rounded-lg bg-muted">
+                <span className="text-xs text-muted-foreground uppercase font-medium">Mastery</span>
+                <p className="text-2xl font-bold text-primary">{res.topic_status}</p>
               </div>
             </div>
-          )}
 
-          <Button className="w-full" onClick={() => window.location.reload()}>
-            Practice Another Set
-          </Button>
-        </CardContent>
-      </Card>
+            {res.diagnostics?.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  Adaptive Diagnostics
+                </h4>
+                <div className="space-y-2">
+                  {res.diagnostics.map((diag: any, i: number) => (
+                    <div
+                      key={i}
+                      className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-md text-sm"
+                    >
+                      <span className="font-semibold">{diag.sub_topic}:</span> {diag.mistake_type}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <Button className="w-full" onClick={() => window.location.reload()}>
+              Practice Another Set
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   // Active Quiz View
   return (
-    <div className="max-w-2xl mx-auto my-10 space-y-4 px-4">
-      <div className="flex items-center justify-between text-sm">
-        <div className="flex items-center gap-2">
+    <div className="mx-auto max-w-2xl space-y-4 px-4 py-6 sm:py-10">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Badge variant="outline">{currentQ.difficulty}</Badge>
           <span className="text-muted-foreground">{currentQ.sub_topic}</span>
         </div>
         <div className="flex items-center gap-1 font-mono text-xs text-muted-foreground">
           <Clock className="h-3.5 w-3.5" />
-          <span>{secondsSpent}s / {currentQ.expected_time_sec}s</span>
+          <span>
+            {secondsSpent}s / {currentQ.expected_time_sec}s
+          </span>
         </div>
       </div>
 

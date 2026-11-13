@@ -1,6 +1,7 @@
 import logging
 import time
-from datetime import date as dt_date
+import uuid
+from datetime import date as dt_date, datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -13,8 +14,13 @@ from app.core.seed import SEED_EXAMS
 from app.core.database import get_db
 from app.models.auth import User
 from app.models.exam import ExamNotification
+from app.models.report import EligibilityReport
 from app.schemas.candidate import CandidateProfileCreate
-from app.schemas.exam import EligibilityCheckResponse
+from app.schemas.exam import (
+    EligibilityCheckResponse,
+    EligibilityReportCreate,
+    EligibilityReportResponse,
+)
 from app.schemas.roadmap import StudyRoadmapResponse
 from app.services.matcher import evaluate_all_exams
 from app.services.roadmap_generator import generate_study_roadmap_groq
@@ -52,7 +58,22 @@ async def _ensure_seed_exams(db: AsyncSession) -> list[ExamNotification]:
     result = await db.execute(
         select(ExamNotification).where(ExamNotification.is_active.is_(True))
     )
-    return list(result.scalars().all())
+    exams = list(result.scalars().all())
+
+    # Backfill provenance for rows seeded before T7. `last_checked_at` means the
+    # day this API last verified the stored notification, not a re-scrape.
+    metadata_changed = False
+    for exam in exams:
+        if not exam.source_url:
+            exam.source_url = exam.official_pdf_url
+            metadata_changed = True
+        if not exam.last_checked_at:
+            exam.last_checked_at = dt_date.today()
+            metadata_changed = True
+    if metadata_changed:
+        await db.commit()
+
+    return exams
 
 
 @router.get("/exams")
@@ -135,6 +156,68 @@ async def check_candidate_eligibility(
     )
 
 
+@router.post(
+    "/report",
+    response_model=EligibilityReportResponse,
+    status_code=201,
+)
+async def report_wrong_eligibility_result(
+    payload: EligibilityReportCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Saves a "report wrong result" submission.
+
+    The candidate snapshot intentionally drops the name and raw resume text, so
+    reports never store contact-style free text. The exam is stored by id plus a
+    small snapshot of its provenance for later review.
+    """
+    await _ensure_seed_exams(db)
+
+    exam_res = await db.execute(
+        select(ExamNotification).where(ExamNotification.id == payload.exam_id)
+    )
+    exam = exam_res.scalar_one_or_none()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam ID not found")
+
+    candidate_snapshot = payload.candidate.model_dump(
+        mode="json",
+        exclude={"full_name", "raw_resume_text"},
+    )
+    exam_snapshot = {
+        "exam_id": exam.id,
+        "title": exam.title,
+        "organizing_body": exam.organizing_body,
+        "post_type": exam.post_type,
+        "application_deadline": exam.application_deadline.isoformat(),
+        "source_url": exam.source_url or exam.official_pdf_url,
+        "last_checked_at": (
+            exam.last_checked_at or dt_date.today()
+        ).isoformat(),
+    }
+
+    created_at = datetime.now(timezone.utc)
+    report = EligibilityReport(
+        id=str(uuid.uuid4()),
+        exam_id=exam.id,
+        reported_verdict=payload.reported_verdict,
+        expected_verdict=payload.expected_verdict,
+        candidate_snapshot=candidate_snapshot,
+        exam_snapshot=exam_snapshot,
+        note=payload.note,
+        created_at=created_at,
+    )
+    db.add(report)
+    await db.commit()
+
+    return EligibilityReportResponse(
+        report_id=report.id,
+        status="received",
+        exam_id=exam.id,
+        created_at=created_at,
+    )
+
+
 @router.post("/sync-live-jobs")
 @limiter.limit("4/hour", key_func=user_or_ip_key)
 async def sync_live_government_jobs(
@@ -197,7 +280,27 @@ async def sync_live_government_jobs(
             if item.get("notification_date"):
                 item["notification_date"] = dt_date.fromisoformat(item["notification_date"])
 
-            exam = ExamNotification(**item, topics=topics)
+            # Every scraped job gets provenance, even if the LLM omitted it.
+            item["source_url"] = item.get("source_url") or item.get("official_pdf_url")
+            item["last_checked_at"] = dt_date.today()
+
+            valid_cols = {c.key for c in ExamNotification.__table__.columns}
+            payload = {k: v for k, v in item.items() if k in valid_cols}
+            required_cols = {
+                "id",
+                "title",
+                "organizing_body",
+                "application_deadline",
+                "min_age",
+                "max_age_general",
+                "age_cutoff_date",
+                "allowed_degrees",
+            }
+            if not required_cols.issubset(payload):
+                skipped_count += 1
+                continue
+
+            exam = ExamNotification(**payload, topics=topics)
             db.add(exam)
         except (KeyError, TypeError, ValueError):
             skipped_count += 1

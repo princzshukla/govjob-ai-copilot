@@ -1,6 +1,7 @@
 // Types mirroring the GovJob backend API (FastAPI, /api/v1)
 
 export interface CandidateProfile {
+  profile_id?: string;
   full_name?: string | null;
   email?: string | null;
   dob?: string | null;
@@ -13,7 +14,14 @@ export interface CandidateProfile {
   percentage_cgpa?: number | string | null;
   passing_year?: number | null;
   skills?: string[];
+  raw_resume_text?: string | null;
   [key: string]: unknown;
+}
+
+export interface SaveProfileResponse {
+  profile_id: string;
+  status: "created" | "updated";
+  profile: CandidateProfile;
 }
 
 export interface MissingFieldPrompt {
@@ -117,7 +125,7 @@ export interface TelegramLinkStatusResponse {
 }
 
 // ==========================================
-// ADAPTIVE QUIZ & MASTERY TYPES
+// SATHI AI QUIZ, TELEMETRY & MASTERY TYPES
 // ==========================================
 
 export type MistakeCategory =
@@ -138,7 +146,18 @@ export interface QuizQuestion {
   // No correct_option/explanation: the server reveals them only after submit.
   difficulty: "Easy" | "Medium" | "Hard" | string;
   expected_time_sec: number;
+  origin_type?: "REAL_PYQ" | "PYQ_STYLE" | string;
+  pyq_year?: number | null;
+  verification_badge?: string | null;
+  source_title?: string | null;
+  ca_month?: string | null;
+  marks_correct?: number;
+  negative_marks?: number;
+  quality_score?: number;
 }
+
+// Alias for components importing QuestionItem
+export type QuestionItem = QuizQuestion;
 
 export interface QuizGenerateResponse {
   quiz_id: string;
@@ -184,10 +203,19 @@ export interface QuizEvaluationResponse {
   total_attempted: number;
   correct_count: number;
   accuracy_pct: number;
+  net_marks?: number;
   topic_status: TopicMasteryStatus;
   diagnostics: DiagnosticItem[];
   micro_revisions_added: string[];
   results: QuestionReviewItem[];
+}
+
+export interface ReportQuestionResponse {
+  question_id: string;
+  report_count: number;
+  is_retired: boolean;
+  quality_score?: number;
+  reason_logged?: string;
 }
 
 export interface TopicMasteryItem {
