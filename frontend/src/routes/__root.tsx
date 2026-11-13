@@ -136,7 +136,11 @@ function GlobalUnauthorizedHandler() {
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
-      queryClient.clear();
+      // See use-auth.tsx: clear() leaves useMe() showing the stale user.
+      queryClient.setQueryData(["me"], null);
+      queryClient.removeQueries({ queryKey: ["roadmap"] });
+      queryClient.removeQueries({ queryKey: ["mastery"] });
+      queryClient.removeQueries({ queryKey: ["profile"] });
       useGovJobStore.getState().requestSignIn();
     });
     return () => setUnauthorizedHandler(null);

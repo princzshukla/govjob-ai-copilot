@@ -20,6 +20,11 @@ from app.core.tasks import session_cleanup_loop
 
 configure_logging()
 
+# Interactive docs are development-only; production serves no API schema.
+# Keep ENVIRONMENT=production in the deploy env and /docs, /redoc and
+# /openapi.json all respond 404.
+enable_docs = settings.ENVIRONMENT != "production"
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -42,6 +47,9 @@ app = FastAPI(
     title="GovJob Matcher & AI Roadmap API",
     version="1.0.0",
     lifespan=lifespan,
+    docs_url="/docs" if enable_docs else None,
+    redoc_url="/redoc" if enable_docs else None,
+    openapi_url="/openapi.json" if enable_docs else None,
 )
 
 app.state.limiter = limiter

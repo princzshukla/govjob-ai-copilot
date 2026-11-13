@@ -106,7 +106,7 @@ export function AuthDialog() {
                   type="email"
                   autoComplete="email"
                   required
-                  pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+                  pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
                   title="Use your full email, for example you@example.com"
                   placeholder="you@example.com"
                   value={email}
@@ -146,7 +146,7 @@ export function AuthDialog() {
                   type="email"
                   autoComplete="email"
                   required
-                  pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+                  pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
                   title="Use your full email, for example you@example.com"
                   placeholder="you@example.com"
                   value={email}
@@ -157,23 +157,29 @@ export function AuthDialog() {
                 <Label htmlFor="auth-phone">
                   Phone <span className="text-muted-foreground">(optional)</span>
                 </Label>
-                <Input
-                  id="auth-phone"
-                  type="tel"
-                  autoComplete="tel"
-                  inputMode="tel"
-                  pattern="\+?[0-9 ]{7,20}"
-                  title="Include your country code, for example +91 98765 43210"
-                  placeholder="+91 98765 43210"
-                  value={phone}
-                  onChange={(e) => {
-                    // Keep only a leading +, digits and spaces; strip the rest live.
-                    const raw = e.target.value;
-                    const leadingPlus = raw.trimStart().startsWith("+") ? "+" : "";
-                    const digits = raw.replace(/\D/g, "");
-                    setPhone(leadingPlus + digits);
-                  }}
-                />
+                <div className="flex">
+                  <span
+                    aria-hidden="true"
+                    className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-sm font-semibold text-muted-foreground"
+                  >
+                    +91
+                  </span>
+                  <Input
+                    id="auth-phone"
+                    type="tel"
+                    autoComplete="tel-national"
+                    inputMode="numeric"
+                    pattern="[6-9][0-9]{9}"
+                    maxLength={10}
+                    placeholder="9876543210"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    className="rounded-l-none"
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Stored as +91 number; we never ask for it again.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="auth-password-up">Password</Label>

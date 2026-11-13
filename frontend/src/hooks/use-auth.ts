@@ -71,7 +71,7 @@ export function useAuth(): UseAuth {
         email,
         password,
         full_name: name,
-        phone: phone?.trim() ? phone.trim() : null,
+        phone: phone?.replace(/\D/g, "") ? phone.replace(/\D/g, "") : null,
       });
       await finishSignIn(userOut);
     },
@@ -79,7 +79,13 @@ export function useAuth(): UseAuth {
   );
 
   const resetLocalState = useCallback(() => {
-    queryClient.clear();
+    // clear() drops the ["me"] query and its observer keeps the stale user,
+    // so the UI still looked signed-in after logout. setQueryData forces the
+    // cache to null instead.
+    queryClient.setQueryData(["me"], null);
+    queryClient.removeQueries({ queryKey: ["roadmap"] });
+    queryClient.removeQueries({ queryKey: ["mastery"] });
+    queryClient.removeQueries({ queryKey: ["profile"] });
     useGovJobStore.getState().clearDraftProfile();
     useGovJobStore.getState().closeSignIn();
   }, [queryClient]);

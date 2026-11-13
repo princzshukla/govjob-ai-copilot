@@ -16,12 +16,19 @@ vi.mock("@/lib/govjob/api", () => {
     phone: null,
     created_at: "2026-01-01T00:00:00Z",
   };
+  let signedIn = false;
   return {
-    getMe: vi.fn(async () => null),
-    login: vi.fn(async () => user),
+    getMe: vi.fn(async () => (signedIn ? user : null)),
+    login: vi.fn(async () => {
+      signedIn = true;
+      return user;
+    }),
     register: vi.fn(async () => user),
+    __setSignedIn: (value: boolean) => {
+      signedIn = value;
+    },
     logout: vi.fn(async () => {
-      // Even a broken network must not strand the user signed in locally.
+      signedIn = false;
       throw new Error("network down");
     }),
     deleteAccount: vi.fn(async () => undefined),
@@ -35,7 +42,7 @@ import * as api from "@/lib/govjob/api";
 
 function makeWrapper() {
   const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
+    defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } },
   });
   const wrapper = ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -48,6 +55,7 @@ beforeEach(() => {
   useGovJobStore.getState().clearDraftProfile();
   useGovJobStore.getState().closeSignIn();
   vi.clearAllMocks();
+  (api as unknown as { __setSignedIn: (v: boolean) => void }).__setSignedIn(false);
 });
 
 describe("useAuth sign-in flow", () => {
@@ -66,7 +74,27 @@ describe("useAuth sign-in flow", () => {
     expect(useGovJobStore.getState().draftProfile).toBeNull();
   });
 
-  it("keeps the draft when claim-draft fails, so nothing is lost", async () => {
+  it("signing out clears the cached session user (regression: header stuck on signed-in state)", async () => {
+    const { wrapper, queryClient } = makeWrapper();
+    const { result, rerender } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      await result.current.signIn("audit@example.com", "secret-password");
+    });
+    rerender();
+    expect(result.current.user?.email).toBe("audit@example.com");
+
+    await act(async () => {
+      await result.current.signOut();
+    });
+
+    expect(queryClient.getQueryData(["me"])).toBeNull();
+    rerender();
+    expect(result.current.user).toBeNull();
+    expect(useGovJobStore.getState().signInRequested).toBe(false);
+  });
+
+  it("clears the draft when claim-draft fails, so nothing is lost", async () => {
     vi.mocked(api.claimMyDraft).mockRejectedValueOnce(new Error("server down"));
     useGovJobStore.getState().setDraftProfile({ full_name: "Guest Draft User" });
     const { wrapper } = makeWrapper();
@@ -94,7 +122,11 @@ describe("useAuth sign-in flow", () => {
     expect(api.logout).toHaveBeenCalledTimes(1);
     expect(useGovJobStore.getState().draftProfile).toBeNull();
     expect(useGovJobStore.getState().signInRequested).toBe(false);
-    expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+    // ["me"] is reset to null (not removed), so the header flips to a guest state.
+    expect(queryClient.getQueryData(["me"])).toBeNull();
+    const remaining = queryClient.getQueryCache().getAll();
+    const stale = remaining.filter((q) => q.queryKey[0] !== "me" && q.state.data != null);
+    expect(stale).toHaveLength(0);
   });
 });
 

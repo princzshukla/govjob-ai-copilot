@@ -27,7 +27,7 @@ class _FullNameMixin(BaseModel):
         return " ".join(value.split()) if isinstance(value, str) else value
 
 
-_E164_PATTERN = re.compile(r"^\+[1-9]\d{7,14}$")
+_INDIA_NATIONAL_PATTERN = re.compile(r"^[6-9]\d{9}$")
 
 
 class _PhoneMixin(BaseModel):
@@ -39,16 +39,21 @@ class _PhoneMixin(BaseModel):
         if not isinstance(value, str):
             return value
 
-        # Accept the separators people actually type, then store canonical
-        # E.164 (+<country code><number>) so the unique constraint is meaningful.
-        digits = re.sub(r"[\s().-]", "", value)
+        # Clients send the bare national number (or one with common separators);
+        # the country code is chosen entirely by the server. Users may NOT
+        # override it by typing +91… or +1… into the field.
+        digits = re.sub(r"[\s().\-]", "", value)
         if not digits:
             return None
-        if not _E164_PATTERN.fullmatch(digits):
+        if digits.startswith("+"):
             raise ValueError(
-                "Phone must be in E.164 format, for example +919876543210"
+                "Enter your 10-digit mobile number without the country code; +91 is added automatically."
             )
-        return digits
+        if not _INDIA_NATIONAL_PATTERN.fullmatch(digits):
+            raise ValueError(
+                "Enter your 10-digit Indian mobile number (starts 6, 7, 8 or 9)."
+            )
+        return f"+91{digits}"
 
 
 class RegisterIn(_EmailNormalizationMixin, _FullNameMixin, _PhoneMixin):

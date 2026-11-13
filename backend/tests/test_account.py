@@ -63,7 +63,7 @@ async def test_register_requires_full_name(client):
 
 async def test_register_normalizes_full_name_and_phone(client):
     resp = await _register(
-        client, full_name="  Ada   Lovelace ", phone="+91 98765 43210"
+        client, full_name="  Ada   Lovelace ", phone="98765 43210"
     )
 
     assert resp.status_code == 201, resp.text
@@ -72,9 +72,17 @@ async def test_register_normalizes_full_name_and_phone(client):
     assert body["phone"] == "+919876543210"
 
 
-async def test_register_rejects_invalid_phone(client):
+async def test_register_silently_prefixes_country_code(client):
     resp = await _register(client, phone="9876543210")
-    assert resp.status_code == 422
+
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["phone"] == "+919876543210"
+
+
+async def test_register_rejects_phone_with_country_code_and_bad_digits(client):
+    for bad in ("+919876543210", "1234567890", "987654"):
+        resp = await _register(client, phone=bad)
+        assert resp.status_code == 422, f"bad phone {bad} was accepted"
 
 
 async def test_patch_me_updates_full_name_only(client):

@@ -9,6 +9,7 @@ import {
 import { toast } from "sonner";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { splitPhone } from "@/lib/govjob/phone";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -79,7 +80,11 @@ export function AccountMenu() {
               {user.email}
             </span>
             {user.phone ? (
-              <span className="text-[11px] font-normal text-muted-foreground">{user.phone}</span>
+              <span className="text-[11px] font-normal text-muted-foreground">
+                {splitPhone(user.phone)?.national
+                  ? `+91 ${splitPhone(user.phone)!.national}`
+                  : user.phone}
+              </span>
             ) : null}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
