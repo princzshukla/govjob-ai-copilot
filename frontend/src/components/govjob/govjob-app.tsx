@@ -29,7 +29,6 @@ import type {
   CandidateProfile,
   DiagnosticItem,
   ExamMatchResult,
-  MissingFieldPrompt,
   SavedRoadmap,
 } from "@/types/govjob";
 import { ResumeProfileStep } from "./resume-profile-step";
@@ -63,24 +62,31 @@ export function GovJobApp() {
 
   const setDraftProfile = useGovJobStore((s) => s.setDraftProfile);
   const requestSignIn = useGovJobStore((s) => s.requestSignIn);
+  const missingFields = useGovJobStore((s) => s.missingFields);
+  const setMissingFields = useGovJobStore((s) => s.setMissingFields);
+  const statusMessage = useGovJobStore((s) => s.statusMessage);
+  const setStatusMessage = useGovJobStore((s) => s.setStatusMessage);
+  const targetWeeks = useGovJobStore((s) => s.targetWeeks);
+  const setTargetWeeks = useGovJobStore((s) => s.setTargetWeeks);
+  const storedEligibility = useGovJobStore((s) => s.eligibility);
+  const setStoredEligibility = useGovJobStore((s) => s.setEligibility);
+
+  // Guests keep their draft + parse state across reloads (sessionStorage via the store).
+  const [profile, setProfile] = useState<CandidateProfile | null>(() => getDraftProfile());
 
   const [darkMode, setDarkMode] = useState(true);
   const [activeDrillTopic, setActiveDrillTopic] = useState("Percentage");
   const [activeDrillSubject, setActiveDrillSubject] = useState("Quantitative Aptitude");
   const [loading, setLoading] = useState(false);
-  // Guests keep their draft across reloads (sessionStorage via the store).
-  const [profile, setProfile] = useState<CandidateProfile | null>(() => getDraftProfile());
-  const [missingFields, setMissingFields] = useState<MissingFieldPrompt[]>([]);
-  const [statusMessage, setStatusMessage] = useState("");
-
-  const [targetWeeks, setTargetWeeks] = useState(12);
 
   const { user: me } = useAuth();
   const ownerId = me?.id ?? "guest";
   const activeExamId = examId || "ssc-cgl-general";
 
   const eligibilityCheck = useEligibilityCheck();
-  const eligibility = eligibilityCheck.data ?? null;
+  // Read from the store, not the mutation instance: in-app route changes
+  // (/ → /account) unmount this screen and mutations do not rehydrate.
+  const eligibility = storedEligibility;
   const submitting = eligibilityCheck.isPending;
 
   const { data: savedRoadmap, isLoading: roadmapLoading } = useRoadmapQuery(activeExamId);
@@ -203,7 +209,8 @@ export function GovJobApp() {
   const handleCheckEligibility = async () => {
     if (!profile) return;
     try {
-      await eligibilityCheck.mutateAsync({ profile, examId: activeExamId });
+      const result = await eligibilityCheck.mutateAsync({ profile, examId: activeExamId });
+      setStoredEligibility(result);
       setTab("eligibility");
       toast.success("Eligibility check complete.");
     } catch (err) {
@@ -216,7 +223,8 @@ export function GovJobApp() {
     if (!profile) return;
     setExam(newPrimaryId);
     try {
-      await eligibilityCheck.mutateAsync({ profile, examId: newPrimaryId });
+      const result = await eligibilityCheck.mutateAsync({ profile, examId: newPrimaryId });
+      setStoredEligibility(result);
       toast.success("Primary target updated — overlaps recalculated.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not update primary exam");

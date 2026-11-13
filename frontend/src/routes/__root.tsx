@@ -141,6 +141,7 @@ function GlobalUnauthorizedHandler() {
       queryClient.removeQueries({ queryKey: ["roadmap"] });
       queryClient.removeQueries({ queryKey: ["mastery"] });
       queryClient.removeQueries({ queryKey: ["profile"] });
+      useGovJobStore.getState().clearSessionUi();
       useGovJobStore.getState().requestSignIn();
     });
     return () => setUnauthorizedHandler(null);

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager, suppress
 
@@ -19,6 +20,7 @@ from app.core.rate_limit import limiter
 from app.core.tasks import session_cleanup_loop
 
 configure_logging()
+logger = logging.getLogger("app")
 
 # Interactive docs are development-only; production serves no API schema.
 # Keep ENVIRONMENT=production in the deploy env and /docs, /redoc and
@@ -70,6 +72,9 @@ async def security_headers(request: Request, call_next):
     response.headers["Content-Security-Policy"] = (
         "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
     )
+    # Per-user JSON must never be served from caches (shared or browser).
+    # Also prevents a client from reusing a stale response after it changed.
+    response.headers["Cache-Control"] = "no-store"
     if settings.ENVIRONMENT == "production":
         response.headers["Strict-Transport-Security"] = (
             "max-age=31536000; includeSubDomains"
@@ -88,6 +93,15 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
             cleaned["msg"] = "Invalid password format"
         errors.append(cleaned)
     return JSONResponse(status_code=422, content=jsonable_encoder({"detail": errors}))
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    # Last-resort JSON 500. Without a handler here the exception escapes the
+    # middleware stack entirely and the client gets a connection-level
+    # failure with no CORS headers (browser: "Failed to fetch").
+    logger.exception("unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 app.add_middleware(
