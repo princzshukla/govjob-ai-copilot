@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Local Test — Notices</title>
+  <!--
+    Fixture for the Layer 1 poller test suite (Step 2 of the pipeline test plan).
+    Serve it with:  python -m http.server 8001 --directory scripts/fixtures
+    Source slug:    local-test-notices
+
+    To simulate a live release during Test B, add a new list item at the top
+    of the notices list (look for the id="notices" marker below), pointing to
+    a real sample government PDF, and save. The next poll must report the
+    hash change, extract the URL and insert it into raw_discovered_links.
+    Older links already on the page must be deduplicated, not re-inserted.
+    Do NOT commit the injected line.
+  -->
+  <style>
+    body { font-family: sans-serif; max-width: 720px; margin: 2rem auto; }
+    .counter { color: #666; font-size: 0.85rem; }
+    time { color: #555; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>Example Recruitment Board — Notices</h1>
+  <p class="counter">Visitors: <span id="visitor-count">12345</span></p>
+  <ul id="notices">
+    <li>
+      <a href="https://www.upsc.gov.in/sites/default/files/AssttPublProseGNCTD-Notice-Engl-170926Rev.pdf">
+        Advertisement No. 13-2026 — Assistant Public Prosecutor, GNCTD
+      </a>
+      <span>17 Sep 2026</span>
+    </li>
+    <li>
+      <a href="https://www.upsc.gov.in/sites/default/files/Common_Mistake_OMR_SAL.pdf">
+        Common mistakes done while filling OMR Sheet / Scannable Attendance List
+      </a>
+      <span>02 Sep 2026</span>
+    </li>
+  </ul>
+</body>
+</html>
