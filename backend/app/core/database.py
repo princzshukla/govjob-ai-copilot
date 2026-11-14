@@ -10,6 +10,7 @@ import app.models.adaptive  # noqa: F401
 import app.models.auth  # noqa: F401
 import app.models.candidate  # noqa: F401
 import app.models.exam  # noqa: F401
+import app.models.pipeline  # noqa: F401
 import app.models.progress  # noqa: F401
 import app.models.report  # noqa: F401
 import app.models.roadmap  # noqa: F401
