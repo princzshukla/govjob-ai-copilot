@@ -1,0 +1,219 @@
+{
+  "notes": "10 real, already-published government notification PDFs. Expected values were read manually from the PDFs (2026-11-13). Qualification and pay are graded by case-insensitive substring match on the extracted text with the listed tokens (all must be present). Integer and date fields are exact matches. A field omitted from `expected` is not graded (marked '-') — used for the bilingual Hindi ad where English tokens are meaningless. Railway (all rrb*.gov.in) and state PSC (uppsc/bpsc) hosts were unreachable/scanned from the build network; UPSC (central PSC) and BHEL/IBPS stand in. Scanned controls below must be flagged is_scanned=true WITHOUT any LLM call.",
+  "pdfs": [
+    {
+      "file": "ibps-po-xvi.pdf",
+      "url": "https://www.ibps.in/wp-content/uploads/Detailed-Notification_CRP-PO-XVI_Final_V1_30.06.2026.pdf",
+      "organizing_body": "IBPS",
+      "expected": {
+        "total_vacancies": 6715,
+        "min_age": 20,
+        "age_cutoff_date": "2026-07-01",
+        "required_qualification_tokens": [
+          "graduation"
+        ],
+        "application_last_date": "2026-07-21",
+        "pay_level_tokens": [
+          "48480"
+        ],
+        "age_max_general": 30,
+        "relaxations": {
+          "SC": 5,
+          "ST": 5,
+          "OBC": 3
+        }
+      },
+      "notes": "54-page CRP PO/MT-XVI notice. Registration window 01.07-21.07.2026. Annexure I total 6715 (indicative). Age band as on 01.07.2026. Document itself contains a stray internal '20.07.2027' reference (ex-servicemen clause) — do not let the LLM pick that up as last date."
+    },
+    {
+      "file": "upsc-advt-13-2026.pdf",
+      "url": "https://www.upsc.gov.in/sites/default/files/AdvtNo-13-2026-Engl-131126_0.pdf",
+      "organizing_body": "UPSC",
+      "expected": {
+        "total_vacancies": 13,
+        "age_cutoff_date": "2026-07-03",
+        "required_qualification_tokens": [
+          "degree"
+        ],
+        "application_last_date": "2026-12-04",
+        "pay_level_tokens": [
+          "7th cpc"
+        ],
+        "age_max_general": 35
+      },
+      "notes": "Multi-post advertisement (13 total: Dental Surgeon 5, Ayurveda Physician 2, Homeopathic 1, Scientist B 5). No minimum age printed. General-category max 35 for all posts (SC Dental Surgeon is 40). Eligibility age is reckoned as on 03.07.2026 — the doc explicitly states the ORIGINAL Advertisement 06/2026 closing date 'shall prevail' for eligibility conditions, so the expected age cutoff is 2026-07-03. Application last date remains 2026-12-04."
+    },
+    {
+      "file": "bhel-artisan-detailed-ad.pdf",
+      "url": "https://careers.bhel.in/ar_2025/Artisan_Detailed%20AD_110825.pdf",
+      "organizing_body": "BHEL",
+      "expected": {
+        "total_vacancies": 515,
+        "age_cutoff_date": "2025-07-01",
+        "required_qualification_tokens": [
+          "class xth",
+          "national trade certificate"
+        ],
+        "application_last_date": "2025-08-12",
+        "pay_level_tokens": [
+          "29500"
+        ],
+        "age_max_general": 27,
+        "relaxations": {
+          "SC": 5,
+          "ST": 5,
+          "OBC": 3
+        }
+      },
+      "notes": "Artisan Grade IV recruitment 2025 (Advt 04/2025). 515 posts across 11 units, trade table sums to 515. General age 27 as on 01.07.2025; OBC 30 / SC-ST 32 (relaxation +5/+3 by category, as usual). min_age absent. Closing 12.08.2025 (with a printed second line '12th September, 2025' — the doc lists both; August date is the operative closing for round 1). Pay Rs 29,500-65,000 on regularization."
+    },
+    {
+      "file": "bhel-et-detailed-ad.pdf",
+      "url": "https://careers.bhel.in/archives/ET%202024%20Detailed%20Advertisement.pdf",
+      "organizing_body": "BHEL",
+      "expected": {
+        "total_vacancies": 150,
+        "age_cutoff_date": "2022-09-01",
+        "required_qualification_tokens": [
+          "engineering"
+        ],
+        "application_last_date": "2022-10-04",
+        "pay_level_tokens": [
+          "50,000"
+        ],
+        "age_max_general_any_of": [
+          27,
+          29
+        ],
+        "relaxations": {
+          "SC": 5,
+          "ST": 5,
+          "OBC": 3
+        }
+      },
+      "notes": "Advt 01/2022 Engineer/Executive Trainee (+Addendum 01/2023 interchange). 150 posts. Engineering disciplines max 27 as on 01/09/2022; Finance/HR are 29 — single-scalar extraction should return 27 (majority); flag ambiguity acceptable and noted. min_age absent. Closing 04.10.2022. Pay during training Rs 50,000-1,60,000; absorbed at Rs 60,000-1,80,000."
+    },
+    {
+      "file": "bhel-ptmc-kolkata.pdf",
+      "url": "https://careers.bhel.in/static/Avertisement%20Copy%20-%20BHEL-PSER-PTMC-2026-02.pdf",
+      "organizing_body": "BHEL (PSER Kolkata)",
+      "expected": {
+        "total_vacancies": 2,
+        "age_cutoff_date": "2026-11-01",
+        "required_qualification_tokens": [
+          "mbbs"
+        ],
+        "application_last_date": "2026-11-28",
+        "pay_level_tokens": [
+          "500"
+        ],
+        "age_max_general": 65
+      },
+      "notes": "Advt BHEL/PSER/PTMC/2026/02 (dated 13.11.2026), GDMO engagement. Wording offers EITHER 2 posts @3h/day OR 1 post @6h/day — ambiguity expected; 2 is the headline number. Age 65 as on 01/11/2026 (relaxable to 70). Last date to reach the office: 28.11.2026. Pay Rs 500/hour. min_age absent."
+    },
+    {
+      "file": "bhel-ptmc-corp-oct2026.pdf",
+      "url": "https://careers.bhel.in/static/PTMC%20Advertisement_Oct%2C%202026.pdf",
+      "organizing_body": "BHEL (Corporate Office)",
+      "expected": {
+        "total_vacancies": 2,
+        "age_cutoff_date": "2026-10-01",
+        "required_qualification_tokens": [
+          "mbbs"
+        ],
+        "application_last_date": "2026-10-22",
+        "pay_level_tokens": [
+          "500"
+        ],
+        "age_max_general": 65
+      },
+      "notes": "Advt No. 02/2026 PTMC (MBBS) Delhi/NCR, walk-in interview 22.10.2026 — no online form; walk-in date is the effective last date. Age 65 as on 01.10.2026 (relaxable to 70). Pay Rs 500/hour. min_age absent."
+    },
+    {
+      "file": "bhel-ptmc-ivp-goindwal.pdf",
+      "url": "https://careers.bhel.in/static/IVP%20PTMC%20Advertisement%20_2026.pdf",
+      "organizing_body": "BHEL (IVP Goindwal)",
+      "expected": {
+        "total_vacancies": 1,
+        "age_cutoff_date": "2026-08-01",
+        "required_qualification_tokens": [
+          "mbbs"
+        ],
+        "application_last_date": "2026-08-26",
+        "pay_level_tokens": [
+          "400"
+        ],
+        "age_max_general": 70
+      },
+      "notes": "IVP Goindwal PTMC, 1 post, MBBS + 1 yr exp. Upper age 70 as on 01.08.2026. Last date to email/post bio-data 26.08.2026. Pay Rs 400/hour (Rs 68,400/month incl. conveyance). Header in Hindi/Punjabi but body carries English."
+    },
+    {
+      "file": "bhel-atc-jhansi.pdf",
+      "url": "https://careers.bhel.in/static/Advertisement_assistant_technical_consultant_jhansi.pdf",
+      "organizing_body": "BHEL (TP Jhansi)",
+      "expected": {
+        "total_vacancies": 2,
+        "age_cutoff_date": "2026-08-01",
+        "required_qualification_tokens": [
+          "iti",
+          "electrician"
+        ],
+        "application_last_date": "2026-08-25",
+        "pay_level_tokens": [
+          "40,000"
+        ],
+        "age_max_general": 64
+      },
+      "notes": "Advt TP-05/2026 Assistant Technical Consultant (Testing) 2 posts, for retired non-executive BHEL/PSU workmen. ITI + NTC Electrician. Max 64 as on 1st of month of advertisement (August 2026). Last date for receipt of applications 25.08.2026. Consolidated Rs 40,000/month. Bilingual (English + garbled Hindi font used in Hindi half — text layer has broken glyphs there, English half is clean)."
+    },
+    {
+      "file": "bhel-fta-pssr-chennai.pdf",
+      "url": "https://careers.bhel.in/static/Advertisement_FTA_English%20Version_PSSR.pdf",
+      "organizing_body": "BHEL (PSSR Chennai)",
+      "expected": {
+        "total_vacancies": 1,
+        "age_cutoff_date": "2026-10-01",
+        "required_qualification_tokens": [
+          "hindi",
+          "english"
+        ],
+        "application_last_date_any_of": [
+          "2026-11-17",
+          "2026-11-23"
+        ],
+        "pay_level_tokens": [
+          "45000"
+        ],
+        "age_max_general": 34
+      },
+      "notes": "Advt 1/2026 FTA Grade III Rajbhasha Anuvadak, Chennai. 1 UR post, MA Hindi/MA English + 2 yrs translation experience. Max 34 as on 01.10.2026. Online submission closes 17.11.2026; hard-copy receipt 23.11.2026 (30.11.2026 far-flung) — the doc is genuinely ambiguous about which is 'the' last date, so 17.11 and 23.11 both count as correct. Pay Rs 45,000 (1st yr) / Rs 48,000 (2nd yr)."
+    },
+    {
+      "file": "bhel-fta-cfp-rudrapur-hindi.pdf",
+      "url": "https://careers.bhel.in/static/Detailed%20ad%20of%20Recruitment%20for%20the%20post%20of%20FTA%20Translator%20Gr.III%20in%20BHEL%2C%20CFP%2C%20Rudrapur.pdf",
+      "organizing_body": "BHEL (CFP Rudrapur)",
+      "expected": {
+        "total_vacancies": 1,
+        "age_cutoff_date": "2026-10-30",
+        "application_last_date": "2026-11-20",
+        "pay_level_tokens": [
+          "45,000"
+        ],
+        "age_max_general": 35
+      },
+      "notes": "Advt CFP/मा.सं./राजभाषा/01/2026 (FTA), Rajbhasha-Hindi Translator Gr III — document body is Devanagari Hindi. 1 UR post. Max 35 as on 30/10/2026. Send bio-data by 20.11.2026. Pay Rs 45,000 (1st yr) / Rs 48,000 (2nd yr). required_qualification deliberately ungraded (Hindi-only qualification block; English tokens are meaningless). Tests extraction from a Hindi document."
+    }
+  ],
+  "scanned_controls": [
+    {
+      "file": "scanned-control-upsc.pdf",
+      "organizing_body": "UPSC",
+      "note": "GNCTD Assistant Public Prosecutor notice, Advt. 11/2026 — image-only scan, 0 extractable chars. Must yield is_scanned=true + needs_manual_review=true and must NOT trigger an LLM call."
+    },
+    {
+      "file": "scanned-control-ssccr.pdf",
+      "organizing_body": "SSC Regional CR",
+      "note": "CR11524 (1) SSC regional notice — image-only scan, 0 extractable chars. Same expectations as the UPSC control."
+    }
+  ]
+}
