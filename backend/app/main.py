@@ -22,6 +22,17 @@ from app.core.tasks import session_cleanup_loop
 configure_logging()
 logger = logging.getLogger("app")
 
+# Error reporting is optional and off unless configured.
+if settings.SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+    )
+    logger.info("sentry initialized (environment=%s)", settings.ENVIRONMENT)
+
 # Interactive docs are development-only; production serves no API schema.
 # Keep ENVIRONMENT=production in the deploy env and /docs, /redoc and
 # /openapi.json all respond 404.
@@ -30,6 +41,22 @@ enable_docs = settings.ENVIRONMENT != "production"
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    # Idempotent seed: insert any missing SEED_EXAMS rows at startup (never
+    # overwrites). The API tests still call _ensure_seed_exams as a safety
+    # net because ASGITransport does not run the lifespan hook.
+    try:
+        from sqlalchemy import select as _select
+
+        from app.core.database import AsyncSessionLocal
+        from app.core.seed import upsert_seed_exams
+
+        async with AsyncSessionLocal() as db:
+            inserted = await upsert_seed_exams(db)
+        if inserted:
+            logger.info("seeded %d exam notifications (idempotent upsert)", inserted)
+    except Exception:
+        logger.exception("startup seed failed — continuing without it")
+
     # Prune expired sessions hourly in-process; the DELETE is idempotent, so
     # multiple workers doing it is fine.
     cleanup_task = asyncio.create_task(session_cleanup_loop())

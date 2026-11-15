@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     # Telegram echoes this value in X-Telegram-Bot-Api-Secret-Token.
     TELEGRAM_WEBHOOK_SECRET: str = ""
     TELEGRAM_LINK_CODE_TTL_MINUTES: int = 10
+    # Optional error reporting (sentry.io DSN). Empty = disabled.
+    SENTRY_DSN: str = ""
     # Admin chat that receives pipeline health alerts (zero-link streaks,
     # consecutive failures, robots.txt disables). Unset = skip alerting.
     TELEGRAM_ADMIN_CHAT_ID: str = ""
