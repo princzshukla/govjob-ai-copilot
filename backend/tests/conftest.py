@@ -4,6 +4,12 @@ from urllib.parse import unquote, urlparse
 
 # Must be set before app modules are imported: settings are read at import time.
 os.environ.setdefault("GROQ_API_KEY", "test-key-not-used")
+# Hermetic tests: never let the optional fallback LLM (if configured in a
+# developer's .env) fire from the suite — tests assert behavior with the
+# fallback disabled unless they monkeypatch it themselves.
+os.environ["LLM_FALLBACK_BASE_URL"] = ""
+os.environ["LLM_FALLBACK_API_KEY"] = ""
+os.environ["LLM_FALLBACK_MODEL"] = ""
 os.environ["ENVIRONMENT"] = "test"
 # CI or a developer can point tests at a disposable Postgres instance without
 # editing this file. The default remains the local docker-compose database.

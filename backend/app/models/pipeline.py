@@ -137,6 +137,21 @@ class RawDiscoveredLink(Base):
     source: Mapped[ScrapeSource] = relationship(back_populates="discovered_links")
 
 
+class ExtractionCache(Base):
+    """LLM extractions keyed by sha256(pdf_bytes). Only trusted ('auto')
+    verdicts are cached; 'review' results are always re-extracted."""
+
+    __tablename__ = "extraction_cache"
+
+    content_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="auto", server_default="auto", index=True)
+    result: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class ExtractionResult(Base):
     """Layer 2 output: what the LLM read, how sure it was, and what a human
     should see. ``status='review'`` rows are never surfaced as a definitive

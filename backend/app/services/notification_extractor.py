@@ -27,12 +27,14 @@ import asyncio
 import json
 import logging
 import re
+import hashlib
 from collections import Counter
 from datetime import date
 
 import httpx
 import pymupdf
 from groq import AsyncGroq
+from sqlalchemy import select
 
 from app.core.config import settings
 from app.schemas.pipeline import ExtractionResult, NotificationExtraction
@@ -112,6 +114,7 @@ _STRONG_WINDOWS = [
     (re.compile(r"\b(last date|closing date|deadline)\b", re.I), 200, 500, 2, 1),
     (re.compile(r"\b(qualif\w*|degree|graduat\w*|diploma)\b", re.I), 200, 700, 8, 1),
     (re.compile(r"\b(age|ages)\b", re.I), 200, 700, 4, 1),
+    (re.compile(r"\beligib\w*", re.I), 150, 500, 4, 1),
     (re.compile(r"\bvacan\w*", re.I), 200, 400, 8, 2),
     (re.compile(r"\b(pay|salary|scale|ctc|remuner\w*|emolument|level)\b", re.I), 200, 500, 3, 2),
     (re.compile(r"\b(interview|walk.?in)\b", re.I), 200, 350, 2, 3),
@@ -342,6 +345,52 @@ def _validate_and_flag(
 
 
 # ---------------------------------------------------------------------------
+# Content-hash cache (trusted extractions only; 'review' verdicts are never cached)
+# ---------------------------------------------------------------------------
+def sha256_of(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+async def _cache_lookup(content_hash: str):
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.models.pipeline import ExtractionCache
+        async with AsyncSessionLocal() as db:
+            row = (
+                await db.execute(
+                    select(ExtractionCache).where(
+                        ExtractionCache.content_hash == content_hash,
+                        ExtractionCache.status == "auto",
+                    )
+                )
+            ).scalar_one_or_none()
+            if row is None:
+                return None
+            return ExtractionResult(**row.result)
+    except Exception as exc:
+        logger.info("extraction cache lookup failed (%s) — proceeding without cache", exc)
+        return None
+
+
+async def _cache_store(content_hash: str, result: "ExtractionResult") -> None:
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.models.pipeline import ExtractionCache
+        async with AsyncSessionLocal() as db:
+            await db.merge(
+                ExtractionCache(
+                    content_hash=content_hash,
+                    provider=result.provider,
+                    status="auto",
+                    result=result.model_dump(mode="json"),
+                )
+            )
+            await db.commit()
+    except Exception as exc:
+        logger.info("extraction cache store failed (%s) — ignoring", exc)
+
+
+# ---------------------------------------------------------------------------
 # LLM calls (primary with retry, optional fallback escalation)
 # ---------------------------------------------------------------------------
 
@@ -420,7 +469,62 @@ async def _fallback_completion(messages: list[dict]) -> str | None:
         return None
 
 
-async def extract_notification(pdf_bytes: bytes) -> ExtractionResult:
+def _build_field_prompt(raw_text: str, weak_fields: list[str], budget: float = 1300.0) -> list[dict]:
+    keys = ", ".join(f'"{f}"' for f in weak_fields)
+    wanted = ", ".join(weak_fields)
+    return [
+        {"role": "system", "content": _SYSTEM_PROMPT},
+        {"role": "user", "content": f"""These fields were missing or low-confidence on the previous read of an Indian government recruitment notification. Extract ONLY them: {wanted}.
+Return a JSON object with the SAME per-field envelope: {{"value": <value or null>, "confidence": <0.0-1.0>, "evidence": "<exact quote <=140 chars from the document>"}}.
+Keys: {keys}
+STRICT RULES:
+1. Use ONLY what is explicitly written in the document. Never infer.
+2. If a value is absent, ambiguous or absent, set value=null, confidence<=0.3.
+3. Dates must be real dates present in the document, "YYYY-MM-DD".
+4. Evidence snippets must be copied verbatim.
+5. Return ONLY the JSON object. No commentary.
+
+DOCUMENT TEXT (keyword-marked sections only):
+{compress_for_prompt(raw_text, budget)}"""},
+    ]
+
+
+def _merge_weak_fields(
+    extraction: "NotificationExtraction",
+    fallback_extraction: "NotificationExtraction",
+    weak_fields: list[str],
+) -> "NotificationExtraction":
+    """Adopt fallback values only for fields that were weak and that the
+    fallback fills with confidence >= MIN_CONFIDENCE."""
+    merged = extraction.model_copy(deep=True)
+    improved = False
+    for f in weak_fields:
+        v = getattr(fallback_extraction, f)
+        conf = fallback_extraction.field_confidence.get(f, 0.0)
+        if v in (None, "", {}) or conf < MIN_CONFIDENCE:
+            continue
+        setattr(merged, f, v)
+        merged.field_confidence[f] = conf
+        if f in fallback_extraction.evidence:
+            merged.evidence[f] = fallback_extraction.evidence[f]
+        improved = True
+    if improved:
+        present = [f for f in CRITICAL_FIELDS if getattr(merged, f) not in (None, "", {})]
+        merged.confidence = (
+            min(merged.field_confidence.get(f, 0.6) for f in present) if present else 0.0
+        )
+    return merged, improved
+
+
+async def extract_notification(pdf_bytes: bytes, *, use_cache: bool = True) -> ExtractionResult:
+    content_hash = sha256_of(pdf_bytes)
+    if use_cache:
+        cached = await _cache_lookup(content_hash)
+        if cached is not None:
+            cached.provider = f"{cached.provider}+cache" if cached.provider else "cache"
+            logger.info("extraction cache hit for %s…", content_hash[:12])
+            return cached
+
     text, page_count, chars_per_page = extract_text_stats(pdf_bytes)
 
     if chars_per_page < MIN_CHARS_PER_PAGE:
@@ -465,21 +569,25 @@ async def extract_notification(pdf_bytes: bytes) -> ExtractionResult:
     extraction, parse_error = _parse_llm_payload(parsed)
     provider = "groq"
 
-    # Escalate to the fallback provider once when the primary underperforms.
-    needs_review = bool(parse_error) or any(
-        getattr(extraction, f) in (None, "", {}) for f in CRITICAL_FIELDS
-    ) or extraction.confidence < MIN_CONFIDENCE
+    # Escalate ONLY the fields that are missing or low-confidence, and only
+    # those, to the fallback provider (a targeted, small prompt instead of
+    # re-sending the whole document).
+    weak = [
+        f for f in CRITICAL_FIELDS
+        if getattr(extraction, f) in (None, "", {})
+        or (extraction.field_confidence or {}).get(f, 0.0) < MIN_CONFIDENCE
+    ]
+    needs_review = bool(parse_error) or bool(weak) or extraction.confidence < MIN_CONFIDENCE
     if needs_review:
-        fallback_raw = await _fallback_completion(messages)
+        fallback_raw = await _fallback_completion(_build_field_prompt(cleaned, weak)) if weak else None
         if fallback_raw:
             try:
                 fallback_parsed = json.loads(fallback_raw)
                 fallback_extraction, fallback_error = _parse_llm_payload(fallback_parsed)
-                if not fallback_error and (
-                    fallback_extraction.confidence > extraction.confidence
-                    or all(getattr(fallback_extraction, f) not in (None, "", {}) for f in CRITICAL_FIELDS)
-                ):
-                    extraction, parse_error, provider = fallback_extraction, None, "fallback"
+                if not fallback_error:
+                    merged, improved = _merge_weak_fields(extraction, fallback_extraction, weak)
+                    if improved:
+                        extraction, parse_error, provider = merged, None, "fallback-merged"
             except json.JSONDecodeError:
                 pass
 
@@ -492,4 +600,7 @@ async def extract_notification(pdf_bytes: bytes) -> ExtractionResult:
             provider=provider,
         )
 
-    return _validate_and_flag(extraction, raw_chars=len(cleaned), is_scanned=False, provider=provider)
+    result = _validate_and_flag(extraction, raw_chars=len(cleaned), is_scanned=False, provider=provider)
+    if use_cache and not result.needs_manual_review and not result.is_scanned:
+        await _cache_store(content_hash, result)
+    return result
