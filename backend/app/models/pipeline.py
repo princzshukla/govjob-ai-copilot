@@ -67,6 +67,13 @@ class ScrapeSource(Base):
 
     consecutive_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     backoff_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # First-class health: 'ok' (steady) | 'degraded' (consecutive_failures at
+    # threshold; cleared on the next success) | 'disabled' (hard stop, e.g.
+    # robots.txt). Set/cleared by the poller; degraded sources keep polling
+    # (with backoff) so recovery is detected automatically.
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="ok", server_default="ok", index=True
+    )
     last_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
