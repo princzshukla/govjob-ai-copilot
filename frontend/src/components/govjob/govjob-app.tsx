@@ -78,6 +78,8 @@ export function GovJobApp() {
   const [activeDrillTopic, setActiveDrillTopic] = useState("Percentage");
   const [activeDrillSubject, setActiveDrillSubject] = useState("Quantitative Aptitude");
   const [loading, setLoading] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savedProfileId, setSavedProfileId] = useState<string | null>(null);
 
   const { user: me } = useAuth();
   const ownerId = me?.id ?? "guest";
@@ -203,6 +205,25 @@ export function GovJobApp() {
             : value,
       };
     });
+  };
+
+  // 3b. Save profile to the signed-in account (backend enforces sign-in)
+  const handleSaveProfile = async () => {
+    if (!profile) return;
+    if (!me) {
+      requestSignIn();
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      const result = await api.saveCandidateProfile(profile, savedProfileId);
+      setSavedProfileId(result.profile_id);
+      toast.success(savedProfileId ? "Profile updated." : "Profile saved to your account.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save profile");
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   // 3. Eligibility check
@@ -557,6 +578,9 @@ export function GovJobApp() {
                   onUpload={handleFileUpload}
                   onFieldChange={handleFieldChange}
                   onSubmit={handleCheckEligibility}
+                  onSaveProfile={handleSaveProfile}
+                  savingProfile={savingProfile}
+                  savedProfileId={savedProfileId}
                 />
               )}
 
