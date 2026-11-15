@@ -22,6 +22,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -37,11 +38,11 @@ class ScrapeSource(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     url: Mapped[str] = mapped_column(Text, nullable=False)
     # 1 = poll frequently, 2 = moderate, 3 = slow-moving (daily-ish).
-    tier: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    tier: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     # httpx (plain GET + BeautifulSoup), playwright (rendered DOM), or
     # json_api (a JSON endpoint behind a JS frontend; seeded with the query
     # params and URL template in ``config``).
-    fetch_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="httpx")
+    fetch_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="httpx", server_default="httpx")
     # Scopes both hashing and link extraction. NULL = whole page.
     css_selector: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Extra selector for volatile nodes to strip before hashing (visitor
@@ -53,18 +54,18 @@ class ScrapeSource(Base):
     link_pattern: Mapped[str | None] = mapped_column(Text, nullable=True)
     # json_api settings: params, items_path, title_field, attachments_field,
     # file_url_template. Unused for html modes.
-    config: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    config: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
 
-    interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=300)
-    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=300, server_default="300")
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
 
     # Conditional-GET caching — 304 means "nothing changed" at ~0 cost.
     etag: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_modified: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Zero extracted/kept links for N consecutive *successful* runs.
-    consecutive_zero_runs: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    consecutive_zero_runs: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
-    consecutive_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    consecutive_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     backoff_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -89,13 +90,13 @@ class ScrapeLog(Base):
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     ok: Mapped[bool] = mapped_column(Boolean, nullable=False)
     # False when the scoped content hash matched the previous run; the worker
     # then does no link extraction or LLM work at all.
-    changed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    links_found: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    new_links: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    changed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    links_found: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    new_links: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -117,12 +118,12 @@ class RawDiscoveredLink(Base):
     )
     # new → picked up by Layer 2; processed → extracted into exam_notifications;
     # ignored → not a notification (matched a filter or failed validation).
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="new")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="new", server_default="new")
     # Official publish time when the source exposes it (e.g. SSC JSON API
     # createdAt) — times the publish→listing lag metric.
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Cross-source dedup key, e.g. "13-2026" from "Advt 13-2026" / "CGL 2026/13".
-    dedup_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    dedup_key: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
 
     __table_args__ = (UniqueConstraint("source_id", "url", name="uq_raw_discovered_links_source_url"),)
 
@@ -143,13 +144,13 @@ class ExtractionResult(Base):
         unique=True,
     )
     # auto → published; review → needs human check; rejected → junk document.
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="review")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="review", server_default="review", index=True)
     provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Flat values: total_vacancies, age_max_general, age_relaxations, ...
-    extracted: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
-    field_confidence: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
-    evidence: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
-    missing_fields: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    extracted: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    field_confidence: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    evidence: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    missing_fields: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -157,5 +158,5 @@ class ExtractionResult(Base):
     reviewed_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
     review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     exam_notification_id: Mapped[str | None] = mapped_column(
-        ForeignKey("exam_notifications.id", ondelete="SET NULL"), nullable=True
+        String(100), ForeignKey("exam_notifications.id", ondelete="SET NULL"), nullable=True
     )
