@@ -13,7 +13,7 @@ class Base(DeclarativeBase):
 class ExamNotification(Base):
     __tablename__ = "exam_notifications"
 
-    id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     organizing_body: Mapped[str] = mapped_column(String(100), nullable=False)
     post_type: Mapped[str] = mapped_column(String(50), default="General")
@@ -34,7 +34,7 @@ class ExamNotification(Base):
     min_percentage: Mapped[float] = mapped_column(Numeric(5, 2), default=0.0)
 
     # Syllabus Topics for Plan-B Overlap & AI Roadmaps
-    topics: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
+    topics: Mapped[list[str] | None] = mapped_column(ARRAY(String), default=list, nullable=True)
 
     # Domicile Constraints (Null = Pan-India Central Vacancy)
     state_restriction: Mapped[str] = mapped_column(String(50), nullable=True)

@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JSON, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JSON, String, UniqueConstraint, text
 
 from app.models.exam import Base
 
@@ -17,12 +17,12 @@ class QuestionBank(Base):
     sub_topic = Column(String, index=True, nullable=True)     # e.g. "Successive Percentage Change"
 
     # Provenance: Strictly separates real past papers from AI "PYQ-style" drills
-    origin_type = Column(String, default="PYQ_STYLE")         # "REAL_PYQ" or "PYQ_STYLE"
+    origin_type = Column(String, default="PYQ_STYLE", server_default="PYQ_STYLE")         # "REAL_PYQ" or "PYQ_STYLE"
     pyq_year = Column(Integer, nullable=True)                 # e.g. 2024 if REAL_PYQ
 
     # Difficulty: AI initial guess vs Empirical calibration after >= 30 attempts
     difficulty = Column(String, default="Medium")             # Active label ("Easy", "Medium", "Hard")
-    ai_difficulty = Column(String, default="Medium")          # Original AI guess
+    ai_difficulty = Column(String, default="Medium", server_default="Medium")          # Original AI guess
     calibrated_difficulty = Column(String, nullable=True)     # Set from real % correct
 
     # Factual Grounding & Expiry (GA, Polity, Current Affairs)
@@ -31,12 +31,12 @@ class QuestionBank(Base):
     ca_month = Column(String(7), index=True, nullable=True)   # "YYYY-MM" (expires after 6 months)
 
     # Telemetry & Auto-Retirement
-    attempts_count = Column(Integer, default=0)
-    correct_count = Column(Integer, default=0)
-    avg_time_sec = Column(Float, default=45.0)
-    report_count = Column(Integer, default=0)
-    quality_score = Column(Float, default=1.0)                # 0.0 to 1.0 health score
-    is_retired = Column(Boolean, default=False, index=True)   # True = hidden from drills
+    attempts_count = Column(Integer, default=0, server_default="0")
+    correct_count = Column(Integer, default=0, server_default="0")
+    avg_time_sec = Column(Float, default=45.0, server_default="45.0")
+    report_count = Column(Integer, default=0, server_default="0")
+    quality_score = Column(Float, default=1.0, server_default="1.0")                # 0.0 to 1.0 health score
+    is_retired = Column(Boolean, default=False, server_default=text("false"), index=True)   # True = hidden from drills
 
     # {
     #   question, options, correct_option, expected_time_sec,
@@ -98,7 +98,7 @@ class QuizAttempt(Base):
     score = Column(Integer, nullable=False)
     total_questions = Column(Integer, nullable=False)
     accuracy_percentage = Column(Float, nullable=False)
-    net_marks = Column(Float, default=0.0)                    # Accounts for exam negative marking
+    net_marks = Column(Float, default=0.0, server_default="0")                    # Accounts for exam negative marking
     time_taken_seconds = Column(Integer, default=0)
     diagnostics_log = Column(JSON, nullable=True)             # Mistake classifications
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
