@@ -61,26 +61,32 @@ PDFs (IBPS, UPSC, BHEL ×7, bilingual Hindi BHEL ad) graded field-by-field on
 vacancies, ages (+per-category relaxation), cutoff/last dates, qualification,
 pay:
 
-| PDF | Result |
+| PDF | Result (2026-11-15) |
 |---|---|
-| ibps-po-xvi (54pp, full ad) | extracted 20/30/01.07/2026-07-21/pay/relaxations; vacancies+qualification flagged `review` (not publishable) |
-| upsc-advt-13-2026 (multi-post) | vacancy total 13 ✓, ages 35 ✓; flagged `review` |
-| bhel-artisan-detailed-ad | ages 27 ✓, dates ✓, relaxations ✓, ITI ✓ |
-| bhel-et-detailed-ad | **PASS** (all fields correct; `age_max_general` 27\|29 any-of) |
-| bhel-ptmc-kolkata / corp-oct2026 | age 65 ✓, correct flag for ambiguous vacancy wording / PASS |
+| ibps-po-xvi (54pp, full ad) | ages 20/30, cutoff, last date, qualification, pay ✓; `total_vacancies` not extracted → `review` (not publishable) |
+| upsc-advt-13-2026 (multi-post) | vacancies 13 ✓, ages 35 ✓, degree ✓, 7th CPC ✓; `age_cutoff_date` not extracted → `review` |
+| bhel-artisan-detailed-ad | ages 27 ✓, dates ✓, relaxations ✓, ITI ✓; `total_vacancies` not extracted → `review` |
+| bhel-et-detailed-ad | Groq `json_validate_failed` 400 (primary + fallback) → `LLM unavailable` → `review` |
+| bhel-ptmc-kolkata | age 65 ✓, dates ✓, MBBS ✓; `total_vacancies` not extracted → `review` |
+| bhel-ptmc-corp-oct2026 | **PASS** (2 vacancies, 65, dates ✓) |
 | bhel-ptmc-ivp-goindwal | **PASS** |
 | bhel-atc-jhansi (retired-workmen ad) | full extraction except `age_cutoff_date` → `review` |
-| bhel-fta-pssr-chennai (bilingual) | age/cutoff/dates ✓, vacancies+qualification → `review` |
-| bhel-fta-cfp-rudrapur-hindi (Hindi doc) | age/date/pay ✓ (LLM 429 on quota that day) |
+| bhel-fta-pssr-chennai (bilingual) | age/dates ✓, pay ✓; vacancies+qualification → `review` |
+| bhel-fta-cfp-rudrapur-hindi (Hindi doc) | age/date/pay ✓; vacancies+qualification → `review` |
 
-**Score: 3 PASS / 7 FLAGGED / 0 FAIL — every wrong-answer outcome was blocked
+**Score (2026-11-15 re-run — see addendum in `benchmarks/notification_extraction_report.md`): 2 PASS / 8 FLAGGED / 0 FAIL — every wrong-answer outcome was blocked
 into `review`; zero hallucinated dates/ages were auto-publishable.**
 Scanned image-only PDFs short-circuit to `is_scanned=True` + `review`
 (never sent to the LLM). Gate: ≥ 9/10 "safe" (PASS or review-flagged);
-held on the completed run (2026-11-13). A re-run after compression fixes was
-blocked by the free-tier TPD ceiling (198k/200k) — see
-`benchmarks/notification_extraction_report.md` for the honest numbers and
-the addendum.
+held on both completed runs (2026-11-13: 3 PASS / 7 FLAGGED / 0 FAIL;
+2026-11-15: 2 PASS / 8 FLAGGED / 0 FAIL, 10/10 safe).
+On the re-run, `bhel-et-detailed-ad` never reached the LLM: Groq rejects the
+model's output with `json_validate_failed` (400) on both the primary and the
+fallback key — quota was healthy, so that PDF stays in `review` unscoreable
+rather than ever publishable. `total_vacancies` also regressed to null on
+`ibps-po-xvi`, `bhel-artisan-detailed-ad` and `bhel-ptmc-kolkata` — all
+flagged `review`. Full per-field detail and both runs' history: see
+`benchmarks/notification_extraction_report.md`.
 
 ## Local development
 
@@ -109,13 +115,23 @@ dedicated `pipeline` job, and a frontend typecheck/lint/test job.
 ## Pipeline status
 
 Layer 1 (discovery) and the Layer 2 extractor are implemented, tested and
-benchmarked. Layer 3 (publish extracted notifications into
-`exam_notifications`) is the next milestone; extractor outputs persist to
-`extraction_results` with per-field confidence and evidence snippets and a
-`review` gate, so nothing untrusted reaches users as a verdict.
+benchmarked (twice — see above). `app/services/exam_publisher.py` promotes
+`extraction_results` rows with `status='auto'` into `exam_notifications`
+with official-PDF provenance (`official_pdf_url`, `source_url`,
+`last_checked_at`), wiring `exam_notification_id` forward and marking the
+discovered link `processed`. Nothing is invented at publish time — a row
+missing any required value (e.g. `min_age`, `application_deadline`) is
+*held*: flipped to `review` with an explicit machine-readable
+`review_note`, never published. Qualification wording is mapped onto known
+degrees/streams (`Any Graduate` fallback); unmappable wording is held too.
+Run it with `python -m app.services.exam_publisher [--dry-run]`. Known
+limits: per-exam `age_relaxations` have no `exam_notifications` column yet
+(they stay in `extraction_results.extracted`), and one exam row is created
+per extraction (cross-source ad-number dedup is a follow-up).
 
 Key environment variables: `DATABASE_URL`, `GROQ_API_KEY`/`GROQ_MODEL`,
 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_CHAT_ID` (health alerts),
 `LLM_FALLBACK_*` (optional OpenAI-compatible fallback LLM — escalated once
-per document when the primary model yields missing/low-confidence fields).
-Never commit `.env`; CI uses `test-key-not-used`.
+per document when the primary model yields missing/low-confidence fields;
+can also point at a second Groq key's OpenAI-compatible endpoint as TPD
+overflow). Never commit `.env`; CI uses `test-key-not-used`.

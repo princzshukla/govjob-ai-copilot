@@ -33,3 +33,8 @@ backend/benchmarks/pdfs/
 # Local scratch
 comp*.txt
 PIPELINE_HANDOFF.md.bak
+
+# Layer 1 48h live stability run artifacts (pid, stdout/stderr)
+poller-48h.log
+poller-48h.err
+poller.pid

@@ -160,7 +160,7 @@ async def run(pdf_dir: Path) -> int:
 
     lines: list[str] = []
     lines.append("# Notification-Extraction Benchmark Report\n")
-    lines.append(f"Date: 2026-11-13 · PDFs: {total} · model: `{settings.GROQ_MODEL}`\n")
+    lines.append(f"Date: {date.today().isoformat()} · PDFs: {total} · model: `{settings.GROQ_MODEL}`\n")
     lines.append("## Per-PDF results\n")
     for r in rows:
         lines.append(f"### {r['file']} — **{r['verdict']}**\n")

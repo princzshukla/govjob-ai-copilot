@@ -59,8 +59,19 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     # NullPool: a migration run is short lived and must not leave pooled
-    # asyncpg connections bound to a closing event loop.
-    connectable = create_async_engine(db_url, poolclass=pool.NullPool)
+    # asyncpg connections bound to a closing event loop. The statement cache
+    # is disabled because transaction-mode poolers (Supabase pgbouncer :6543)
+    # swap the backing connection between statements; cached prepared
+    # statements then belong to a different session and the run fails with
+    # "prepared statement already exists" (same handling as the app engine).
+    connectable = create_async_engine(
+        db_url,
+        poolclass=pool.NullPool,
+        connect_args={
+            "statement_cache_size": 0,
+            "prepared_statement_cache_size": 0,
+        },
+    )
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)

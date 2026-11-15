@@ -33,6 +33,7 @@ SOURCES: list[dict] = [
         "fetch_mode": "httpx",
         "css_selector": "div.view-what-new",
         "ignore_selector": None,  # scope already excludes the carousel; hash strips counters
+        "config": {"organizing_body": "UPSC"},
         "link_pattern": r"\.pdf($|\?)|whats-new/|advt|notice",
         "interval_seconds": 120,
     },
@@ -44,6 +45,7 @@ SOURCES: list[dict] = [
         "fetch_mode": "httpx",
         "css_selector": '[data-slot="table-body"]',
         "ignore_selector": None,
+        "config": {"organizing_body": "SSC"},
         "link_pattern": r"/api/media/file/|\.pdf($|\?)",
         "interval_seconds": 120,
     },
@@ -78,6 +80,7 @@ SOURCES: list[dict] = [
             # From fileService.openPDF(fileName, "NoticeBoards"):
             # ${apiUrlFileServer}/attachment/uploads/masterData/NoticeBoards/<fileName>
             "file_url_template": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/{fileName}",
+            "organizing_body": "SSC",
         },
     },
     {
@@ -92,6 +95,7 @@ SOURCES: list[dict] = [
         "fetch_mode": "httpx",
         "css_selector": None,
         "ignore_selector": None,
+        "config": {"organizing_body": "UPPSC"},
         "link_pattern": r"\.pdf($|\?)|notice|advt|recruit",
         "interval_seconds": 120,
     },
@@ -109,6 +113,7 @@ SOURCES: list[dict] = [
         "fetch_mode": "httpx",
         "css_selector": None,
         "ignore_selector": None,
+        "config": {"organizing_body": "BHEL"},
         "link_pattern": _PDF_OR_NOTICE,
         "interval_seconds": 3600,
     },
@@ -122,6 +127,7 @@ SOURCES: list[dict] = [
         "ignore_selector": "#visitor-count",
         "link_pattern": None,
         "interval_seconds": 120,
+        "config": {"organizing_body": "Local Test"},
     },
 ]
 
