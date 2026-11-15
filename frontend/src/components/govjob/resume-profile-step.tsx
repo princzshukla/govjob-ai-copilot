@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { FileText, Loader2, Sparkles, Upload } from "lucide-react";
+import { Check, FileText, Loader2, Save, Sparkles, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +25,9 @@ interface ResumeProfileStepProps {
   onUpload: (file: File) => void;
   onFieldChange: (field: string, value: string) => void;
   onSubmit: () => void;
+  onSaveProfile?: () => void;
+  savingProfile?: boolean;
+  savedProfileId?: string | null;
 }
 
 const CATEGORY_OPTIONS = ["General", "OBC-NCL", "EWS", "SC", "ST"];
@@ -85,6 +88,9 @@ export function ResumeProfileStep({
   onUpload,
   onFieldChange,
   onSubmit,
+  onSaveProfile,
+  savingProfile = false,
+  savedProfileId = null,
 }: ResumeProfileStepProps) {
   const [fileName, setFileName] = useState<string | null>(null);
   const [isManual, setIsManual] = useState(false);
@@ -426,7 +432,25 @@ export function ResumeProfileStep({
                 </div>
               </div>
 
-              <div className="flex justify-end pt-1">
+              <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end">
+                {onSaveProfile && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onSaveProfile}
+                    disabled={savingProfile}
+                    className="gap-2 rounded-xl font-semibold"
+                  >
+                    {savingProfile ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : savedProfileId ? (
+                      <Check className="size-4" />
+                    ) : (
+                      <Save className="size-4" />
+                    )}
+                    {savedProfileId ? "Saved to your account" : "Save profile"}
+                  </Button>
+                )}
                 <Button
                   type="submit"
                   size="lg"
