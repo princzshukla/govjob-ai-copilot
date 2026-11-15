@@ -328,3 +328,23 @@ SEED_EXAMS = [
 for _seed_exam in SEED_EXAMS:
     _seed_exam.setdefault("source_url", _seed_exam.get("official_pdf_url"))
     _seed_exam.setdefault("last_checked_at", date.today())
+
+async def upsert_seed_exams(db) -> int:
+    """Idempotent startup seed. Insert SEED_EXAMS rows that are missing;
+    never overwrite existing rows (the API may retire or edit them). Returns
+    the number of rows inserted."""
+    from sqlalchemy import select
+
+    from app.models.exam import ExamNotification
+
+    existing = set((await db.execute(select(ExamNotification.id))).scalars().all())
+    inserted = 0
+    for item in SEED_EXAMS:
+        if item["id"] in existing:
+            continue
+        payload = {k: (list(v) if k == "topics" else v) for k, v in item.items()}
+        db.add(ExamNotification(**payload))
+        inserted += 1
+    if inserted:
+        await db.commit()
+    return inserted

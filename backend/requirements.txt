@@ -60,3 +60,6 @@ pytest==9.2.0
 pytest-asyncio==1.4.1.post1
 
 redis==6.4.0
+
+# Optional error reporting (guarded by SENTRY_DSN)
+sentry-sdk>=2.0,<3.0
