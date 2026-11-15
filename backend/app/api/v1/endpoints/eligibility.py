@@ -226,11 +226,14 @@ async def sync_live_government_jobs(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Scrapes live government notifications from the web, structures them via Groq,
-    and persists new notifications into PostgreSQL.
+    Discover new notifications from the official pipeline sources.
 
-    Requires login and is globally throttled, because one call costs a scrape
-    plus LLM work for everybody.
+    Runs one Layer-1 discovery pass over the official tier-1 sources
+    (UPSC What's New, SSC Notice Board), then drains the Layer-2 worker over
+    them: PDF download → extraction → publish gate. Published notifications
+    carry official links (source_url/official_pdf_url = the government's own
+    PDF/notice URL). Requires login and is globally throttled, because one
+    call costs scrape + LLM work for everybody.
     """
     global _last_sync_started_at
 
@@ -246,14 +249,14 @@ async def sync_live_government_jobs(
             )
     _last_sync_started_at = now
 
-    from app.services.job_scraper import fetch_raw_job_listings, structure_jobs_with_groq
-
-    exams = await _ensure_seed_exams(db)
-    existing_ids = {e.id for e in exams}
+    from app.services import layer1_poller, layer2_worker
 
     try:
-        raw_listings = await fetch_raw_job_listings()
-        structured_list = await structure_jobs_with_groq(raw_listings)
+        for slug in layer2_worker.DEFAULT_SOURCES:
+            await layer1_poller.run_once(only_slug=slug, ignore_schedule=True)
+        stats = await layer2_worker.process_new_links(
+            layer2_worker.DEFAULT_SOURCES, max_docs=5
+        )
     except Exception:
         # Do not reflect scraper/LLM exception text back to clients.
         logger.exception("Live job sync failed")
@@ -262,59 +265,22 @@ async def sync_live_government_jobs(
             detail="Live job sync failed. Please try again later.",
         )
 
-    added_count = 0
-    skipped_count = 0
+    added_count = stats.auto
+    skipped_count = (
+        stats.review + stats.ignored + stats.failed + stats.skipped_attempts
+    )
 
-    for item in structured_list:
-        job_id = item.get("id")
-        if not job_id or job_id in existing_ids:
-            skipped_count += 1
-            continue
-
-        try:
-            topics = list(item.pop("topics", DEFAULT_TOPICS))
-            item["application_deadline"] = dt_date.fromisoformat(item["application_deadline"])
-            item["age_cutoff_date"] = dt_date.fromisoformat(item["age_cutoff_date"])
-            if item.get("exam_date"):
-                item["exam_date"] = dt_date.fromisoformat(item["exam_date"])
-            if item.get("notification_date"):
-                item["notification_date"] = dt_date.fromisoformat(item["notification_date"])
-
-            # Every scraped job gets provenance, even if the LLM omitted it.
-            item["source_url"] = item.get("source_url") or item.get("official_pdf_url")
-            item["last_checked_at"] = dt_date.today()
-
-            valid_cols = {c.key for c in ExamNotification.__table__.columns}
-            payload = {k: v for k, v in item.items() if k in valid_cols}
-            required_cols = {
-                "id",
-                "title",
-                "organizing_body",
-                "application_deadline",
-                "min_age",
-                "max_age_general",
-                "age_cutoff_date",
-                "allowed_degrees",
-            }
-            if not required_cols.issubset(payload):
-                skipped_count += 1
-                continue
-
-            exam = ExamNotification(**payload, topics=topics)
-            db.add(exam)
-        except (KeyError, TypeError, ValueError):
-            skipped_count += 1
-            continue
-
-        existing_ids.add(job_id)
-        added_count += 1
-
-    if added_count > 0:
-        await db.commit()
+    total_active = (
+        await db.execute(
+            select(func.count())
+            .select_from(ExamNotification)
+            .where(ExamNotification.is_active.is_(True))
+        )
+    ).scalar_one()
 
     return {
         "status": "success",
         "new_jobs_discovered": added_count,
         "skipped_jobs": skipped_count,
-        "total_active_jobs": len(existing_ids),
+        "total_active_jobs": total_active,
     }

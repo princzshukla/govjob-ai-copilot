@@ -303,16 +303,16 @@ async def test_eligibility_check_stays_open_to_guests(client):
 
 
 async def test_live_job_sync_cooldown_and_generic_errors(client, monkeypatch):
-    from app.services import job_scraper
+    from app.services import layer1_poller, layer2_worker
 
-    async def empty_fetch():
+    async def fake_run_once(*args, **kwargs):
         return []
 
-    async def empty_structure(_raw):
-        return []
+    async def fake_process_new_links(*args, **kwargs):
+        return layer2_worker.WorkerStats()
 
-    monkeypatch.setattr(job_scraper, "fetch_raw_job_listings", empty_fetch)
-    monkeypatch.setattr(job_scraper, "structure_jobs_with_groq", empty_structure)
+    monkeypatch.setattr(layer1_poller, "run_once", fake_run_once)
+    monkeypatch.setattr(layer2_worker, "process_new_links", fake_process_new_links)
 
     await _register(client)
     first = await client.post(SYNC_URL)
@@ -324,12 +324,12 @@ async def test_live_job_sync_cooldown_and_generic_errors(client, monkeypatch):
 
 
 async def test_live_job_sync_error_is_not_echoed(client, monkeypatch):
-    from app.services import job_scraper
+    from app.services import layer1_poller
 
-    async def failing_fetch():
+    async def failing_sync(*args, **kwargs):
         raise RuntimeError("internal-secret-detail")
 
-    monkeypatch.setattr(job_scraper, "fetch_raw_job_listings", failing_fetch)
+    monkeypatch.setattr(layer1_poller, "run_once", failing_sync)
 
     await _register(client)
     resp = await client.post(SYNC_URL)
