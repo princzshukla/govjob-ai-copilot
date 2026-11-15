@@ -18,15 +18,14 @@ class CandidateProfile(Base):
     __tablename__ = "candidate_profiles"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    # Owner is set for account-created profiles. Guests may persist an
-    # anonymous profile reachable only by its unguessable id (user_id NULL);
-    # the unique constraint still limits accounts to one profile each.
-    user_id: Mapped[int | None] = mapped_column(
+    # One profile per account (guests never persist one and claim a draft on
+    # sign-up instead), so the owner is always known here.
+    user_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey(
             "users.id", ondelete="CASCADE", name="fk_candidate_profiles_user_id"
         ),
-        nullable=True,
+        nullable=False,
     )
     full_name: Mapped[str] = mapped_column(String(120), nullable=True)
     dob: Mapped[date | None] = mapped_column(Date, nullable=True)

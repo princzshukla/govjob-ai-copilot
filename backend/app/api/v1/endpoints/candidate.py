@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import optional_current_user, user_or_ip_key
+from app.api.v1.deps import current_user, optional_current_user, user_or_ip_key
 from app.api.v1.endpoints.eligibility import DEFAULT_TOPICS, _ensure_seed_exams
 from app.core.database import get_db
 from app.core.rate_limit import limiter
@@ -36,12 +36,13 @@ def _resume_upload_limit(key: str) -> str:
     return "20/day" if key.startswith("user:") else "3/day"
 
 
-def _ensure_profile_access(profile: CandidateProfile, user: User | None) -> None:
+def _ensure_profile_access(profile: CandidateProfile | None, user: User | None) -> None:
     """404s when an owned profile is requested by anyone but its owner.
 
-    Guest (unowned) profiles stay reachable by their unguessable id. The 404,
-    rather than 403, avoids confirming that a profile id exists.
+    The 404, rather than 403, avoids confirming that a profile id exists.
     """
+    if profile is None:
+        return
     if profile.user_id is not None and (user is None or user.id != profile.user_id):
         raise HTTPException(status_code=404, detail="Candidate profile not found")
 
@@ -110,47 +111,49 @@ async def save_candidate_profile(
         default=None,
         description="Pass an existing profile_id to update instead of creating a new record",
     ),
-    user: User | None = Depends(optional_current_user),
+    user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Persists a manual or resume-parsed CandidateProfile to PostgreSQL.
-    Returns the profile_id so the frontend can store it and re-run matches anytime.
-    Signed-in callers own the profile; guests get an anonymous profile that is
-    reachable only by its unguessable id.
+    Persists a manual or resume-parsed CandidateProfile to PostgreSQL, owned by
+    the signed-in account. Returns the profile_id so the frontend can store it
+    and re-run matches anytime. With no profile_id, updates the caller's
+    existing profile (one per account) instead of creating a duplicate row.
     """
     data = payload.model_dump()
 
+    existing = None
     if profile_id:
         res = await db.execute(
             select(CandidateProfile).where(CandidateProfile.id == profile_id)
         )
         existing = res.scalar_one_or_none()
-        if existing:
-            _ensure_profile_access(existing, user)
-            for key, value in data.items():
-                if hasattr(existing, key):
-                    setattr(existing, key, value)
-            if user is not None and existing.user_id is None:
-                # Adopt the guest profile into the caller's account.
-                existing.user_id = user.id
-            await db.commit()
-            await db.refresh(existing)
-            return {
-                "profile_id": existing.id,
-                "status": "updated",
-                "profile": data,
-            }
+        # 404s when the profile belongs to a different account (or doesn't exist).
+        _ensure_profile_access(existing, user)
+    else:
+        # One profile per account: refresh it in place.
+        res = await db.execute(
+            select(CandidateProfile).where(CandidateProfile.user_id == user.id)
+        )
+        existing = res.scalar_one_or_none()
+
+    if existing is not None:
+        for key, value in data.items():
+            if hasattr(existing, key):
+                setattr(existing, key, value)
+        await db.commit()
+        await db.refresh(existing)
+        return {
+            "profile_id": existing.id,
+            "status": "updated",
+            "profile": data,
+        }
 
     new_id = profile_id or str(uuid.uuid4())
     valid_cols = {c.key for c in CandidateProfile.__table__.columns}
     filtered_data = {k: v for k, v in data.items() if k in valid_cols}
 
-    candidate = CandidateProfile(
-        id=new_id,
-        user_id=user.id if user is not None else None,
-        **filtered_data,
-    )
+    candidate = CandidateProfile(id=new_id, user_id=user.id, **filtered_data)
     db.add(candidate)
     await db.commit()
     await db.refresh(candidate)

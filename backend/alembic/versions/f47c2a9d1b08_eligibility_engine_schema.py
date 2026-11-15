@@ -9,10 +9,6 @@ Captures the schema owned by the candidate-profile / eligibility work:
 * ``exam_notifications`` gains ``topics``, ``allows_final_year``,
   ``max_attempts``, ``source_url`` and ``last_checked_at``.
 * ``candidate_profiles`` gains ``graduation_status`` and ``previous_attempts``.
-  ``user_id`` loses NOT NULL: a profile saved by a guest before sign-up has no
-  owner. Account-owned rows keep their id, so the unique constraint on
-  ``user_id`` still enforces at most one owned profile per account (Postgres
-  allows any number of NULLs in a unique column).
 * ``eligibility_reports`` is new ("report a wrong eligibility result").
 """
 
@@ -69,13 +65,6 @@ def upgrade() -> None:
             server_default="0",
             nullable=False,
         ),
-    )
-    # Guest profiles have no owner; NULL passes the unique constraint.
-    op.alter_column(
-        "candidate_profiles",
-        "user_id",
-        existing_type=sa.Integer(),
-        nullable=True,
     )
 
     op.create_table(
@@ -156,7 +145,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_column("quiz_attempts", "net_marks")
-
     op.drop_index("ix_question_bank_is_retired", table_name="question_bank")
     op.drop_column("question_bank", "is_retired")
     op.drop_column("question_bank", "quality_score")
@@ -176,12 +164,6 @@ def downgrade() -> None:
     op.drop_index("ix_eligibility_reports_exam_id", table_name="eligibility_reports")
     op.drop_table("eligibility_reports")
 
-    op.alter_column(
-        "candidate_profiles",
-        "user_id",
-        existing_type=sa.Integer(),
-        nullable=False,
-    )
     op.drop_column("candidate_profiles", "previous_attempts")
     op.drop_column("candidate_profiles", "graduation_status")
 

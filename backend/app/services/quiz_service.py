@@ -227,6 +227,12 @@ def _build_question_item(
     quality_score: float = 1.0,
 ) -> QuestionItem:
     # Never copy correct_option/explanation into the client payload.
+    try:
+        expected = int(data.get("expected_time_sec") or pattern.default_time_sec)
+    except (TypeError, ValueError):
+        expected = pattern.default_time_sec
+    expected = max(5, min(600, expected))
+
     return QuestionItem(
         id=record_id,
         subject=subject,
@@ -235,7 +241,7 @@ def _build_question_item(
         question=data.get("question", ""),
         options=data.get("options", {}),
         difficulty=difficulty or "Medium",
-        expected_time_sec=data.get("expected_time_sec", pattern.default_time_sec),
+        expected_time_sec=expected,
         origin_type=data.get("origin_type", "PYQ_STYLE"),
         pyq_year=data.get("pyq_year"),
         verification_badge=data.get("verification_badge", "Sathi AI Verified (PYQ-Style)"),

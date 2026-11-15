@@ -198,7 +198,7 @@ def verify_question_candidate(
         "shortcut_method": shortcut or explanation,
         "why_wrong": why_wrong if isinstance(why_wrong, dict) else {},
         "roadmap_topic_link": f"/roadmap?topic={topic}",
-        "expected_time_sec": raw_q.get("expected_time_sec", pattern.default_time_sec),
+        "expected_time_sec": raw_q.get("expected_time_sec") or pattern.default_time_sec,
         "origin_type": origin_type,
         "pyq_year": raw_q.get("pyq_year"),
         "source_title": raw_q.get("source_title"),
