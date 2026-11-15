@@ -11,10 +11,12 @@ Three tables back the scraper worker:
 * ``raw_discovered_links`` — every new notification/PDF URL the worker sees,
   deduplicated per source. Layer 2 (LLM extraction) reads from here.
 """
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -67,6 +69,13 @@ class ScrapeSource(Base):
 
     consecutive_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     backoff_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # First-class health: 'ok' (steady) | 'degraded' (consecutive_failures at
+    # threshold; cleared on the next success) | 'disabled' (hard stop, e.g.
+    # robots.txt). Set/cleared by the poller; degraded sources keep polling
+    # (with backoff) so recovery is detected automatically.
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="ok", server_default="ok", index=True
+    )
     last_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -124,10 +133,27 @@ class RawDiscoveredLink(Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Cross-source dedup key, e.g. "13-2026" from "Advt 13-2026" / "CGL 2026/13".
     dedup_key: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
+    # How many times the Layer 2 worker tried this link (skipped after 3).
+    process_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
     __table_args__ = (UniqueConstraint("source_id", "url", name="uq_raw_discovered_links_source_url"),)
 
     source: Mapped[ScrapeSource] = relationship(back_populates="discovered_links")
+
+
+class ExtractionCache(Base):
+    """LLM extractions keyed by sha256(pdf_bytes). Only trusted ('auto')
+    verdicts are cached; 'review' results are always re-extracted."""
+
+    __tablename__ = "extraction_cache"
+
+    content_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="auto", server_default="auto", index=True)
+    result: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
 
 class ExtractionResult(Base):
@@ -160,3 +186,13 @@ class ExtractionResult(Base):
     exam_notification_id: Mapped[str | None] = mapped_column(
         String(100), ForeignKey("exam_notifications.id", ondelete="SET NULL"), nullable=True
     )
+
+
+class TokenBudget(Base):
+    """One row per UTC day; rolling token estimate for the unattended
+    Layer 2 worker. Stopped cleanly when the daily budget is hit."""
+
+    __tablename__ = "token_budget"
+
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    tokens_used: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")

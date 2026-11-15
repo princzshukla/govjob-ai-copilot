@@ -124,6 +124,13 @@ missing any required value (e.g. `min_age`, `application_deadline`) is
 *held*: flipped to `review` with an explicit machine-readable
 `review_note`, never published. Qualification wording is mapped onto known
 degrees/streams (`Any Graduate` fallback); unmappable wording is held too.
+`app/services/layer2_worker.py` drains `raw_discovered_links` end to end:
+download (magic-byte check, 25 MB cap) → extract (content-hash cache) →
+`auto` rows get promoted into `exam_notifications`, `review` rows wait in
+the review queue. It stops cleanly at `WORKER_DAILY_TOKEN_BUDGET` (default
+40000 estimated tokens/day, env-tunable) and skips links that fail 3 times.
+`python -m app.services.layer2_worker [--dry-run] [--source upsc-whats-new,ssc-notice-board] [--max-docs N]`.
+
 Run it with `python -m app.services.exam_publisher [--dry-run]`. Known
 limits: per-exam `age_relaxations` have no `exam_notifications` column yet
 (they stay in `extraction_results.extracted`), and one exam row is created

@@ -430,6 +430,14 @@ def _backoff_seconds(consecutive_failures: int) -> int:
     return min(BACKOFF_CAP_SECONDS, BACKOFF_BASE_SECONDS * (2**exponent))
 
 
+def _mark_recovered(source: ScrapeSource) -> bool:
+    """Flip a degraded source back to ok. Returns True on the transition."""
+    if source.status == "degraded":
+        source.status = "ok"
+        return True
+    return False
+
+
 async def _alert(text: str) -> None:
     if settings.TELEGRAM_ADMIN_CHAT_ID:
         await send_telegram_alert(settings.TELEGRAM_ADMIN_CHAT_ID, text)
@@ -445,6 +453,7 @@ async def poll_source(db: AsyncSession, source: ScrapeSource) -> PollOutcome:
     # robots.txt — a hard-stop is the only compliant reading of "respect it".
     if not await _robots_allows(source.url):
         source.enabled = False
+        source.status = "disabled"
         source.last_checked_at = now
         source.last_error = "robots.txt disallows fetching this path; source disabled"
         outcome.error = source.last_error
@@ -479,6 +488,8 @@ async def poll_source(db: AsyncSession, source: ScrapeSource) -> PollOutcome:
         source.last_hash = content_hash
         source.last_checked_at = now
         source.last_success_at = now
+        if _mark_recovered(source):
+            await _alert(f"✅ Layer1 source {source.slug} recovered after consecutive failures — polling normally again")
         source.consecutive_failures = 0
         source.backoff_until = None
         source.last_error = None
@@ -504,6 +515,8 @@ async def poll_source(db: AsyncSession, source: ScrapeSource) -> PollOutcome:
         outcome.note = "not-modified(304)"
         source.last_checked_at = now
         source.last_success_at = now
+        if _mark_recovered(source):
+            await _alert(f"✅ Layer1 source {source.slug} recovered after consecutive failures — polling normally again")
         source.consecutive_failures = 0
         source.backoff_until = None
         source.last_error = None
@@ -514,9 +527,11 @@ async def poll_source(db: AsyncSession, source: ScrapeSource) -> PollOutcome:
         source.backoff_until = now + timedelta(seconds=_backoff_seconds(source.consecutive_failures))
         source.last_error = f"{type(exc).__name__}: {exc}"[:2000]
         outcome.error = source.last_error
-        if source.consecutive_failures == FAILURE_ALERT_THRESHOLD:
+        if source.consecutive_failures >= FAILURE_ALERT_THRESHOLD and source.status != "degraded":
+            source.status = "degraded"
+            logger.warning("source %s DEGRADED — %d consecutive failures", source.slug, source.consecutive_failures)
             await _alert(
-                f"⚠️ Layer1 source {source.slug}: {source.consecutive_failures} consecutive failures — {exc}"
+                f"🛑 Layer1 source {source.slug} DEGRADED — {source.consecutive_failures} consecutive failures — {exc}"
             )
 
     outcome.duration_ms = int((time.perf_counter() - started) * 1000)
