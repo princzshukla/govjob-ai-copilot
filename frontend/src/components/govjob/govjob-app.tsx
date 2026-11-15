@@ -5,7 +5,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Award,
   BookOpen,
-  BrainCircuit,
   Crop,
   Loader2,
   Moon,
@@ -15,7 +14,6 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { AdaptiveQuizPanel } from "@/components/AdaptiveQuizPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,9 +25,7 @@ import { useRoadmapQuery, useToggleRoadmapWeek, roadmapKey } from "@/hooks/use-r
 import { useEligibilityCheck } from "@/hooks/use-eligibility";
 import type {
   CandidateProfile,
-  DiagnosticItem,
   ExamMatchResult,
-  SavedRoadmap,
 } from "@/types/govjob";
 import { ResumeProfileStep } from "./resume-profile-step";
 import { EligibilityResults } from "./eligibility-results";
@@ -43,7 +39,6 @@ const TABS = [
   { id: "eligibility", label: "Eligibility", icon: Award },
   { id: "roadmap", label: "Study Roadmap", icon: BookOpen },
   { id: "documents", label: "Photo & Signature", icon: Crop },
-  { id: "adaptive", label: "Adaptive Drill", icon: BrainCircuit },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -75,8 +70,6 @@ export function GovJobApp() {
   const [profile, setProfile] = useState<CandidateProfile | null>(() => getDraftProfile());
 
   const [darkMode, setDarkMode] = useState(true);
-  const [activeDrillTopic, setActiveDrillTopic] = useState("Percentage");
-  const [activeDrillSubject, setActiveDrillSubject] = useState("Quantitative Aptitude");
   const [loading, setLoading] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savedProfileId, setSavedProfileId] = useState<string | null>(null);
@@ -94,7 +87,7 @@ export function GovJobApp() {
   const { data: savedRoadmap, isLoading: roadmapLoading } = useRoadmapQuery(activeExamId);
   const roadmapExamId = savedRoadmap?.exam_id ?? null;
   const roadmap = savedRoadmap?.roadmap ?? null;
-  const roadmapProgressKey = roadmapKey(ownerId, activeExamId);
+
 
   const toggleWeekMutation = useToggleRoadmapWeek(activeExamId);
   const completedWeeks = useMemo(
@@ -383,16 +376,6 @@ export function GovJobApp() {
     }
   };
 
-  const handlePracticeTopic = (topic: string, subject: string = "Quantitative Aptitude") => {
-    if (!me) {
-      requestSignIn();
-      return;
-    }
-    setActiveDrillTopic(topic);
-    setActiveDrillSubject(subject);
-    setTab("adaptive");
-  };
-
   const handleToggleWeek = (weekNumber: number) => {
     if (!savedRoadmap) return;
     toggleWeekMutation.mutate({
@@ -400,63 +383,6 @@ export function GovJobApp() {
       weekNo: weekNumber,
       done: !completedWeeks[weekNumber],
     });
-  };
-
-  const handleDrillEvaluated = ({
-    topic,
-    topicStatus,
-    microRevisions,
-  }: {
-    topic: string;
-    topicStatus: string;
-    microRevisions: string[];
-    diagnostics: DiagnosticItem[];
-  }) => {
-    if (topicStatus === "Needs Revision" || microRevisions.length > 0) {
-      queryClient.setQueryData<SavedRoadmap | null | undefined>(
-        roadmapProgressKey,
-        (existing) => {
-          if (!existing) return existing;
-
-          const breakdown = [...existing.roadmap.weekly_breakdown];
-          const activeIndex = breakdown.findIndex((w) => !completedWeeks[w.week_number]);
-          const targetIdx = activeIndex !== -1 ? activeIndex : 0;
-          const currentWeek = breakdown[targetIdx];
-          if (!currentWeek) return existing;
-
-          const newTopics =
-            microRevisions.length > 0
-              ? microRevisions.map((sub) => `[Micro-Revision] ${topic}: ${sub}`)
-              : [`[High Priority] ${topic} Revision & Practice`];
-
-          const existingSet = new Set(currentWeek.topics);
-          const filteredNew = newTopics.filter((t) => !existingSet.has(t));
-          if (filteredNew.length === 0) return existing;
-
-          breakdown[targetIdx] = {
-            ...currentWeek,
-            topics: [...currentWeek.topics, ...filteredNew],
-          };
-
-          return {
-            ...existing,
-            roadmap: { ...existing.roadmap, weekly_breakdown: breakdown },
-          };
-        },
-      );
-
-      toast.warning(`Roadmap adapted! Micro-revision added for "${topic}".`, {
-        description: "Scheduled into your current study week based on drill diagnostics.",
-        action: {
-          label: "View Roadmap",
-          onClick: () => setTab("roadmap"),
-        },
-      });
-    } else if (topicStatus === "Mastered") {
-      toast.success(`"${topic}" is Mastered!`, {
-        description: "Accuracy EMA updated across your active study plan.",
-      });
-    }
   };
 
   return (
@@ -526,7 +452,7 @@ export function GovJobApp() {
         )}
 
         {/* Tabbed navigation with sliding pill (5 columns on desktop) */}
-        <nav className="mt-8 grid w-full grid-cols-2 gap-2 rounded-2xl border bg-card/60 p-1.5 backdrop-blur sm:grid-cols-5">
+        <nav className="mt-8 grid w-full grid-cols-2 gap-2 rounded-2xl border bg-card/60 p-1.5 backdrop-blur sm:grid-cols-4">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -614,7 +540,6 @@ export function GovJobApp() {
                     roadmap={roadmap}
                     completedWeeks={completedWeeks}
                     onToggleWeek={handleToggleWeek}
-                    onPracticeTopic={handlePracticeTopic}
                     examId={activeExamId}
                     activeWeek={week}
                     onWeekSelect={setWeek}
@@ -634,24 +559,6 @@ export function GovJobApp() {
                 ))}
 
               {activeTab === "documents" && <DocumentResizer />}
-
-              {activeTab === "adaptive" &&
-                (me ? (
-                  <AdaptiveQuizPanel
-                    initialExamId={roadmapExamId || examId}
-                    initialTopic={activeDrillTopic}
-                    initialSubject={activeDrillSubject}
-                    onDrillEvaluated={handleDrillEvaluated}
-                  />
-                ) : (
-                  <EmptyTabState
-                    icon={BrainCircuit}
-                    title="Adaptive drills need an account"
-                    description="Sign in to start targeted drills; your mastery EMA and drill history are saved to your own account. Parsing a resume stays free for guests."
-                    actionLabel="Sign in to start drilling"
-                    onAction={requestSignIn}
-                  />
-                ))}
             </motion.div>
           </AnimatePresence>
         </div>

@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
 import {
-  BrainCircuit,
   CheckCircle2,
   Circle,
   Target,
@@ -10,7 +9,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -21,7 +20,6 @@ interface RoadmapStepProps {
   roadmap: StudyRoadmapResponse | null;
   completedWeeks: Record<number, boolean>;
   onToggleWeek: (weekNumber: number) => void;
-  onPracticeTopic?: (topic: string, subject: string) => void;
   examId?: string;
   /** Week highlighted as the user's current focus (URL `?week=`). */
   activeWeek?: number;
@@ -32,7 +30,6 @@ export function RoadmapStep({
   roadmap,
   completedWeeks,
   onToggleWeek,
-  onPracticeTopic,
   examId = "ssc-cgl-general",
   activeWeek,
   onWeekSelect,
@@ -180,22 +177,6 @@ export function RoadmapStep({
           ) : (
             <p className="text-xs text-muted-foreground mt-1">Start a verified Sathi AI quiz</p>
           )}
-          <Button
-            size="sm"
-            className="w-full h-7 mt-2 text-xs rounded-lg gap-1.5"
-            onClick={() => {
-              const target = weakestTopic || {
-                topic: "Percentages",
-                subject: "Quantitative Aptitude",
-              };
-              if (onPracticeTopic) {
-                onPracticeTopic(target.topic, target.subject);
-              }
-            }}
-          >
-            <BrainCircuit className="size-3" />
-            {weakestTopic ? "Fix Weak Area" : "Launch Sathi AI"}
-          </Button>
         </Card>
       </div>
 
@@ -303,30 +284,7 @@ export function RoadmapStep({
                             >
                               <span className="min-w-0 break-words">{topic}</span>
                               {renderMasteryBadge(topic)}
-                              {onPracticeTopic && (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="ghost"
-                                  className={cn(
-                                    "h-5 px-1.5 text-[11px] font-semibold rounded",
-                                    isMicroRevision
-                                      ? "text-amber-400 hover:bg-amber-500/20 hover:text-amber-300"
-                                      : "text-primary hover:bg-primary/10 hover:text-primary",
-                                  )}
-                                  title={`Practice ${topic} with Sathi AI`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const cleanTopic =
-                                      topic.replace(/^\[.*?\]\s*/, "").split(":")[0] ??
-                                      "".replace(/\s+Revision & Practice$/i, "").trim();
-                                    onPracticeTopic(cleanTopic, week.focus_subject);
-                                  }}
-                                >
-                                  <BrainCircuit className="mr-1 size-3" />
-                                  Sathi AI
-                                </Button>
-                              )}
+
                             </div>
                           );
                         })}
