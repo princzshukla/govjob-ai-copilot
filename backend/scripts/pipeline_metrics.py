@@ -7,8 +7,9 @@ Freshness metric: for links whose source exposes a publish timestamp
 (SSC notices carry ``createdAt``; most HTML portals do not),
 ``time-to-listing = first_seen_at - published_at``.
 
-Health: per source, poll counts, success rate, zero-link streak and failure
-streak (errors in the last 20 runs), current backoff state. HTML sources with
+Health: per source, status ('ok'|'degraded'|'disabled'), poll counts, success
+rate, zero-link streak and failure streak (errors in the last 20 runs),
+current backoff state. HTML sources with
 no ``published_at`` show "n/a" for lag — that is a data limitation, not a
 bug.
 """
@@ -72,7 +73,7 @@ async def metrics_report() -> None:
         ).all()
         lag_by_slug = {row.slug: row for row in lag_rows}
 
-        print(f"{'source':<22} {'tier':>4} {'polls':>6} {'ok%':>5} {'lag(avg)':>9} {'lag(max)':>9} {'zero-streak':>11} {'err-streak':>10} {'backoff'}")
+        print(f"{'source':<22} {'status':<9} {'tier':>4} {'polls':>6} {'ok%':>5} {'lag(avg)':>9} {'lag(max)':>9} {'zero-streak':>11} {'err-streak':>10} {'backoff'}")
         for source in sources:
             stats = (
                 await db.execute(
@@ -99,9 +100,15 @@ async def metrics_report() -> None:
             ok_pct = (stats.ok_polls or 0) * 100 // stats.polls if stats.polls else 0
             backoff = "yes" if source.backoff_until else "-"
             print(
-                f"{source.slug:<22} {source.tier:>4} {stats.polls:>6} {ok_pct:>4}% "
+                f"{source.slug:<22} {source.status:<9} {source.tier:>4} {stats.polls:>6} {ok_pct:>4}% "
                 f"{lag_avg:>9} {lag_max:>9} {source.consecutive_zero_runs:>11} {recent_errors:>10} {backoff}"
             )
+        degraded = [s.slug for s in sources if s.status == "degraded"]
+        disabled = [s.slug for s in sources if s.status == "disabled"]
+        if degraded:
+            print(f"\nDEGRADED ({len(degraded)}): {', '.join(degraded)} — consecutive failures; will auto-recover on next good poll")
+        if disabled:
+            print(f"DISABLED ({len(disabled)}): {', '.join(disabled)} — hard stop (robots.txt); manual review before re-enabling")
 
 
 def main() -> None:
