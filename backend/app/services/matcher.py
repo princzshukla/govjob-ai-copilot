@@ -89,11 +89,58 @@ _DEGREE_GROUPS = [
     {"M.Tech", "M.E"},
 ]
 
+# Free-word patterns that mean "any degree is fine" when no specific degree
+# alias is found in the qualification text.
+_ANY_GRADUATE_PATTERNS = ("any graduate", "graduation", "graduate", "degree")
+
+
+def _scan_aliases(text: str, aliases: Dict[str, str]) -> List[str]:
+    """Return canonical values for aliases occurring in ``text``, in order.
+
+    Longest aliases first so multi-word aliases win over their prefixes;
+    word boundaries are respected so "it" does not match inside "bits".
+    De-duplicated, order of first appearance.
+    """
+    cleaned = _clean_text(text)
+    found: List[str] = []
+    for alias in sorted(aliases, key=len, reverse=True):
+        if re.search(rf"(?<![a-z]){re.escape(alias)}(?![a-z])", cleaned):
+            value = aliases[alias]
+            if value not in found:
+                found.append(value)
+    return found
+
+
+def degrees_and_streams_from_text(text: str) -> tuple[List[str], List[str]]:
+    """Scan free-text qualification wording for known degrees and streams.
+
+    e.g. "B.Tech (Computer Science / IT)" -> (["B.Tech"], ["computer science", ...]).
+    A graduation-only notification maps to ``["Any Graduate"]``. Anything else
+    unknown yields no degrees (the caller must hold the row for review rather
+    than guess).
+    """
+    cleaned = _clean_text(text or "")
+    degrees = _scan_aliases(cleaned, _DEGREE_ALIASES)
+    # "Any Graduate" is a rank floor, not a synonym for every degree; keep it
+    # only when no concrete degree was identified, or when the document
+    # explicitly says "any graduate".
+    explicit_any = bool(re.search(r"(?<![a-z])any graduate(?![a-z])", cleaned))
+    if not degrees and any(
+        re.search(rf"(?<![a-z]){re.escape(p)}(?![a-z])", cleaned) for p in _ANY_GRADUATE_PATTERNS
+    ):
+        degrees = ["Any Graduate"]
+    elif "Any Graduate" in degrees and not explicit_any and any(d != "Any Graduate" for d in degrees):
+        degrees = [d for d in degrees if d != "Any Graduate"]
+    streams = _scan_aliases(cleaned, _STREAM_ALIASES)
+    return degrees, streams
+
 _STREAM_ALIASES = {
     "cs": "computer science",
     "cse": "computer science",
     "computer science & engineering": "computer science",
     "computer science and engineering": "computer science",
+    "computer science": "computer science",
+    "information technology": "information technology",
     "computer applications": "computer science",
     "it": "information technology",
     "ece": "electronics and communication",

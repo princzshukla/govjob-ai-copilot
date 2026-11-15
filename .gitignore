@@ -27,3 +27,14 @@ docs/implementation/
 .DS_Store
 Thumbs.db
 root-cause-flaky-tests.md
+
+# Pipeline benchmark PDFs (downloaded reference documents, re-fetchable via manifest.json URLs)
+backend/benchmarks/pdfs/
+# Local scratch
+comp*.txt
+PIPELINE_HANDOFF.md.bak
+
+# Layer 1 48h live stability run artifacts (pid, stdout/stderr)
+poller-48h.log
+poller-48h.err
+poller.pid

@@ -13,6 +13,15 @@ class Settings(BaseSettings):
     # Telegram echoes this value in X-Telegram-Bot-Api-Secret-Token.
     TELEGRAM_WEBHOOK_SECRET: str = ""
     TELEGRAM_LINK_CODE_TTL_MINUTES: int = 10
+    # Admin chat that receives pipeline health alerts (zero-link streaks,
+    # consecutive failures, robots.txt disables). Unset = skip alerting.
+    TELEGRAM_ADMIN_CHAT_ID: str = ""
+    # Optional fallback LLM for the extractor (OpenAI-compatible endpoint).
+    # Escalated to once per document when the primary model yields a
+    # missing/low-confidence critical field. Empty = no fallback.
+    LLM_FALLBACK_BASE_URL: str = ""
+    LLM_FALLBACK_API_KEY: str = ""
+    LLM_FALLBACK_MODEL: str = ""
     ENVIRONMENT: str = "development"
 
     # --- Auth / session config (all env-driven, no hardcoded secrets) ---
