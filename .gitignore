@@ -38,3 +38,7 @@ PIPELINE_HANDOFF.md.bak
 poller-48h.log
 poller-48h.err
 poller.pid
+
+# Temporary UI prototyping sandbox (local only, never committed)
+temp/
+temp-ui-lab/
