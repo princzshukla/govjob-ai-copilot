@@ -15,6 +15,22 @@ class Settings(BaseSettings):
     TELEGRAM_LINK_CODE_TTL_MINUTES: int = 10
     # Optional error reporting (sentry.io DSN). Empty = disabled.
     SENTRY_DSN: str = ""
+    # Comma-separated allowlist of admin emails for the review queue.
+    # Empty = nobody is admin (fail closed).
+    ADMIN_EMAILS: str = ""
+    # Email digest for newly-published exams. Off unless configured.
+    # smtp  -> send via stdlib smtplib using MAIL_SMTP_*
+    # (unset) -> disabled; logs at INFO instead
+    MAIL_PROVIDER: str = ""
+    MAIL_SMTP_HOST: str = ""
+    MAIL_SMTP_PORT: int = 587
+    MAIL_SMTP_USER: str = ""
+    MAIL_SMTP_PASS: str = ""
+    MAIL_FROM: str = "GovJob Copilot <no-reply@govjob.example.com>"
+    # Comma-separated recipient list for the publish digest. Distinct from the
+    # per-user Telegram digests; this is the operator's mailbox.
+    MAIL_DIGEST_TO: str = ""
+    MAIL_TIMEOUT_SECONDS: int = 10
     # Admin chat that receives pipeline health alerts (zero-link streaks,
     # consecutive failures, robots.txt disables). Unset = skip alerting.
     TELEGRAM_ADMIN_CHAT_ID: str = ""

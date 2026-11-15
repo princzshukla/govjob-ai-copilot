@@ -187,7 +187,7 @@ async def process_link(
                 missing_fields=[
                     f for f in nx.CRITICAL_FIELDS if getattr(result, f) in (None, "", {})
                 ],
-                review_note=None,
+                review_note="; ".join(result.review_reasons or []) or None,
             )
         )
         link.status = "processed"

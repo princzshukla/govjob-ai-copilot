@@ -551,3 +551,67 @@ export function toggleRoadmapWeek(
     },
   );
 }
+// --- Admin review queue ---
+
+export interface ReviewQueueItem {
+  id: number;
+  source_slug: string;
+  source_name: string;
+  organizing_body: string;
+  url: string;
+  title: string | null;
+  created_at: string;
+  missing_fields: string[];
+  review_note: string | null;
+  extracted: Record<string, unknown>;
+  evidence: Record<string, string>;
+  field_confidence: Record<string, number>;
+  exam_notification_id: string | null;
+}
+
+export async function fetchAdminReviewQueue(): Promise<ReviewQueueItem[]> {
+  const res = await fetchWithTimeout(`${API_BASE}/admin/review-queue`, { method: "GET" });
+  if (res.status === 401) {
+    notifyUnauthorized();
+    throw new Error("Not authenticated");
+  }
+  if (res.status === 403) {
+    throw new Error("Admin access required");
+  }
+  if (!res.ok) {
+    throw new Error(`Could not load review queue (HTTP ${res.status})`);
+  }
+  return (await res.json()) as ReviewQueueItem[];
+}
+
+export function adminApproveExtraction(
+  id: number,
+): Promise<{ status: string; exam_id: string; title: string }> {
+  return callApi(`/admin/review-queue/${id}/approve`, { method: "POST" });
+}
+
+export function adminRejectExtraction(id: number): Promise<{ status: string }> {
+  return callApi(`/admin/review-queue/${id}/reject`, { method: "POST" });
+}
+
+export interface AdminExtractionEdit {
+  total_vacancies?: number | null;
+  min_age?: number | null;
+  age_max_general?: number | null;
+  age_cutoff_date?: string | null;
+  required_qualification?: string | null;
+  application_last_date?: string | null;
+  pay_level?: string | null;
+  age_relaxations?: Record<string, number> | null;
+}
+
+export function adminEditExtraction(
+  id: number,
+  edit: AdminExtractionEdit,
+): Promise<{ status: string; exam_id: string; title: string }> {
+  return callApi(`/admin/review-queue/${id}/edit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(edit),
+  });
+}

@@ -34,6 +34,21 @@ async def _resolve_user(request: Request, db: AsyncSession) -> User | None:
     return await db.get(User, session.user_id)
 
 
+async def require_admin(request: Request, db: AsyncSession = Depends(get_db)) -> User:
+    """current_user + ADMIN_EMAILS allowlist. Empty allowlist = nobody is admin."""
+    user = await current_user(request, db)
+    allowlist = {
+        e.strip().lower()
+        for e in settings.ADMIN_EMAILS.split(",")
+        if e.strip()
+    }
+    if not allowlist or user.email.lower() not in allowlist:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+        )
+    return user
+
+
 async def current_user(request: Request, db: AsyncSession = Depends(get_db)) -> User:
     """Resolve the logged-in user from the session cookie, or 401."""
     user = await _resolve_user(request, db)

@@ -203,6 +203,31 @@ async def publish_auto_extractions(
 
     if not dry_run and report.total_considered:
         await db.commit()
+    if not dry_run and report.published:
+        # Operator digest for newly-promoted exams. Inert unless configured
+        # (MAIL_PROVIDER/MAIL_DIGEST_TO). Never breaks the publish path.
+        try:
+            from app.services.mailer import send_exam_digest
+
+            ids = [p.exam_id for p in report.published]
+            promoted = (
+                (await db.execute(select(ExamNotification).where(ExamNotification.id.in_(ids))))
+                .scalars()
+                .all()
+            )
+            send_exam_digest(
+                [
+                    {
+                        "title": e.title,
+                        "organizing_body": e.organizing_body,
+                        "application_deadline": e.application_deadline.isoformat() if e.application_deadline else "",
+                        "official_pdf_url": e.official_pdf_url or "",
+                    }
+                    for e in promoted
+                ]
+            )
+        except Exception:
+            logger.exception("publish digest email failed — digest skipped")
     return report
 
 
