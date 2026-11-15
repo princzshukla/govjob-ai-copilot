@@ -127,7 +127,7 @@ async def run(pdf_dir: Path) -> int:
             rows.append({"file": entry["file"], "verdict": "MISSING", "checks": [], "error": "file not found"})
             continue
         try:
-            result = await extract_notification(path.read_bytes())
+            result = await extract_notification(path.read_bytes(), use_cache=False)
         except Exception as exc:  # pragma: no cover - real network/LLM
             rows.append({"file": entry["file"], "verdict": "FAIL", "checks": [], "error": f"{type(exc).__name__}: {exc}"})
             continue
