@@ -33,7 +33,7 @@ export function RoadmapStep({
   completedWeeks,
   onToggleWeek,
   onPracticeTopic,
-  examId = "ssc-cgl-tier1",
+  examId = "ssc-cgl-general",
   activeWeek,
   onWeekSelect,
 }: RoadmapStepProps) {
@@ -65,7 +65,7 @@ export function RoadmapStep({
         )
       : 0;
 
-  // Find lowest EMA topic for the "Fix Weak Area" shortcut
+  // Find lowest EMA topic for the "Fix with Sathi AI" shortcut
   const weakestTopic = [...allMasteryRecords].sort(
     (a, b) => (a.accuracy_ema || 0) - (b.accuracy_ema || 0),
   )[0];
@@ -75,7 +75,13 @@ export function RoadmapStep({
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
 
   const renderMasteryBadge = (topic: string) => {
-    const record = masteryMap[topic.toLowerCase().trim()];
+    const cleanKey =
+      topic
+        .replace(/^\[.*?\]\s*/, "")
+        .split(":")[0]
+        ?.toLowerCase()
+        .trim() ?? "";
+    const record = masteryMap[topic.toLowerCase().trim()] || masteryMap[cleanKey];
     if (!record) return null;
 
     if (record.status === "Mastered") {
@@ -119,11 +125,11 @@ export function RoadmapStep({
       transition={{ duration: 0.35, ease: "easeOut" }}
       className="space-y-6"
     >
-      {/* 1. Preparation Readiness & Mastery Analytics Card */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      {/* 1. Preparation Readiness & Sathi AI Mastery Analytics Card */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-card/60 border-primary/30 p-4 flex flex-col justify-between">
           <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
-            <TrendingUp className="size-3.5 text-primary" /> Topic Readiness EMA
+            <TrendingUp className="size-3.5 text-primary" /> Sathi AI Readiness EMA
           </span>
           <div className="mt-2 flex items-baseline justify-between">
             <span className="text-2xl font-bold font-display">{averageAccuracy}%</span>
@@ -162,7 +168,7 @@ export function RoadmapStep({
 
         <Card className="bg-primary/5 border-primary/40 p-4 flex flex-col justify-between">
           <span className="text-xs font-semibold text-primary flex items-center gap-1">
-            <Sparkles className="size-3.5" /> Recommended Drill
+            <Sparkles className="size-3.5" /> Sathi AI Focus
           </span>
           {weakestTopic ? (
             <div className="mt-1">
@@ -172,15 +178,14 @@ export function RoadmapStep({
               </p>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground mt-1">Start practicing drills</p>
+            <p className="text-xs text-muted-foreground mt-1">Start a verified Sathi AI quiz</p>
           )}
           <Button
             size="sm"
             className="w-full h-7 mt-2 text-xs rounded-lg gap-1.5"
-            disabled={!weakestTopic && allMasteryRecords.length === 0}
             onClick={() => {
               const target = weakestTopic || {
-                topic: "Percentage",
+                topic: "Percentages",
                 subject: "Quantitative Aptitude",
               };
               if (onPracticeTopic) {
@@ -189,7 +194,7 @@ export function RoadmapStep({
             }}
           >
             <BrainCircuit className="size-3" />
-            Fix Weak Area
+            {weakestTopic ? "Fix Weak Area" : "Launch Sathi AI"}
           </Button>
         </Card>
       </div>
@@ -201,7 +206,7 @@ export function RoadmapStep({
             <span className="text-xs font-semibold uppercase tracking-wider text-primary">
               AI Personalized Preparation Plan
             </span>
-            <CardTitle className="mt-1 font-display text-2xl font-bold">
+            <CardTitle className="mt-1 font-display text-xl font-bold sm:text-2xl">
               {roadmap.exam_name} ({roadmap.total_duration_weeks} Weeks)
             </CardTitle>
             <p className="mt-2 max-w-md rounded-xl border bg-muted/50 p-3 text-xs text-muted-foreground">
@@ -230,7 +235,10 @@ export function RoadmapStep({
                 key={week.week_number}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25, delay: Math.min(idx * 0.03, 0.4) }}
+                transition={{
+                  duration: 0.25,
+                  delay: Math.min(idx * 0.03, 0.4),
+                }}
               >
                 <div
                   role="button"
@@ -243,7 +251,7 @@ export function RoadmapStep({
                     }
                   }}
                   className={cn(
-                    "w-full cursor-pointer rounded-xl border p-5 text-left transition-all duration-200",
+                    "w-full cursor-pointer rounded-xl border p-4 text-left transition-all duration-200 sm:p-5",
                     isDone
                       ? "border-success/50 bg-success/10 opacity-80"
                       : "bg-muted/30 hover:border-primary/40 hover:bg-muted/50",
@@ -276,7 +284,7 @@ export function RoadmapStep({
                         </Badge>
                       </div>
 
-                      {/* Interactive Topic Badges with Drill Action */}
+                      {/* Interactive Topic Badges with Sathi AI Action */}
                       <div className="mt-3 flex flex-wrap gap-2">
                         {week.topics.map((topic, tIdx) => {
                           const isMicroRevision =
@@ -287,13 +295,13 @@ export function RoadmapStep({
                             <div
                               key={tIdx}
                               className={cn(
-                                "flex items-center gap-1.5 rounded-lg border py-1 pl-2.5 pr-1.5 text-xs shadow-sm transition-colors",
+                                "flex max-w-full flex-wrap items-center gap-1.5 rounded-lg border py-1 pl-2.5 pr-1.5 text-xs shadow-sm transition-colors",
                                 isMicroRevision
                                   ? "border-amber-500/40 bg-amber-500/10 text-amber-300 font-medium"
                                   : "border-border/60 bg-background/80 text-muted-foreground",
                               )}
                             >
-                              <span>{topic}</span>
+                              <span className="min-w-0 break-words">{topic}</span>
                               {renderMasteryBadge(topic)}
                               {onPracticeTopic && (
                                 <Button
@@ -306,15 +314,17 @@ export function RoadmapStep({
                                       ? "text-amber-400 hover:bg-amber-500/20 hover:text-amber-300"
                                       : "text-primary hover:bg-primary/10 hover:text-primary",
                                   )}
-                                  title={`Start drill for ${topic}`}
+                                  title={`Practice ${topic} with Sathi AI`}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    const cleanTopic = topic.replace(/^\[.*?\]\s*/, "");
+                                    const cleanTopic =
+                                      topic.replace(/^\[.*?\]\s*/, "").split(":")[0] ??
+                                      "".replace(/\s+Revision & Practice$/i, "").trim();
                                     onPracticeTopic(cleanTopic, week.focus_subject);
                                   }}
                                 >
                                   <BrainCircuit className="mr-1 size-3" />
-                                  Drill
+                                  Sathi AI
                                 </Button>
                               )}
                             </div>

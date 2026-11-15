@@ -1,22 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  Crop,
-  Download,
-  FileUp,
-  Loader2,
-  RefreshCw,
-  Sparkles,
-  ZoomIn,
-} from "lucide-react"; 
+import { Crop, Download, FileUp, Loader2, RefreshCw, Sparkles, ZoomIn } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -38,13 +24,62 @@ interface ResizerPreset {
 }
 
 const PRESETS: ResizerPreset[] = [
-  { label: "SSC Photo (350×450, 20–50 KB)", width: 350, height: 450, minKB: 20, maxKB: 50, type: "photo" },
-  { label: "SSC Signature (280×120, 10–20 KB)", width: 280, height: 120, minKB: 10, maxKB: 20, type: "signature" },
-  { label: "IBPS Photo (200×230, 20–50 KB)", width: 200, height: 230, minKB: 20, maxKB: 50, type: "photo" },
-  { label: "IBPS Signature (140×60, 10–20 KB)", width: 140, height: 60, minKB: 10, maxKB: 20, type: "signature" },
-  { label: "UPSC Photo (350×350, 20–300 KB)", width: 350, height: 350, minKB: 20, maxKB: 300, type: "photo" },
-  { label: "UPSC Signature (350×150, 20–300 KB)", width: 350, height: 150, minKB: 20, maxKB: 300, type: "signature" },
-  { label: "Custom (Self Defined)", width: 0, height: 0, minKB: 10, maxKB: 50, type: "custom" },
+  {
+    label: "SSC Photo (350×450, 20–50 KB)",
+    width: 350,
+    height: 450,
+    minKB: 20,
+    maxKB: 50,
+    type: "photo",
+  },
+  {
+    label: "SSC Signature (280×120, 10–20 KB)",
+    width: 280,
+    height: 120,
+    minKB: 10,
+    maxKB: 20,
+    type: "signature",
+  },
+  {
+    label: "IBPS Photo (200×230, 20–50 KB)",
+    width: 200,
+    height: 230,
+    minKB: 20,
+    maxKB: 50,
+    type: "photo",
+  },
+  {
+    label: "IBPS Signature (140×60, 10–20 KB)",
+    width: 140,
+    height: 60,
+    minKB: 10,
+    maxKB: 20,
+    type: "signature",
+  },
+  {
+    label: "UPSC Photo (350×350, 20–300 KB)",
+    width: 350,
+    height: 350,
+    minKB: 20,
+    maxKB: 300,
+    type: "photo",
+  },
+  {
+    label: "UPSC Signature (350×150, 20–300 KB)",
+    width: 350,
+    height: 150,
+    minKB: 20,
+    maxKB: 300,
+    type: "signature",
+  },
+  {
+    label: "Custom (Self Defined)",
+    width: 0,
+    height: 0,
+    minKB: 10,
+    maxKB: 50,
+    type: "custom",
+  },
 ];
 
 interface OutputImage {
@@ -85,11 +120,13 @@ export function DocumentResizer() {
   const preset = PRESETS[presetIdx]!;
   const targetWidth = preset.width || Math.max(1, parseInt(customWidth, 10) || 300);
   const targetHeight = preset.height || Math.max(1, parseInt(customHeight, 10) || 300);
-  const maxKB = preset.type === "custom" ? (parseInt(customMaxKB, 10) || 50) : preset.maxKB;
+  const maxKB = preset.type === "custom" ? parseInt(customMaxKB, 10) || 50 : preset.maxKB;
   const minKB = preset.minKB;
 
   // Binary search image compression engine
-  const compressToTarget = async (canvas: HTMLCanvasElement): Promise<{ blob: Blob; url: string; sizeKB: number }> => {
+  const compressToTarget = async (
+    canvas: HTMLCanvasElement,
+  ): Promise<{ blob: Blob; url: string; sizeKB: number }> => {
     let low = 0.05;
     let high = 0.98;
     let bestBlob: Blob | null = null;
@@ -98,7 +135,9 @@ export function DocumentResizer() {
 
     for (let i = 0; i < 8; i++) {
       const mid = (low + high) / 2;
-      const b = await new Promise<Blob>((res) => canvas.toBlob((blob) => res(blob!), "image/jpeg", mid));
+      const b = await new Promise<Blob>((res) =>
+        canvas.toBlob((blob) => res(blob!), "image/jpeg", mid),
+      );
       bestBlob = b;
 
       if (b.size >= minBytes && b.size <= maxBytes) break;
@@ -168,8 +207,14 @@ export function DocumentResizer() {
       const maxPanX = (img.width - drawW) / 2;
       const maxPanY = (img.height - drawH) / 2;
 
-      const cropX = Math.max(0, Math.min(img.width - drawW, (img.width - drawW) / 2 + panX * maxPanX));
-      const cropY = Math.max(0, Math.min(img.height - drawH, (img.height - drawH) / 2 + panY * maxPanY));
+      const cropX = Math.max(
+        0,
+        Math.min(img.width - drawW, (img.width - drawW) / 2 + panX * maxPanX),
+      );
+      const cropY = Math.max(
+        0,
+        Math.min(img.height - drawH, (img.height - drawH) / 2 + panY * maxPanY),
+      );
 
       ctx.drawImage(img, cropX, cropY, drawW, drawH, 0, 0, targetWidth, targetHeight);
 
@@ -216,7 +261,11 @@ export function DocumentResizer() {
           ctx.fillText(photoDate, targetWidth / 2, stripY + stripHeight * 0.75);
         } else {
           ctx.font = `bold ${Math.round(stripHeight * 0.4)}px sans-serif`;
-          ctx.fillText((candidateName || photoDate || "").toUpperCase(), targetWidth / 2, stripY + stripHeight / 2);
+          ctx.fillText(
+            (candidateName || photoDate || "").toUpperCase(),
+            targetWidth / 2,
+            stripY + stripHeight / 2,
+          );
         }
       }
 
@@ -294,8 +343,8 @@ export function DocumentResizer() {
           <div>
             <CardTitle className="text-lg">Government Photo &amp; Signature Resizer</CardTitle>
             <CardDescription className="mt-1">
-              Crop, resize, clean, and compress to each exam board's exact pixel and file-size limits —
-              processed entirely in your browser.
+              Crop, resize, clean, and compress to each exam board's exact pixel and file-size
+              limits — processed entirely in your browser.
             </CardDescription>
           </div>
         </div>
@@ -303,7 +352,7 @@ export function DocumentResizer() {
 
       <CardContent className="space-y-5">
         {/* Preset Selection & Dimensions Row */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Exam Board Preset</Label>
             <Select value={String(presetIdx)} onValueChange={(v) => setPresetIdx(Number(v))}>
@@ -352,9 +401,9 @@ export function DocumentResizer() {
               </div>
             </>
           ) : (
-            <div className="space-y-1.5 md:col-span-2">
+            <div className="space-y-1.5 lg:col-span-2">
               <Label className="text-xs text-muted-foreground">Statutory Requirements</Label>
-              <div className="flex h-10 items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">
                   {preset.width} × {preset.height} px
                 </Badge>
@@ -383,7 +432,9 @@ export function DocumentResizer() {
               <FileUp className="size-8 text-muted-foreground" />
             )}
             <span className="text-sm font-medium">Click to select a photo or signature image</span>
-            <span className="text-xs text-muted-foreground">Supports JPG, PNG, WEBP — Auto converts to portal-compliant JPEG</span>
+            <span className="text-xs text-muted-foreground">
+              Supports JPG, PNG, WEBP — Auto converts to portal-compliant JPEG
+            </span>
             <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
           </label>
         )}
@@ -392,15 +443,17 @@ export function DocumentResizer() {
         {srcUrl && (
           <div className="space-y-4 rounded-xl border bg-muted/20 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold">{srcInfo?.name}</span>
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="max-w-[200px] truncate text-xs font-semibold sm:max-w-none">
+                  {srcInfo?.name}
+                </span>
                 {srcInfo && (
                   <span className="text-xs text-muted-foreground">
                     ({srcInfo.width}×{srcInfo.height} px · {srcInfo.sizeKB} KB)
                   </span>
                 )}
               </div>
-              <label className="cursor-pointer text-xs font-medium text-primary hover:underline">
+              <label className="shrink-0 cursor-pointer text-xs font-medium text-primary hover:underline">
                 Replace File
                 <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
               </label>
@@ -481,7 +534,8 @@ export function DocumentResizer() {
                     />
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Automatically removes yellow camera lighting & shadows into crisp #FFFFFF scanner white.
+                    Automatically removes yellow camera lighting & shadows into crisp #FFFFFF
+                    scanner white.
                   </p>
                 </div>
               )}
@@ -490,7 +544,9 @@ export function DocumentResizer() {
               {preset.type === "photo" && (
                 <div className="space-y-2 rounded-lg border bg-background/60 p-3 sm:col-span-2 lg:col-span-2">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium">Add Candidate Name &amp; Date Stamp</Label>
+                    <Label className="text-xs font-medium">
+                      Add Candidate Name &amp; Date Stamp
+                    </Label>
                     <input
                       type="checkbox"
                       checked={addNameDate}
@@ -521,7 +577,7 @@ export function DocumentResizer() {
             {/* Preview & Compliance Status Bar */}
             {output && (
               <div className="flex flex-col items-center justify-between gap-4 rounded-xl border bg-background p-4 sm:flex-row">
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col items-center gap-3 sm:flex-row sm:gap-4">
                   <div className="relative flex items-center justify-center rounded-lg border bg-muted/20 p-1.5">
                     <img
                       src={output.url}
@@ -530,12 +586,15 @@ export function DocumentResizer() {
                     />
                   </div>
 
-                  <div className="space-y-1 text-xs">
-                    <div className="flex items-center gap-2">
+                  <div className="space-y-1 text-center text-xs sm:text-left">
+                    <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                       <span className="font-semibold text-foreground">
                         {output.width} × {output.height} px
                       </span>
-                      <Badge variant={isCompliant ? "default" : "destructive"} className="text-[10px] h-5">
+                      <Badge
+                        variant={isCompliant ? "default" : "destructive"}
+                        className="text-[10px] h-5"
+                      >
                         {isCompliant ? "Portal Ready" : "Size Out of Range"}
                       </Badge>
                     </div>
@@ -545,19 +604,31 @@ export function DocumentResizer() {
                       <span
                         className={cn(
                           "font-bold",
-                          isCompliant ? "text-emerald-500" : "text-destructive"
+                          isCompliant ? "text-emerald-500" : "text-destructive",
                         )}
                       >
                         {output.sizeKB} KB
                       </span>{" "}
-                      <span className="text-[11px]">(Target: {minKB}–{maxKB} KB)</span>
+                      <span className="text-[11px]">
+                        (Target: {minKB}–{maxKB} KB)
+                      </span>
                     </p>
-                    <p className="text-[11px] text-muted-foreground">Format: Pure JPEG (Standard EXIF)</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Format: Pure JPEG (Standard EXIF)
+                    </p>
                   </div>
                 </div>
 
-                <Button onClick={download} className="gap-2 rounded-xl w-full sm:w-auto" disabled={processing}>
-                  {processing ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+                <Button
+                  onClick={download}
+                  className="gap-2 rounded-xl w-full sm:w-auto"
+                  disabled={processing}
+                >
+                  {processing ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Download className="size-4" />
+                  )}
                   Download Compliant JPEG
                 </Button>
               </div>

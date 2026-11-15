@@ -44,13 +44,13 @@ export function EligibilityResults({
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h2 className="flex items-center gap-2 font-display text-2xl font-bold">
+        <h2 className="flex flex-wrap items-center gap-2 font-display text-xl font-bold sm:text-2xl">
           Matched Government Exams ({eligibility.eligible_now.length})
         </h2>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
           <span className="text-sm text-muted-foreground">Roadmap duration:</span>
           <Select value={String(targetWeeks)} onValueChange={(v) => onTargetWeeksChange(Number(v))}>
-            <SelectTrigger className="w-[220px]">
+            <SelectTrigger className="w-full sm:w-[220px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -81,7 +81,7 @@ export function EligibilityResults({
             >
               <CardContent className="flex h-full flex-col justify-between gap-4 p-5">
                 <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
                     <Badge variant="secondary">{exam.post_type}</Badge>
                     {exam.syllabus_overlap_pct != null && (
                       <button
@@ -91,7 +91,7 @@ export function EligibilityResults({
                           onSwitchPrimary(exam.exam_id);
                         }}
                         className={cn(
-                          "shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold transition",
+                          "shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition sm:text-xs",
                           primaryExamId === exam.exam_id
                             ? "border-warning/60 bg-warning/15 text-warning"
                             : "border-success/40 bg-success/10 text-success hover:border-success",
@@ -127,8 +127,8 @@ export function EligibilityResults({
 
                   {borderlineIds.has(exam.exam_id) && (
                     <p className="rounded-lg border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning">
-                      ⚠ This is your final attempt — you will cross the maximum age limit for
-                      this exam next cycle.
+                      ⚠ This is your final attempt — you will cross the maximum age limit for this
+                      exam next cycle.
                     </p>
                   )}
                 </div>
@@ -183,11 +183,11 @@ export function EligibilityResults({
                 type="button"
                 className="flex w-full items-center justify-between gap-3 p-4 text-left transition hover:bg-accent/50"
               >
-                <div className="flex items-center gap-2.5">
-                  <span className="flex size-9 items-center justify-center rounded-lg border border-destructive/30 bg-destructive/10">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-destructive/30 bg-destructive/10">
                     <XCircle className="size-4 text-destructive" />
                   </span>
-                  <div>
+                  <div className="min-w-0">
                     <h3 className="text-sm font-semibold">
                       Unmatched Examinations ({eligibility.ineligible.length})
                     </h3>
@@ -196,7 +196,7 @@ export function EligibilityResults({
                     </p>
                   </div>
                 </div>
-                <Badge variant="outline" className="shrink-0">
+                <Badge variant="outline" className="hidden shrink-0 sm:inline-flex">
                   View Reasons
                 </Badge>
               </button>

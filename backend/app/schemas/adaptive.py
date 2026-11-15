@@ -1,9 +1,10 @@
+# app/schemas/adaptive.py
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
 # ----------------------------------------------------
-# Base Question Schema
+# Base Question Schema (Sathi AI)
 # ----------------------------------------------------
 class QuestionItem(BaseModel):
     """A question as shown while the drill is in progress.
@@ -20,6 +21,14 @@ class QuestionItem(BaseModel):
     options: Dict[str, str]
     difficulty: str = "Medium"
     expected_time_sec: int = 45
+    origin_type: str = "PYQ_STYLE"  # "REAL_PYQ" | "PYQ_STYLE"
+    pyq_year: Optional[int] = None
+    verification_badge: str = "Sathi AI Verified (PYQ-Style)"
+    source_title: Optional[str] = None
+    ca_month: Optional[str] = None
+    marks_correct: float = 2.0
+    negative_marks: float = 0.5
+    quality_score: float = 1.0
 
 
 # ----------------------------------------------------
@@ -83,6 +92,7 @@ class QuizEvaluationResponse(BaseModel):
     total_attempted: int
     correct_count: int
     accuracy_pct: float
+    net_marks: float = 0.0
     topic_status: str  # "Mastered" | "Moderate" | "Needs Revision"
     diagnostics: List[DiagnosticItem] = []
     micro_revisions_added: List[str] = []

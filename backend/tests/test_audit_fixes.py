@@ -92,12 +92,15 @@ async def test_llm_output_is_normalised_before_caching(client, monkeypatch):
             "expected_time_sec": 30,
         },
         {
-            # Null fields everywhere the model commonly fails to fill.
+            # Null fields everywhere the model commonly fails to fill. (A shortcut is
+            # required so the Sathi verifier accepts the row at all; the null fields
+            # are what actually exercise normalisation.)
             "sub_topic": None,
             "question": "What is 10 x 10? Simple multiplication question.",
             "options": ["100", "110", "90", "10"],
             "correct_option": "a",
             "explanation": None,
+            "shortcut_method": "Drop the zeroes in and out: 10 x 10 = 100.",
             "difficulty": "Impossible",
             "expected_time_sec": None,
         },

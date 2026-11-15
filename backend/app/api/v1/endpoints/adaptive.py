@@ -1,29 +1,35 @@
+# app/api/v1/endpoints/adaptive.py
 import uuid
 from datetime import datetime, timezone
-from typing import List
+from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.api.v1.deps import current_user, user_or_ip_key
 from app.core.database import get_db
+from app.core.exam_patterns import get_exam_pattern
 from app.core.rate_limit import limiter
 from app.models.adaptive import QuestionBank, QuizAttempt, TopicMastery
 from app.models.auth import User
 from app.schemas.adaptive import (
+    DiagnosticItem,
+    QuestionReviewItem,
+    QuizEvaluationResponse,
     QuizGenerateResponse,
     SubmitQuizPayload,
-    QuizEvaluationResponse,
-    QuestionReviewItem,
-    UserMasteryResponse,
     TopicMasteryItem,
-    DiagnosticItem,
+    UserMasteryResponse,
 )
 from app.services.quiz_service import QuizGenerationError, get_or_generate_quiz
+from app.services.sathi_verifier import (
+    update_question_telemetry,
+    verify_question_candidate,
+)
 
-router = APIRouter()
+router = APIRouter(tags=["Sathi AI"])
 
 
 @router.get("/quiz", response_model=QuizGenerateResponse)
@@ -88,6 +94,8 @@ async def submit_quiz(
             status_code=status.HTTP_400_BAD_REQUEST, detail="No answers provided."
         )
 
+    pattern = get_exam_pattern(payload.exam_id)
+    wrong_count = 0
     diagnostics: List[DiagnosticItem] = []
     results: List[QuestionReviewItem] = []
     correct_count = 0
@@ -122,13 +130,21 @@ async def submit_quiz(
 
         q_data = q_record.question_data or {}
         correct_option = str(q_data.get("correct_option", "")).strip().upper()
-        expected_time = q_data.get("expected_time_sec", 45)
+        expected_time = q_data.get("expected_time_sec", pattern.default_time_sec)
         is_correct = ans.selected_option.strip().upper() == correct_option
+
+        # Update question-level telemetry, difficulty calibration, and auto-retirement
+        update_question_telemetry(
+            q_record=q_record,
+            is_correct=is_correct,
+            time_taken_sec=ans.time_taken_sec,
+            reported=False,
+        )
 
         if is_correct:
             correct_count += 1
         else:
-            # Diagnostic Classification: Rush vs Conceptual Gap
+            wrong_count += 1
             if ans.time_taken_sec < (expected_time * 0.45):
                 mistake_type = "Calculation / Rush Error"
             elif ans.time_taken_sec > (expected_time * 1.5):
@@ -167,6 +183,10 @@ async def submit_quiz(
         )
 
     accuracy_pct = round((correct_count / total_attempted) * 100, 1)
+    net_marks = round(
+        (correct_count * pattern.marks_correct) - (wrong_count * pattern.negative_marks),
+        2,
+    )
 
     attempt = QuizAttempt(
         id=str(uuid.uuid4()),
@@ -176,6 +196,7 @@ async def submit_quiz(
         score=correct_count,
         total_questions=total_attempted,
         accuracy_percentage=accuracy_pct,
+        net_marks=net_marks,
         time_taken_seconds=sum(r.time_taken_sec for r in results),
         diagnostics_log=[d.model_dump() for d in diagnostics],
     )
@@ -250,11 +271,106 @@ async def submit_quiz(
         total_attempted=total_attempted,
         correct_count=correct_count,
         accuracy_pct=accuracy_pct,
+        net_marks=net_marks,
         topic_status=topic_status,
         diagnostics=diagnostics,
         micro_revisions_added=micro_revisions,
         results=results,
     )
+
+
+@router.post("/report-question/{question_id}")
+@limiter.limit("30/hour", key_func=user_or_ip_key)
+async def report_bad_question(
+    request: Request,
+    question_id: str,
+    reason: str = Body(default="Ambiguous or incorrect answer key", embed=True),
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Allows candidates to flag a flawed question. Automatically retires the question
+    if report threshold (>= 3 reports or > 15% report rate) is reached.
+    """
+    res = await db.execute(select(QuestionBank).where(QuestionBank.id == question_id))
+    q_record = res.scalar_one_or_none()
+    if not q_record:
+        raise HTTPException(status_code=404, detail="Question not found")
+
+    q_record.report_count = (q_record.report_count or 0) + 1
+    attempts = max(q_record.attempts_count or 1, 1)
+    if q_record.report_count >= 3 or (q_record.report_count / attempts) > 0.15:
+        q_record.is_retired = True
+    q_record.quality_score = round(max(0.0, (q_record.quality_score or 1.0) - 0.25), 2)
+
+    await db.commit()
+    return {
+        "question_id": q_record.id,
+        "report_count": q_record.report_count,
+        "is_retired": q_record.is_retired,
+        "quality_score": q_record.quality_score,
+        "reason_logged": reason,
+    }
+
+
+@router.post("/import-real-pyq")
+@limiter.limit("20/hour", key_func=user_or_ip_key)
+async def import_real_pyq_question(
+    request: Request,
+    exam_id: str = Body(...),
+    subject: str = Body(...),
+    topic: str = Body(...),
+    pyq_year: int = Body(..., ge=2010, le=2026),
+    question_payload: Dict[str, Any] = Body(...),
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Adds an authentic Previous Year Question (marked as REAL_PYQ with pyq_year)
+    after verifying exam option counts and duplicate constraints.
+    """
+    pattern = get_exam_pattern(exam_id)
+    existing_res = await db.execute(
+        select(QuestionBank).where(
+            QuestionBank.exam_id == exam_id,
+            QuestionBank.topic == topic,
+        )
+    )
+    existing_stems = [
+        (r.question_data or {}).get("question", "")
+        for r in existing_res.scalars().all()
+    ]
+
+    question_payload["origin_type"] = "REAL_PYQ"
+    question_payload["pyq_year"] = pyq_year
+
+    is_valid, msg, enriched = verify_question_candidate(
+        raw_q=question_payload,
+        pattern=pattern,
+        allowed_topics=None,
+        existing_stems=existing_stems,
+        topic=topic,
+        subject=subject,
+    )
+    if not is_valid:
+        raise HTTPException(status_code=422, detail=f"PYQ validation failed: {msg}")
+
+    record = QuestionBank(
+        id=str(uuid.uuid4()),
+        exam_id=exam_id,
+        subject=subject,
+        topic=topic,
+        sub_topic=question_payload.get("sub_topic", topic),
+        origin_type="REAL_PYQ",
+        pyq_year=pyq_year,
+        difficulty=question_payload.get("difficulty", "Medium"),
+        ai_difficulty=question_payload.get("difficulty", "Medium"),
+        source_title=question_payload.get("source_title", f"Official {exam_id.upper()} {pyq_year} Paper"),
+        question_data=enriched,
+    )
+    db.add(record)
+    await db.commit()
+    return {"status": "imported", "question_id": record.id, "origin_type": "REAL_PYQ", "pyq_year": pyq_year}
 
 
 @router.get("/mastery/{exam_id}", response_model=UserMasteryResponse)

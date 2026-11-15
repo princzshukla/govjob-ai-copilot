@@ -1,12 +1,17 @@
 import os
 import pathlib
+from urllib.parse import unquote, urlparse
 
 # Must be set before app modules are imported: settings are read at import time.
 os.environ.setdefault("GROQ_API_KEY", "test-key-not-used")
 os.environ["ENVIRONMENT"] = "test"
-os.environ["DATABASE_URL"] = (
-    "postgresql+asyncpg://postgres:postgres@localhost:5432/govjobs_test"
+# CI or a developer can point tests at a disposable Postgres instance without
+# editing this file. The default remains the local docker-compose database.
+TEST_DATABASE_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://postgres:postgres@localhost:5432/govjobs_test",
 )
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["COOKIE_SECURE"] = "false"
 
 import httpx
@@ -22,7 +27,8 @@ from app.core.database import AsyncSessionLocal
 from app.core.rate_limit import limiter
 from app.main import app
 
-TEST_DB = "govjobs_test"
+_parsed_test_url = urlparse(TEST_DATABASE_URL)
+TEST_DB = _parsed_test_url.path.lstrip("/") or "govjobs_test"
 BACKEND_DIR = pathlib.Path(__file__).resolve().parents[1]
 
 
@@ -34,7 +40,11 @@ def _recreate_test_database() -> None:
     an interrupted run.
     """
     conn = psycopg2.connect(
-        host="localhost", port=5432, user="postgres", password="postgres", dbname="postgres"
+        host=_parsed_test_url.hostname or "localhost",
+        port=_parsed_test_url.port or 5432,
+        user=unquote(_parsed_test_url.username or "postgres"),
+        password=unquote(_parsed_test_url.password or ""),
+        dbname="postgres",
     )
     conn.autocommit = True
     try:
