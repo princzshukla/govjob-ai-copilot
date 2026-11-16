@@ -35,17 +35,17 @@ function Masthead({
 
   return (
     <header className="bg-paper">
-      <div className="mx-auto max-w-[1280px] px-4 py-3 sm:px-5 sm:py-3.5">
-        <div className="flex items-center justify-between gap-3">
+      <div className="mx-auto max-w-[1280px] px-4 py-4 sm:px-5 sm:py-5">
+        <div className="flex items-center gap-3">
           {/* wordmark + tagline */}
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-1.5 flex-col overflow-hidden rounded-full sm:h-11" aria-hidden="true">
+          <div className="flex shrink-0 items-center gap-3">
+            <div className="flex h-11 w-1.5 flex-col overflow-hidden rounded-full" aria-hidden="true">
               <span className="flex-1 bg-saffron" />
               <span className="flex-1 bg-white" />
               <span className="flex-1 bg-govgreen" />
             </div>
             <div>
-              <p className="flex items-center gap-2 text-[18px] leading-none font-extrabold tracking-tight text-ink sm:text-[22px]">
+              <p className="flex items-center gap-2 text-[20px] leading-none font-extrabold tracking-tight text-ink sm:text-[24px]">
                 Rozgar<span className="text-saffron">Board</span>
               </p>
               <p className="mt-1 text-[10.5px] font-semibold tracking-[.14em] text-ink/55 uppercase">
@@ -54,31 +54,71 @@ function Masthead({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Search — the centrepiece on desktop */}
+          <form
+            className="hidden h-11 flex-1 items-center gap-2 sm:flex"
+            onSubmit={(e) => {
+              e.preventDefault();
+              document
+                .getElementById("job-results")
+                ?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+          >
+            <label htmlFor="job-search-desktop" className="sr-only">
+              Search jobs
+            </label>
+            <div className="relative h-full flex-1">
+              <input
+                id="job-search-desktop"
+                value={query}
+                onChange={(e) => onQueryChange(e.target.value)}
+                placeholder="Search exam, post or department — e.g. SSC CHSL"
+                className="h-full w-full rounded-lg border-2 border-line bg-white px-4 text-[14.5px] text-ink outline-none placeholder:text-ink/45 focus:border-saffron sm:text-[15px]"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => onQueryChange("")}
+                  aria-label="Clear search"
+                  className="absolute right-[104px] top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-ink/45 hover:bg-cream hover:text-ink"
+                >
+                  ✕
+                </button>
+              )}
+              <button
+                type="submit"
+                className="absolute right-1.5 top-1/2 h-8 -translate-y-1/2 rounded-md bg-ink px-3 text-[13px] font-semibold text-white hover:bg-saffron sm:px-4 sm:text-[14px]"
+              >
+                Search
+              </button>
+            </div>
+          </form>
+
+          <div className="flex shrink-0 items-center gap-2">
             {loading ? (
-              <div className="h-9 w-28 animate-pulse rounded-lg bg-cream sm:h-11" aria-hidden="true" />
+              <div className="h-10 w-24 animate-pulse rounded-lg bg-cream sm:h-11" aria-hidden="true" />
             ) : user ? (
               <button
                 onClick={() => setAccountOpen(true)}
-                className="h-9 rounded-lg bg-ink px-3 text-[13.5px] font-semibold text-white sm:h-11 sm:px-4 sm:text-[14.5px]"
+                className="h-10 rounded-lg bg-ink px-3 text-[13px] font-semibold text-white whitespace-nowrap sm:h-11 sm:px-4 sm:text-[14.5px]"
               >
                 {user.full_name ? `Hi, ${user.full_name.split(" ")[0]}` : "My account"}
               </button>
             ) : (
               <button
                 onClick={() => promptSignIn("login")}
-                className="h-9 rounded-lg bg-saffron px-4 text-[13.5px] font-bold text-white sm:h-11 sm:px-5 sm:text-[14.5px]"
+                className="h-10 rounded-lg bg-saffron px-4 text-[13px] font-bold text-white whitespace-nowrap sm:h-11 sm:px-5 sm:text-[14.5px]"
               >
                 Login
               </button>
             )}
+            {accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}
           </div>
-          {accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}
         </div>
 
-        {/* Search — the one action every first-time visitor understands */}
+        {/* mobile search row */}
         <form
-          className="mt-2 flex items-center gap-2"
+          className="mt-3 flex h-11 items-center gap-2 sm:hidden"
           onSubmit={(e) => {
             e.preventDefault();
             document
@@ -86,16 +126,16 @@ function Masthead({
               ?.scrollIntoView({ behavior: "smooth", block: "start" });
           }}
         >
-          <label htmlFor="job-search" className="sr-only">
+          <label htmlFor="job-search-mobile" className="sr-only">
             Search jobs
           </label>
-          <div className="relative flex-1">
+          <div className="relative h-full flex-1">
             <input
-              id="job-search"
+              id="job-search-mobile"
               value={query}
               onChange={(e) => onQueryChange(e.target.value)}
               placeholder="Search exam, post or department — e.g. SSC CHSL"
-              className="h-11 w-full rounded-lg border-2 border-line bg-white px-4 text-[14.5px] text-ink outline-none placeholder:text-ink/45 focus:border-saffron sm:h-12 sm:text-[15px]"
+              className="h-full w-full rounded-lg border-2 border-line bg-white px-4 text-[14.5px] text-ink outline-none placeholder:text-ink/45 focus:border-saffron"
             />
             {query && (
               <button
@@ -109,7 +149,7 @@ function Masthead({
             )}
             <button
               type="submit"
-              className="absolute right-1.5 top-1/2 h-8 -translate-y-1/2 rounded-md bg-ink px-3 text-[13px] font-semibold text-white hover:bg-saffron sm:h-9 sm:px-4 sm:text-[14px]"
+              className="absolute right-1.5 top-1/2 h-8 -translate-y-1/2 rounded-md bg-ink px-3 text-[13px] font-semibold text-white hover:bg-saffron"
             >
               Search
             </button>
@@ -193,18 +233,18 @@ function HeroBand({
   if (total === null) return null; // during load the skeleton handles the space
   return (
     <section className="border-b border-line bg-paper">
-      <div className="mx-auto max-w-[1280px] px-4 pt-8 pb-7 sm:px-5 sm:pt-10 sm:pb-8">
+      <div className="mx-auto max-w-[1280px] px-4 pt-5 pb-5 sm:px-5 sm:pt-6 sm:pb-6">
         <p className="font-mono text-[11px] font-bold tracking-[.18em] text-saffron uppercase">
           sarkari naukri · official notifications
         </p>
-        <h1 className="mt-2 max-w-3xl text-[34px] font-extrabold leading-[1.08] tracking-tight text-ink sm:text-[46px]">
+        <h1 className="mt-1.5 max-w-3xl text-[32px] font-extrabold leading-[1.08] tracking-tight text-ink sm:text-[40px]">
           Government jobs, <span className="text-saffron">without the noise.</span>
         </h1>
-        <p className="mt-3 max-w-xl text-[15.5px] leading-relaxed text-ink/65">
+        <p className="mt-2 max-w-lg text-[15px] leading-relaxed text-ink/65">
           Every notification linked to its official PDF. Eligibility in seconds,
           one place to everything that's live.
         </p>
-        <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line pt-4 font-mono text-[12.5px] tabular-nums text-ink/70">
+        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-line pt-3 font-mono text-[12px] tabular-nums text-ink/70">
           <span>
             <span className="font-extrabold text-ink">{total}</span> notifications live
           </span>
