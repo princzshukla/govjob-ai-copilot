@@ -127,7 +127,7 @@ jobs:
         run: python -m pytest tests/test_layer1_poller.py tests/test_notification_extractor.py tests/eligibility/test_pipeline_e2e.py -q
 
   frontend:
-    name: Frontend typecheck + lint + tests
+    name: Frontend typecheck + build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -147,11 +147,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Type-check
-        run: npx tsc --noEmit
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Tests
-        run: npm test
+      # The SPA replaced the TanStack Start app: `tsc -b` + vite build is the
+      # gate until PR 3 restores a test suite (vitest) in the new app.
+      - name: Type-check + build
+        run: npm run build
