@@ -47,7 +47,7 @@ export function JobCard({
   const pct = exam.minPercentage;
 
   return (
-    <article className="rounded-lg border border-line bg-white transition-colors hover:bg-cream/40">
+    <article className="rounded-lg border border-line bg-[#fbfaf7]">
       <div className="px-5 pt-4">
         <div className="flex flex-wrap items-center gap-2">
           {exam.isNew && (
@@ -149,7 +149,7 @@ export function JobCard({
       {open && (
         <div
           id={`details-${exam.id}`}
-          className="border-t border-line bg-white px-5 py-4"
+          className="border-t border-line bg-[#fbfaf7] px-5 py-4"
         >
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <DetailGrid label="Application last date" value={formatDateIN(exam.lastDateISO)} />

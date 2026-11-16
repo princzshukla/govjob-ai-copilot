@@ -250,7 +250,7 @@ function LoadingSkeleton() {
   return (
     <div aria-busy="true" aria-label="Loading notifications">
       {[0, 1, 2].map((i) => (
-        <div key={i} className="animate-pulse rounded-lg border border-line bg-white px-5 py-4">
+        <div key={i} className="animate-pulse rounded-lg border border-line bg-[#fbfaf7] px-5 py-4">
           <div className="h-4 w-40 rounded bg-cream" />
           <div className="mt-3 h-5 w-3/4 rounded bg-cream" />
           <div className="mt-2 h-4 w-1/3 rounded bg-cream" />
@@ -438,7 +438,7 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
             {exams === null && !loadError ? (
               <LoadingSkeleton />
             ) : loadError ? (
-              <div className="rounded-lg border border-line bg-white px-5 py-14 text-center">
+              <div className="rounded-lg border border-line bg-[#fbfaf7] px-5 py-14 text-center">
                 <p className="text-[17px] font-bold text-ink">
                   Couldn't load notifications
                 </p>
@@ -451,7 +451,7 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
                 </button>
               </div>
             ) : filtered.length === 0 ? (
-              <div className="rounded-lg border border-line bg-white px-5 py-14 text-center">
+              <div className="rounded-lg border border-line bg-[#fbfaf7] px-5 py-14 text-center">
                 <p className="text-[17px] font-bold text-ink">No matching notifications</p>
                 <p className="mt-1 text-[14.5px] text-ink/60">
                   Try widening the state filter or clearing the search.
@@ -486,7 +486,7 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
             <p className="border-b border-line bg-cream px-4 py-2.5 text-[13px] font-bold tracking-[.1em] text-ink uppercase">
               Closing Soon
             </p>
-            <div className="space-y-3 bg-white px-4 py-3.5">
+            <div className="space-y-3 bg-[#fbfaf7] px-4 py-3.5">
               {closingSoon.length === 0 && (
                 <p className="text-[13.5px] text-ink/55">
                   Nothing closes in the next 10 days.
