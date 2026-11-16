@@ -1,17 +1,13 @@
 import { useAuth } from "../../lib/auth";
 
-export function Footer({
-  onNavigate,
-}: {
-  onNavigate: (tab: "Latest Jobs" | "My Eligibility" | "My Roadmap" | "Photo & Signature") => void;
-}) {
+export function Footer() {
   const { promptSignIn } = useAuth();
 
   return (
     <footer className="border-t-2 border-ink bg-cream">
       <div className="mx-auto max-w-[1280px] px-4 sm:px-5">
         {/* main slab */}
-        <div className="grid gap-10 py-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr]">
+        <div className="grid gap-10 py-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr]">
           {/* brand */}
           <div>
             <p className="flex items-center gap-3">
@@ -34,32 +30,6 @@ export function Footer({
               on every job
             </p>
           </div>
-
-          {/* site map */}
-          <nav aria-label="Footer navigation">
-            <p className="font-mono text-[11px] font-bold tracking-[.14em] text-ink/50 uppercase">
-              Navigate
-            </p>
-            <ul className="mt-3 space-y-2">
-              {(
-                [
-                  ["Latest Jobs", "Latest Jobs"],
-                  ["My Eligibility", "My Eligibility"],
-                  ["My Roadmap", "My Roadmap"],
-                  ["Photo & Signature", "Photo & Signature"],
-                ] as const
-              ).map(([label, target]) => (
-                <li key={label}>
-                  <button
-                    onClick={() => onNavigate(target)}
-                    className="text-[14.5px] font-semibold text-ink/80 transition-colors hover:text-saffron"
-                  >
-                    {label}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </nav>
 
           {/* alerts */}
           <div>
