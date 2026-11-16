@@ -1,15 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { STATES } from "../../lib/jobs";
-import type { ExamNotification } from "../../types";
+import { STATES, FEED_QUALIFICATIONS, toFeedExam, type FeedExam } from "../../lib/exams";
 import { getExams } from "../../lib/api";
-import {
-  toFeedExam,
-  FEED_QUALIFICATIONS,
-  type FeedExam,
-} from "../../lib/exams";
+import { loadEligibilityResult, saveEligibilityResult } from "../../lib/draft";
+import { useAuth } from "../../lib/auth";
+import type { EligibilityCheckResponse } from "../../types";
 import { AD_FREQUENCY, SPONSORED_JOBS, type AdLayout } from "../../lib/ads";
 import { JobCard, SponsoredJobCard } from "../../components/rozgar/JobCard";
 import { AdSlot } from "../../components/rozgar/AdSlot";
+import { AccountModal } from "../../components/rozgar/AccountModal";
 import { EligibilityPage, RoadmapPage } from "./rozgar-pages";
 
 const NAV = [
@@ -27,6 +25,9 @@ function Masthead({
   query: string;
   onQueryChange: (v: string) => void;
 }) {
+  const { user, loading, promptSignIn } = useAuth();
+  const [accountOpen, setAccountOpen] = useState(false);
+
   return (
     <header className="border-b border-line bg-paper">
       <div className="mx-auto max-w-[1280px] px-4 py-4 sm:px-5">
@@ -48,14 +49,33 @@ function Masthead({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Account buttons are wired to auth in PR 2 */}
-            <button className="h-9 rounded-lg border-2 border-line bg-white px-3 text-[13.5px] font-semibold text-ink transition-colors hover:border-line-strong sm:h-11 sm:px-4 sm:text-[14.5px]">
-              Register
-            </button>
-            <button className="h-9 rounded-lg bg-saffron px-4 text-[13.5px] font-bold text-white shadow-[0_2px_0_rgba(0,0,0,.12)] sm:h-11 sm:px-5 sm:text-[14.5px]">
-              Login
-            </button>
+            {loading ? (
+              <div className="h-9 w-40 animate-pulse rounded-lg bg-cream sm:h-11" aria-hidden="true" />
+            ) : user ? (
+              <button
+                onClick={() => setAccountOpen(true)}
+                className="h-9 rounded-lg bg-ink px-3 text-[13.5px] font-semibold text-white sm:h-11 sm:px-4 sm:text-[14.5px]"
+              >
+                {user.full_name ? `Hi, ${user.full_name.split(" ")[0]}` : "My account"}
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => promptSignIn("register")}
+                  className="h-9 rounded-lg border-2 border-line bg-white px-3 text-[13.5px] font-semibold text-ink transition-colors hover:border-line-strong sm:h-11 sm:px-4 sm:text-[14.5px]"
+                >
+                  Register
+                </button>
+                <button
+                  onClick={() => promptSignIn("login")}
+                  className="h-9 rounded-lg bg-saffron px-4 text-[13.5px] font-bold text-white shadow-[0_2px_0_rgba(0,0,0,.12)] sm:h-11 sm:px-5 sm:text-[14.5px]"
+                >
+                  Login
+                </button>
+              </>
+            )}
           </div>
+          {accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}
         </div>
 
         {/* Search — the one action every first-time visitor understands */}
@@ -279,6 +299,16 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
+  // Free once a profile is set — eligibility verdicts for every notification,
+  // per the approved plan. Cached in sessionStorage so tab switches keep them.
+  const [eligibility, setEligibility] = useState<EligibilityCheckResponse | null>(
+    () => loadEligibilityResult(),
+  );
+  const setAndCacheEligibility = (r: EligibilityCheckResponse | null) => {
+    setEligibility(r);
+    if (r) saveEligibilityResult(r);
+  };
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -286,7 +316,7 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
       try {
         const res = await getExams();
         if (cancelled) return;
-        setExams(res.exams.filter((e: ExamNotification) => e.is_active).map(toFeedExam));
+        setExams(res.exams.filter((e) => e.is_active).map(toFeedExam));
       } catch (err) {
         if (cancelled) return;
         setLoadError(
@@ -333,6 +363,17 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
     [exams],
   );
 
+  // Verdict map for the feed: every exam evaluated by the eligibility check.
+  const verdicts = useMemo(() => {
+    const map = new Map<string, "eligible" | "borderline" | "check" | "ineligible">();
+    if (!eligibility) return map;
+    eligibility.eligible_now.forEach((r) => map.set(r.exam_id, "eligible"));
+    eligibility.borderline_last_chance.forEach((r) => map.set(r.exam_id, "borderline"));
+    eligibility.check_manually.forEach((r) => map.set(r.exam_id, "check"));
+    eligibility.ineligible.forEach((r) => map.set(r.exam_id, "ineligible"));
+    return map;
+  }, [eligibility]);
+
   // Feed assembly: the only in-feed ad is a sponsored placement, injected by a
   // hard frequency cap.
   const feed = useMemo(() => {
@@ -342,10 +383,10 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
         const sp = SPONSORED_JOBS[(i / AD_FREQUENCY - 1) % SPONSORED_JOBS.length];
         items.push(<SponsoredJobCard key={`sp-${sp.id}`} job={sp} />);
       }
-      items.push(<JobCard key={exam.id} exam={exam} />);
+      items.push(<JobCard key={exam.id} exam={exam} verdict={verdicts.get(exam.id) ?? null} />);
     });
     return items;
-  }, [filtered]);
+  }, [filtered, verdicts]);
 
   if (active !== "Latest Jobs") {
     return (
@@ -354,7 +395,9 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
         <MainNav active={active} onSelect={(l) => setActive(l as typeof active)} jobCount={exams?.length ?? null} />
         <TrustLine />
         <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-5">
-          {active === "My Eligibility" && <EligibilityPage />}
+          {active === "My Eligibility" && (
+            <EligibilityPage result={eligibility} onResultChange={setAndCacheEligibility} />
+          )}
           {active === "My Roadmap" && <RoadmapPage />}
         </div>
         <SiteFooter />

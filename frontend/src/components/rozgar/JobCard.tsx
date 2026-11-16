@@ -34,7 +34,14 @@ function DetailGrid({ label, value }: { label: string; value: React.ReactNode })
 }
 
 /** The organic notification card. Details expand in place — no modal. */
-export function JobCard({ exam }: { exam: FeedExam }) {
+export function JobCard({
+  exam,
+  verdict,
+}: {
+  exam: FeedExam;
+  /** set after an eligibility check; null when the user has no profile yet */
+  verdict?: "eligible" | "borderline" | "check" | "ineligible" | null;
+}) {
   const [open, setOpen] = useState(false);
   const closed = exam.deadlineDays <= 0;
   const pct = exam.minPercentage;
@@ -73,6 +80,27 @@ export function JobCard({ exam }: { exam: FeedExam }) {
           <Chip>
             Age {exam.ageMin}–{exam.ageMax}
           </Chip>
+          {verdict && (
+            <span
+              className={`rounded px-2 py-1 text-[12.5px] font-bold ${
+                verdict === "eligible"
+                  ? "bg-govgreen/15 text-govgreen"
+                  : verdict === "borderline"
+                    ? "bg-saffron/25 text-saffron"
+                    : verdict === "check"
+                      ? "border border-saffron/50 text-saffron"
+                      : "bg-alert/10 text-alert"
+              }`}
+            >
+              {verdict === "eligible"
+                ? "You qualify"
+                : verdict === "borderline"
+                  ? "Last attempt"
+                  : verdict === "check"
+                    ? "Check notification"
+                    : "Not eligible"}
+            </span>
+          )}
         </div>
       </div>
 
@@ -202,7 +230,7 @@ export function JobCard({ exam }: { exam: FeedExam }) {
  * Visually distinct (dashed rule, tinted paper, muted type) and explicitly
  * labelled before anything else on the card — never mistaken for a notification.
  */
-export function SponsoredJobCard({ job }: { job: import("../../lib/jobs").Job }) {
+export function SponsoredJobCard({ job }: { job: import("../../lib/ads").SponsoredJob }) {
   return (
     <article
       aria-label="Sponsored job listing"

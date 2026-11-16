@@ -1,4 +1,13 @@
-import type { Job } from "./jobs";
+/** A recruiter-paid placement. Shaped for the feed, not the organic notification. */
+export interface SponsoredJob {
+  id: string;
+  title: string;
+  department: string;
+  state: string;
+  qualification: string;
+  salary: string;
+  deadlineDays: number;
+}
 
 /**
  * Ad policy and layout for the job list.
@@ -49,20 +58,15 @@ export interface AdSlotSpec {
 }
 
 /** Recruiter-paid placements. They look like notifications, and say so. */
-export const SPONSORED_JOBS: Job[] = [
+export const SPONSORED_JOBS: SponsoredJob[] = [
   {
     id: "sponsored-hdfc",
     title: "HDFC Bank — Probationary Officer (via CampusHire)",
     department: "HDFC Bank · CampusHire",
     state: "All India",
     qualification: "Graduate",
-    category: "General",
     salary: "₹32,000 – ₹48,000",
-    vacancy: 850,
     deadlineDays: 12,
-    postedHours: 4,
-    isSarkari: false,
-    tags: ["Banking", "Graduate", "Sponsored"],
   },
   {
     id: "sponsored-tcs",
@@ -70,13 +74,8 @@ export const SPONSORED_JOBS: Job[] = [
     department: "TCS · via FreshersWorld",
     state: "All India",
     qualification: "Graduate",
-    category: "General",
     salary: "₹29,000 – ₹41,000",
-    vacancy: 1200,
     deadlineDays: 20,
-    postedHours: 9,
-    isSarkari: false,
-    tags: ["Private", "Graduate", "Sponsored"],
   },
 ];
 
