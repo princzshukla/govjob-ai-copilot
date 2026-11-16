@@ -91,13 +91,20 @@ flagged `review`. Full per-field detail and both runs' history: see
 ## Local development
 
 ```bash
-# backend (Python 3.13)
+# backend (Python 3.13; uses backend/venv)
 cd backend && pip install -r requirements.txt
 # disposable test DB (one command; wiped every run)
 docker compose -f ../docker-compose.test.yml up -d
 TEST_DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5433/govjobs_test" python -m pytest -q
 # golden eligibility cases (51+ cases, no DB needed)
 python -m pytest tests/eligibility -q
+
+# frontend — RozgarBoard SPA (static, no SSR)
+cd frontend && npm install
+npm run dev       # http://localhost:5173
+npm test          # vitest (lib unit tests)
+npm run build     # tsc -b + vite build
+```
 
 # scrape smoke-test against the local fixture (Test B harness)
 cd backend/scripts/fixtures && python -m http.server 8001 &
@@ -110,7 +117,17 @@ DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5433/govjobs_migc
 
 CI (`.github/workflows/ci.yml`): Postgres service → `alembic upgrade head`
 from scratch → full pytest (incl. Layer 1 + extractor + e2e suites) → plus a
-dedicated `pipeline` job, and a frontend typecheck/lint/test job.
+dedicated `pipeline` job, and a frontend typecheck + test + build job.
+
+## Frontend (RozgarBoard SPA)
+
+Since the frontend rewrite, `frontend/` is a plain Vite + React 19 SPA with no
+SSR (6 runtime dependencies; no router/query/state frameworks). Views are
+top-level tabs (Latest Jobs / My Eligibility / My Roadmap); auth and account
+flows are modals. Both the feed and the eligibility verdicts come from the live
+backend; the vacancy/salary fields seen in the prototype were never stored on
+`exam_notifications` and are not shown. Ads slots stay clearly labelled house
+placeholders (see `docs/AD-MODEL.md`).
 
 ## Pipeline status
 
