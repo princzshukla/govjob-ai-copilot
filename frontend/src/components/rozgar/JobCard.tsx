@@ -201,7 +201,7 @@ export function JobCard({
                 href={exam.pdfUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-[13.5px] font-bold text-white hover:bg-saffron"
+                className="inline-flex h-10 items-center rounded-lg border-2 border-ink bg-transparent px-4 text-[13.5px] font-bold text-ink transition-colors hover:border-saffron hover:text-saffron"
               >
                 Official notification (PDF) ↗
               </a>
