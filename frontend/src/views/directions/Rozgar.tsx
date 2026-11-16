@@ -35,7 +35,7 @@ function Masthead({
 
   return (
     <header className="bg-paper">
-      <div className="mx-auto max-w-[1280px] px-4 py-3 sm:px-5 sm:py-3.5">
+      <div className="mx-auto max-w-[1280px] px-4 py-4 sm:px-5 sm:py-5">
         <div className="flex items-center justify-between gap-3">
           {/* wordmark + tagline */}
           <div className="flex items-center gap-3">
