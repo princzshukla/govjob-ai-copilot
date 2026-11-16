@@ -18,6 +18,7 @@ const base: ExamNotification = {
   application_deadline: futureISO(30),
   exam_date: null,
   official_pdf_url: "https://example.gov.in/notice.pdf",
+  apply_url: "https://example.gov.in/apply",
   min_age: 18,
   max_age_general: 27,
   age_cutoff_date: "2026-08-01",
@@ -59,6 +60,11 @@ describe("toFeedExam", () => {
 
   it("coerces string percentages from the API", () => {
     expect(toFeedExam(base).minPercentage).toBe(60);
+  });
+
+  it("exposes the official apply portal, not the PDF", () => {
+    expect(toFeedExam(base).applyUrl).toBe("https://example.gov.in/apply");
+    expect(toFeedExam({ ...base, apply_url: null }).applyUrl).toBeNull();
   });
 
   it("keeps allowed streams and topics for the details panel", () => {

@@ -172,3 +172,28 @@ def benchmarks_present():
     if not (d / "ibps-po-xvi.pdf").exists():
         pytest.skip("benchmark PDFs not downloaded")
     return d
+
+
+# --- apply_url (optional online application portal) --------------------------
+
+def test_apply_url_nested_envelope_kept():
+    payload = {
+        "age_max_general": {"value": 27, "confidence": 0.9, "evidence": "Upper age limit 27"},
+        "apply_url": {"value": "https://upsconline.nic.in", "confidence": 0.9, "evidence": "Apply online at https://upsconline.nic.in"},
+    }
+    extraction, error = nx._parse_llm_payload(payload)
+    assert error is None
+    assert extraction.apply_url == "https://upsconline.nic.in"
+
+
+def test_apply_url_bare_scalar_kept():
+    extraction, error = nx._parse_llm_payload({"apply_url": "https://ssc.gov.in/home/apply"})
+    assert error is None
+    assert extraction.apply_url == "https://ssc.gov.in/home/apply"
+
+
+def test_apply_url_invalid_values_dropped():
+    for bad in ("ibpsreg.ibps.in", "not a url at all with\nnewline", "javascript:alert(1)", "ftp://x.gov.in", "", 123):
+        extraction, error = nx._parse_llm_payload({"apply_url": bad})
+        assert error is None
+        assert extraction.apply_url is None, bad

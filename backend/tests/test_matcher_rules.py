@@ -107,3 +107,17 @@ def test_unknown_category_is_needs_check_not_silent_zero():
     result = check_single_exam_eligibility(cand, exam, exam_topics_map={})
     category_rule = next(r for r in result.rules if r.rule == "Category relaxation")
     assert category_rule.status == "needs_check"
+
+def test_apply_url_flows_into_match_result():
+    cand = _candidate({})
+    exam = _exam({"apply_url": "https://upsconline.nic.in"})
+    result = check_single_exam_eligibility(cand, exam, exam_topics_map={})
+    assert result.apply_url == "https://upsconline.nic.in"
+
+
+def test_apply_url_defaults_to_none():
+    cand = _candidate({})
+    exam = _exam({})
+    assert exam.apply_url is None
+    result = check_single_exam_eligibility(cand, exam, exam_topics_map={})
+    assert result.apply_url is None

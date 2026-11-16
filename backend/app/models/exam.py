@@ -46,14 +46,16 @@ class ExamNotification(Base):
 
     # Provenance shown on every exam/job result.
     source_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Where the candidate actually applies (official online portal/form).
+    # NULL = unknown; the UI shows only the notification PDF as a link.
+    apply_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     last_checked_at: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
-    # Verification provenance carried by the pipeline's original seed data.
-    # Restored to the model 2026-11-16 to align with the dev DB, which holds
-    # 56 verified rows + apply URLs nothing should lose. Nullable; nothing
-    # reads them yet.
-    apply_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    verification_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # Verification of the notification's application window. Stamped when a
+    # human or automated check confirms the deadline against an official
+    # source ("verified"); NULL/"check_required" means unconfirmed — the UI
+    # shows "check official notification" instead of trusting the date.
     verified_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    verification_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

@@ -1,3 +1,77 @@
+# Pipeline handoff (2026-11-16, SR-parity seed)
+
+**Seed expanded to 75 notifications** (19 new, all verified against official
+sources; 56 → 75; open now: 32 / total 75). New rows: BPSC Auditor Mains
+(Mains-qualified only), UPSSSC Inter Level (1,784), Assam Rifles Tradesman
+2026, RRC NR Apprentice (4,651), UPESSC TGT (17,735), UPESSC Principal
+(1,475), UPESSC Headmaster (1,172), ISRO URSC 2026, Exim Bank MT & Manager
+(120), UPSSSC JE Mechanical (1,156), RRC NWR Apprentice (2,008), AFMS Medical
+Officer (SSC, 120), RRC CR Apprentice (3,809), Bihar Vidhan Sabha Office
+Attendant (5), Bihar Vidhan Sabha JSA (15), UP Anganwadi (district-wise),
+RRB Isolated Categories (CEN 09/2026, 191), UPSSSC JE Electrical (380),
+ISRO SDSC SHAR Apprentice (400). Rationale: Sarkariresult-list parity was
+requested — coverage of every currently-open recruitment on the list.
+Domain/professional-qualification rows (e.g. MBBS for AFMS Medical Officer)
+use degrees the matcher cannot rule out (`Specialist / See Notification`,
+`ITI`, `MBBS` etc.) → matcher returns `needs_check` / "Check notification" —
+never a wrong confident verdict. Two rows (UPSSSC JE 05, Anganwadi) are
+`check_required` (deadline opens on multiple phased windows). RRB Isolated
+Categories 2026 initially excluded for Prince's qualifications — re-added on
+user request for SR parity. Dev DB `/api/v1/eligibility/exams?status=all`
+returns all 75 with `window_state` (32 open / 43 closed). Frontend `Latest
+Jobs` tab renders both sections.
+
+---
+
+# Pipeline handoff (2026-11-16, apply links)
+
+**`apply_url` is now wired end to end.** Goal: jobs carry an "Apply" link to the
+official online application portal, not the official-PDF notification link.
+
+- New nullable column `exam_notifications.apply_url` (migration
+  `1a2b3c4d5e6f`, additive, no backfill needed for correctness — seed ships values).
+- Seed: 50 of 56 rows carry a verified `apply_url` (researched against official
+  sources 2026-11-16 — SSC→ssc.gov.in/home/apply, UPSC→upsconline.nic.in,
+  RRB→rrbapply.gov.in, IBPS→ibpsreg.ibps.in, SBI→sbi.bank.in/web/careers/current-openings,
+  DSSSB→dsssbonline.nic.in, AFCAT→afcat.edcil.co.in, RBI→opportunities.rbi.org.in,
+  NABARD→nabard.org/career, LIC→licindia.in/careers, RMLIMS→drrmlims.ac.in,
+  BHU→bhu.ac.in/rac, Indian Bank→ibpsreg.ibps.in/inbraoct26/, NICL→nats.education.gov.in/index.php,
+  HCL(MCP)→hindustancopper.com/ITIApplicationmcp/Login/145, armed forces/Agniveer
+  portals, BSNL externalexam.bsnl.co.in, NIC recruitment.nic.in, DRDO rac.gov.in).
+  Deliberately blank (never guessed): delhi-police-constable-12th, ib-acio-grade-ii,
+  isro-scientist-b, iocl-officer, ntpc-executive, kvs-tgt. `_REFRESHABLE_FIELDS`
+  refreshes apply_url but never nulls a stored one the file doesn't define.
+  Apply URLs are cycle/portal entry points and must be re-verified each season,
+  exactly like the deadline verification pass.
+- Layer 2: `apply_url` is an optional, non-critical extraction field — only kept
+  when the printed notice explicitly gives the URL (http/https, ≤500 chars); LLM
+  never constructs it. Never affects the review/publish gate or token budget.
+- Publisher carries it onto `exam_notifications`; publish digest email includes it;
+  admin review-queue edit can set/correct it pre-publish.
+- API: `ExamMatchResult.apply_url` (null when unknown). UI: primary "Apply" intent
+  = `apply_url` (Apply Now / Apply on Official Portal); the official notification
+  PDF stays as a separate "Official notification" link. Rows without apply_url show
+  no Apply button, just the PDF link.
+- Latest Jobs feed (`GET /api/v1/eligibility/exams?status=all`; default stays
+  `open`): open windows first ("Open Now — Apply Directly", Apply Online per row),
+  then closed cycles ("Closed Cycles — Next Cycle Reference", apply disabled, PDF
+  kept) for next-cycle reference. Search filter, verified-deadline badges,
+  `window_state` computed server-side (open/closed/unknown). NOTE: the TanStack
+  `latest-jobs.tsx` implementation was superseded by the RozgarBoard SPA rewrite
+  (upstream #33); the SPA feed renders the same data — apply_url wiring for it
+  ships separately (see feat/apply-url-graft). Currently 75 verified rows (32 open) —
+  the set only grows when the Layer-1 pipeline finds new official notices
+  (sync-live-jobs does SSC/UPSC only today; broader portals = one-at-a-time
+  follow-up per SEED_VERIFICATION scope note). DB-backed test:
+  `tests/eligibility/test_exams.py` (CI runs it).
+- Tests added (publisher ×3, extractor ×3, matcher ×2). DB-backed suite NOT run
+  locally (no Docker daemon; local PG on :5432 rejects password auth; Supabase
+  dev DB must not be pointed at by the test harness — it drops/creates
+  `govjobs_test`). CI must run the suite; migration `1a2b3c4d5e6f` must be applied
+  to the dev DB (`alembic upgrade head`) before deploy.
+
+---
+
 # Pipeline handoff (2026-11-15, revised)
 
 All PRs from the morning batch are merged or green.
@@ -34,6 +108,10 @@ All PRs from the morning batch are merged or green.
 - Telegram admin alerts still pending: TELEGRAM_ADMIN_CHAT_ID unset in
   backend/.env — user to paste chat id (health alerts for the 48h run
   silently skip until then).
+- 2026-11-16: LLM fallback rotated to the new second Groq key (same
+  OpenAI-compatible endpoint, openai/gpt-oss-120b) for TPD overflow —
+  fallback verified loading and live-tested (HTTP 200). Effective daily
+  LLM headroom ≈ 2 × key TPD. Benchmark re-run unblocked.
 - 48h poller: pid 17600, running with today's code; UPSC/SSCCR/SSC JSON fine;
   uppsc-home DEGRADED (503s all run — site down; can't tighten selector until
   reachable; backoff + alert machinery handles it).

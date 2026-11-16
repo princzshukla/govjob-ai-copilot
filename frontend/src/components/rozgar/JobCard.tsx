@@ -125,9 +125,17 @@ export function JobCard({
           >
             {open ? "Hide" : "Details"}
           </button>
-          {exam.pdfUrl ? (
+          {closed ? (
+            <button
+              disabled
+              title="This application window is closed — watch for the next cycle's notification"
+              className="h-10 cursor-not-allowed rounded-lg bg-ink/15 px-5 text-[14px] font-bold text-ink/55"
+            >
+              Window closed
+            </button>
+          ) : exam.applyUrl ? (
             <a
-              href={exam.pdfUrl}
+              href={exam.applyUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex h-10 items-center rounded-lg bg-saffron px-5 text-[14px] font-bold text-white shadow-[0_2px_0_rgba(0,0,0,.12)]"
@@ -137,10 +145,10 @@ export function JobCard({
           ) : (
             <button
               disabled
-              title="Official notification link not published yet"
+              title="Official application portal is not on file yet — open the official notification for the apply link"
               className="h-10 cursor-not-allowed rounded-lg bg-saffron/50 px-5 text-[14px] font-bold text-white/80"
             >
-              Apply Now
+              Apply
             </button>
           )}
         </div>
@@ -197,6 +205,16 @@ export function JobCard({
           )}
 
           <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-3">
+            {exam.applyUrl && (
+              <a
+                href={exam.applyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-10 items-center rounded-lg bg-saffron px-4 text-[13.5px] font-bold text-white hover:bg-ink"
+              >
+                Apply on official portal ↗
+              </a>
+            )}
             {exam.pdfUrl && (
               <a
                 href={exam.pdfUrl}
@@ -207,7 +225,7 @@ export function JobCard({
                 Official notification (PDF) ↗
               </a>
             )}
-            {exam.sourceUrl && (
+            {exam.sourceUrl && !exam.applyUrl && (
               <a
                 href={exam.sourceUrl}
                 target="_blank"

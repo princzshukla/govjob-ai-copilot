@@ -27,6 +27,9 @@ class ExamMatchResult(BaseModel):
     application_deadline: date
     exam_date: Optional[date]
     official_pdf_url: Optional[str] = None
+    # Official online application portal/form (distinct from the PDF).
+    # NULL = unknown → the UI shows only the notification PDF as a link.
+    apply_url: Optional[str] = None
     is_eligible: bool
     candidate_age_at_cutoff: int
     max_allowed_age: int
@@ -40,6 +43,10 @@ class ExamMatchResult(BaseModel):
     rules: List[RuleExplanation] = Field(default_factory=list)
     source_url: Optional[str] = None
     last_checked_at: Optional[date] = None
+    # Deadline verification state. NULL/"check_required" = unconfirmed date;
+    # the UI shows "check official notification" instead of trusting it.
+    verified_on: Optional[date] = None
+    verification_status: Optional[str] = None
 
 
 class EligibilityCheckResponse(BaseModel):

@@ -9,6 +9,11 @@ export interface ExamNotification {
   application_deadline: string; // ISO date, YYYY-MM-DD
   exam_date: string | null;
   official_pdf_url: string | null;
+  /** Official online application portal — absent when unknown. */
+  apply_url: string | null;
+  /** Deadline verification state; NULL = unconfirmed. */
+  verified_on?: string | null;
+  verification_status?: string | null;
   min_age: number;
   max_age_general: number;
   age_cutoff_date: string;
@@ -93,6 +98,8 @@ export interface ExamMatchResult {
   application_deadline: string;
   exam_date: string | null;
   official_pdf_url: string | null;
+  /** Official online application portal — null when not on file. */
+  apply_url?: string | null;
   is_eligible: boolean;
   candidate_age_at_cutoff: number;
   max_allowed_age: number;

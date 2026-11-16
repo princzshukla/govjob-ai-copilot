@@ -82,6 +82,20 @@ def _parse_int(value: Any) -> int | None:
         return None
 
 
+def _valid_apply_url(value: Any) -> str | None:
+    """Accept only http(s) URLs as ``apply_url``; anything else is dropped."""
+    import re as _re
+
+    if not isinstance(value, str):
+        return None
+    url = value.strip()
+    if not url or len(url) > 500 or any(ch.isspace() for ch in url):
+        return None
+    if not _re.match(r"^https?://[A-Za-z0-9.\-]+(/|$)", url, _re.IGNORECASE):
+        return None
+    return url
+
+
 def _hold(extraction: ExtractionResult, reasons: list[str], dry_run: bool) -> PublishOutcome:
     note = "publish gate: " + "; ".join(reasons)
     logger.warning("extraction %s held from publish — %s", extraction.id, note)
@@ -137,6 +151,7 @@ def build_exam_notification(
     organizing_body = str(config.get("organizing_body") or source.name)[:100]
     title = (link.title or f"{organizing_body} — notification")[:255]
     exam_id = _build_exam_id(extraction.id)
+    apply_url = _valid_apply_url(data.get("apply_url"))
 
     exam = ExamNotification(
         id=exam_id,
@@ -147,6 +162,7 @@ def build_exam_notification(
         application_deadline=deadline,
         exam_date=None,
         official_pdf_url=link.url,
+        apply_url=apply_url,
         min_age=min_age,
         max_age_general=max_age,
         age_cutoff_date=cutoff,
@@ -222,6 +238,7 @@ async def publish_auto_extractions(
                         "organizing_body": e.organizing_body,
                         "application_deadline": e.application_deadline.isoformat() if e.application_deadline else "",
                         "official_pdf_url": e.official_pdf_url or "",
+                        "apply_url": e.apply_url or "",
                     }
                     for e in promoted
                 ]

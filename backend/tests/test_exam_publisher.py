@@ -279,3 +279,52 @@ async def test_dry_run_writes_nothing(db):
         assert count == 0
     finally:
         await _cleanup(db, source_ids, exam_ids)
+
+
+def test_build_exam_notification_carries_valid_apply_url():
+    from types import SimpleNamespace
+
+    link = SimpleNamespace(
+        title="Advt 42-2026",
+        published_at=None,
+        url="https://example.gov.in/advt.pdf",
+    )
+    source = SimpleNamespace(name="Test Commission", config={"organizing_body": "Test Commission"})
+    extraction = _extraction(apply_url="https://ibpsreg.ibps.in/")
+    exam, problems = build_exam_notification(extraction, link, source)
+    assert problems == []
+    assert exam is not None
+    assert exam.apply_url == "https://ibpsreg.ibps.in/"
+
+
+def test_build_exam_notification_drops_invalid_apply_url():
+    from types import SimpleNamespace
+
+    link = SimpleNamespace(
+        title="Advt 42-2026",
+        published_at=None,
+        url="https://example.gov.in/advt.pdf",
+    )
+    source = SimpleNamespace(name="Test Commission", config={"organizing_body": "Test Commission"})
+    for bad in ("not-a-url", "ftp://example.com/x", "javascript:alert(1)", "ibpsreg.ibps.in", "https://"):
+        extraction = _extraction(apply_url=bad)
+        exam, problems = build_exam_notification(extraction, link, source)
+        assert problems == [], bad
+        assert exam is not None
+        assert exam.apply_url is None, bad
+
+
+def test_build_exam_notification_missing_apply_url_is_none():
+    from types import SimpleNamespace
+
+    link = SimpleNamespace(
+        title="Advt 42-2026",
+        published_at=None,
+        url="https://example.gov.in/advt.pdf",
+    )
+    source = SimpleNamespace(name="Test Commission", config={"organizing_body": "Test Commission"})
+    extraction = _extraction()
+    exam, problems = build_exam_notification(extraction, link, source)
+    assert problems == []
+    assert exam is not None
+    assert exam.apply_url is None

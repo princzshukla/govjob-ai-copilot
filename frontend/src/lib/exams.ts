@@ -52,6 +52,8 @@ export interface FeedExam {
   degrees: string[];
   streams: string[];
   pdfUrl: string | null;
+  /** Official online application portal — absent when not on file. */
+  applyUrl: string | null;
   sourceUrl: string | null;
   lastChecked: string | null;
   allowsFinalYear: boolean | null;
@@ -135,6 +137,7 @@ export function toFeedExam(e: ExamNotification): FeedExam {
     degrees: e.allowed_degrees ?? [],
     streams: e.allowed_streams ?? [],
     pdfUrl: e.official_pdf_url,
+    applyUrl: e.apply_url,
     sourceUrl: e.source_url,
     lastChecked: e.last_checked_at,
     allowsFinalYear: e.allows_final_year,

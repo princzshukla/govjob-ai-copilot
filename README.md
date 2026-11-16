@@ -29,7 +29,8 @@ official PDF that proves it.
  │      │   │                    review / rejected)│
  │      │   └────────► exam_notifications        │
  │      │              (official_pdf_url kept for  │
- │      │               every result — provenance) │
+ │      │               provenance; apply_url =    │
+ │      │               official apply portal)      │
  └───────┼───────────────────────────────┼────────┘
          ▼                               ▼
   candidate profiles              eligibility engine
@@ -45,7 +46,7 @@ official PDF that proves it.
 * **Never show a wrong eligibility result.** Low confidence, missing critical
   fields, scanned/image-only PDFs or ambiguous documents are flagged
   `review` — the UI shows "Check notification" with the official PDF, not a
-  confident verdict. Every result row links the official notification.
+  confident verdict. Every result row links the official notification, plus a distinct Apply button only when a known official application portal URL is on file (`apply_url`) — the PDF and the apply link are never conflated.
 * **Good citizen to government servers.** Conditional GETs (ETag/
   Last-Modified → 304), css-scoped content hashing so counters/clocks/
   session tokens don't flap the hash, robots.txt honoured (source gets
@@ -135,7 +136,9 @@ Layer 1 (discovery) and the Layer 2 extractor are implemented, tested and
 benchmarked (twice — see above). `app/services/exam_publisher.py` promotes
 `extraction_results` rows with `status='auto'` into `exam_notifications`
 with official-PDF provenance (`official_pdf_url`, `source_url`,
-`last_checked_at`), wiring `exam_notification_id` forward and marking the
+`last_checked_at`) and — when the notification explicitly prints one — an
+`apply_url` pointing at the official online application portal (never
+guessed; absent otherwise), wiring `exam_notification_id` forward and marking the
 discovered link `processed`. Nothing is invented at publish time — a row
 missing any required value (e.g. `min_age`, `application_deadline`) is
 *held*: flipped to `review` with an explicit machine-readable

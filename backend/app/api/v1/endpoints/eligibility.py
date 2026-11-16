@@ -5,12 +5,13 @@ from datetime import date as dt_date, datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import current_user, user_or_ip_key
 from app.core.rate_limit import limiter
 from app.core.seed import SEED_EXAMS
+from app.core.timeutils import today_ist
 from app.core.database import get_db
 from app.models.auth import User
 from app.models.exam import ExamNotification
@@ -41,8 +42,12 @@ SYNC_COOLDOWN_SECONDS = 15 * 60
 _last_sync_started_at: float | None = None
 
 
-async def _ensure_seed_exams(db: AsyncSession) -> list[ExamNotification]:
-    """Seeds SEED_EXAMS into PostgreSQL if exam_notifications is empty, then returns all active exams."""
+async def _seed_and_backfill(db: AsyncSession) -> None:
+    """Insert missing SEED_EXAMS rows (first run) and backfill provenance.
+
+    Runs over every row — open or closed — so closed rows also get their
+    `source_url`/`last_checked_at` backfilled. Never overwrites anything.
+    """
     count_result = await db.execute(select(func.count()).select_from(ExamNotification))
     total = count_result.scalar_one()
 
@@ -55,15 +60,11 @@ async def _ensure_seed_exams(db: AsyncSession) -> list[ExamNotification]:
             db.add(ExamNotification(**payload))
         await db.commit()
 
-    result = await db.execute(
-        select(ExamNotification).where(ExamNotification.is_active.is_(True))
-    )
-    exams = list(result.scalars().all())
-
     # Backfill provenance for rows seeded before T7. `last_checked_at` means the
     # day this API last verified the stored notification, not a re-scrape.
+    result = await db.execute(select(ExamNotification))
     metadata_changed = False
-    for exam in exams:
+    for exam in result.scalars().all():
         if not exam.source_url:
             exam.source_url = exam.official_pdf_url
             metadata_changed = True
@@ -73,14 +74,73 @@ async def _ensure_seed_exams(db: AsyncSession) -> list[ExamNotification]:
     if metadata_changed:
         await db.commit()
 
-    return exams
+
+async def _ensure_seed_exams(db: AsyncSession) -> list[ExamNotification]:
+    """Seeds SEED_EXAMS into PostgreSQL on first run, then returns open exams."""
+    await _seed_and_backfill(db)
+
+    # Query-time backstop: even if the scheduled expiry job misses a run,
+    # closed jobs are never presented as open. Deadlines are IST calendar
+    # dates, valid through end-of-day; a missing deadline stays visible
+    # (rendered as "check official notification").
+    result = await db.execute(
+        select(ExamNotification).where(
+            ExamNotification.is_active.is_(True),
+            or_(
+                ExamNotification.application_deadline.is_(None),
+                ExamNotification.application_deadline >= today_ist(),
+            ),
+        )
+    )
+    return list(result.scalars().all())
+
+
+def _exam_list_item(exam: ExamNotification) -> dict:
+    """Serialize one exam row for the listing API (all columns + window state)."""
+    today = today_ist()
+    if exam.application_deadline is None:
+        state = "unknown"
+    elif exam.application_deadline >= today:
+        state = "open"
+    else:
+        state = "closed"
+    item = {c.name: getattr(exam, c.name) for c in ExamNotification.__table__.columns}
+    item["window_state"] = state
+    return item
 
 
 @router.get("/exams")
-async def list_active_exams(db: AsyncSession = Depends(get_db)):
-    """Returns all active government exam notifications stored in PostgreSQL."""
-    exams = await _ensure_seed_exams(db)
-    return {"total": len(exams), "exams": exams}
+async def list_active_exams(
+    status: str = Query(default="open", pattern="^(open|all)$"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lists government exam notifications stored in PostgreSQL.
+
+    ``status=open`` (default) returns only exams whose window is open —
+    ``is_active`` and deadline not past (IST). ``status=all`` returns every
+    stored notification, including closed cycles, each annotated with a
+    computed ``window_state`` (``open`` | ``closed`` | ``unknown``) so clients
+    can show honest apply/closed states.
+    """
+    await _seed_and_backfill(db)
+    stmt = select(ExamNotification)
+    if status == "open":
+        stmt = stmt.where(
+            ExamNotification.is_active.is_(True),
+            or_(
+                ExamNotification.application_deadline.is_(None),
+                ExamNotification.application_deadline >= today_ist(),
+            ),
+        )
+    exams = list((await db.execute(stmt)).scalars().all())
+
+    if status == "all":
+        open_rows = [e for e in exams if _exam_list_item(e)["window_state"] != "closed"]
+        closed_rows = [e for e in exams if _exam_list_item(e)["window_state"] == "closed"]
+        open_rows.sort(key=lambda e: (e.application_deadline is None, e.application_deadline or dt_date.max))
+        closed_rows.sort(key=lambda e: e.application_deadline or dt_date.min, reverse=True)
+        exams = open_rows + closed_rows
+    return {"total": len(exams), "exams": [_exam_list_item(e) for e in exams]}
 
 
 @router.post("/generate-roadmap/{exam_id}", response_model=StudyRoadmapResponse)
@@ -191,6 +251,7 @@ async def report_wrong_eligibility_result(
         "post_type": exam.post_type,
         "application_deadline": exam.application_deadline.isoformat(),
         "source_url": exam.source_url or exam.official_pdf_url,
+        "apply_url": exam.apply_url,
         "last_checked_at": (
             exam.last_checked_at or dt_date.today()
         ).isoformat(),

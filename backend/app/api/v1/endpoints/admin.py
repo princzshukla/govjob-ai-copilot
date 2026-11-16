@@ -129,6 +129,9 @@ class AdminEdit(BaseModel):
     application_last_date: Optional[str] = None
     pay_level: Optional[str] = None
     age_relaxations: Optional[dict] = None
+    # Official online application portal/form — carried into exam_notifications
+    # at publish time (validated as http(s) by the publish gate).
+    apply_url: Optional[str] = None
 
 
 @router.post("/review-queue/{result_id}/edit")

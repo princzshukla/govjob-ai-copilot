@@ -685,6 +685,7 @@ def check_single_exam_eligibility(
 
     source_url = getattr(exam, "source_url", None) or exam.official_pdf_url
     last_checked_at = getattr(exam, "last_checked_at", None) or date.today()
+    apply_url = getattr(exam, "apply_url", None)
 
     return ExamMatchResult(
         exam_id=exam.id,
@@ -694,6 +695,7 @@ def check_single_exam_eligibility(
         application_deadline=exam.application_deadline,
         exam_date=exam.exam_date,
         official_pdf_url=exam.official_pdf_url,
+        apply_url=apply_url,
         is_eligible=is_eligible,
         candidate_age_at_cutoff=candidate_age,
         max_allowed_age=max_allowed_age,
@@ -705,6 +707,8 @@ def check_single_exam_eligibility(
         rules=rules,
         source_url=source_url,
         last_checked_at=last_checked_at,
+        verified_on=getattr(exam, "verified_on", None),
+        verification_status=getattr(exam, "verification_status", None),
     )
 
 

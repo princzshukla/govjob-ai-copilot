@@ -114,6 +114,10 @@ def grade(expected: dict, result: ExtractionResult) -> list[tuple[str, bool | No
     else:
         checks.append(("pay_level", None, "ungraded", str(result.pay_level)))
 
+    # Observability only — the apply URL is never graded (it is easily
+    # absent from printed notices and is allowed to be null).
+    checks.append(("apply_url", None, "ungraded", str(getattr(result, "apply_url", None))))
+
     return checks
 
 

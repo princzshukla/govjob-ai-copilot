@@ -17,7 +17,7 @@ from app.api.v1.endpoints import adaptive, admin, auth, candidate, eligibility, 
 from app.core.config import settings
 from app.core.logging_config import configure_logging
 from app.core.rate_limit import limiter
-from app.core.tasks import session_cleanup_loop
+from app.core.tasks import exam_deadline_expiry_loop, session_cleanup_loop
 
 configure_logging()
 logger = logging.getLogger("app")
@@ -58,14 +58,19 @@ async def lifespan(_app: FastAPI):
         logger.exception("startup seed failed — continuing without it")
 
     # Prune expired sessions hourly in-process; the DELETE is idempotent, so
-    # multiple workers doing it is fine.
+    # multiple workers doing it is fine. Also hide closed job notifications
+    # twice a day (idempotent flag flip; the query-time filter in
+    # eligibility covers a missed run).
     cleanup_task = asyncio.create_task(session_cleanup_loop())
+    expiry_task = asyncio.create_task(exam_deadline_expiry_loop())
     try:
         yield
     finally:
         cleanup_task.cancel()
+        expiry_task.cancel()
         with suppress(asyncio.CancelledError):
             await cleanup_task
+            await expiry_task
 
 
 # Keep only origins from env. Dev defaults must not follow the build to prod:

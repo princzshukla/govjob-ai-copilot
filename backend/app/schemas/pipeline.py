@@ -31,6 +31,13 @@ class NotificationExtraction(BaseModel):
         default=None,
         description="Pay level / scale / salary as written, e.g. 'Level 4 (₹25,500 - ₹81,100)'",
     )
+    # URL of the official online application portal/form, ONLY if explicitly
+    # printed in the notification. Never constructed from the publisher's
+    # domain. Non-critical: absence never flags the row for review.
+    apply_url: str | None = Field(
+        default=None,
+        description="Full URL of the official online application portal, e.g. 'https://upsconline.nic.in'",
+    )
     # Per-field confidence (0..1) and exact-quote evidence snippets.
     field_confidence: dict[str, float] = Field(default_factory=dict)
     evidence: dict[str, str] = Field(default_factory=dict)

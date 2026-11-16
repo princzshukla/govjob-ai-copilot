@@ -28,7 +28,7 @@ def send_exam_digest(promoted: list[dict]) -> bool:
     """Send one digest listing exams promoted since the worker ran.
 
     ``promoted`` items: ``{title, organizing_body, application_deadline,
-    official_pdf_url}``. Returns True if a message was sent.
+    official_pdf_url, apply_url?}``. Returns True if a message was sent.
     """
     if not promoted:
         return False
@@ -43,6 +43,8 @@ def send_exam_digest(promoted: list[dict]) -> bool:
     for e in promoted:
         lines.append(f"- {e['title']} — {e['organizing_body']}")
         lines.append(f"  Deadline: {e['application_deadline']}  |  PDF: {e['official_pdf_url']}")
+        if e.get("apply_url"):
+            lines.append(f"  Apply: {e['apply_url']}")
     body = "\n".join(lines) + "\n"
 
     message = EmailMessage()

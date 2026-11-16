@@ -90,6 +90,16 @@ function ResultRow({ r, tone }: { r: ExamMatchResult; tone: "ok" | "warn" | "bad
               </p>
             </div>
           )}
+          {r.apply_url && (
+            <a
+              href={r.apply_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-9 items-center rounded-lg bg-saffron px-3 text-[13px] font-bold text-white"
+            >
+              Apply ↗
+            </a>
+          )}
           {r.official_pdf_url && (
             <a
               href={r.official_pdf_url}

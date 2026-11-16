@@ -118,6 +118,7 @@ _STRONG_WINDOWS = [
     (re.compile(r"\bvacan\w*", re.I), 200, 400, 8, 2),
     (re.compile(r"\b(pay|salary|scale|ctc|remuner\w*|emolument|level)\b", re.I), 200, 500, 3, 2),
     (re.compile(r"\b(interview|walk.?in)\b", re.I), 200, 350, 2, 3),
+    (re.compile(r"\b(how to apply|apply online|apply at|online application)\b", re.I), 200, 600, 2, 2),
 ]
 
 
@@ -218,6 +219,7 @@ Keys:
 - "required_qualification": degree AND stream as written (e.g. "B.Tech (Computer Science/IT)"), or null
 - "application_last_date": last date to submit the application (for walk-in engagements, the interview date), "YYYY-MM-DD", or null
 - "pay_level": pay level/scale/salary as written (e.g. "Level 4 (Rs. 25,500-81,100)"), or null
+- "apply_url": FULL URL of the official online application portal/form, ONLY if such a URL is explicitly printed in the document (e.g. "https://upsconline.nic.in"). Never construct it from the publisher's domain or guess it. null if no URL is printed in the document.
 - "confidence": number 0.0-1.0 — your confidence in the JSON's accuracy as a whole (usually the lowest confidence among the critical fields)
 
 STRICT RULES:
@@ -242,7 +244,27 @@ _FIELD_KEYS = {
     "required_qualification",
     "application_last_date",
     "pay_level",
+    "apply_url",
 }
+
+
+def _coerce_url(value: object) -> str | None:
+    """Keep an apply-URL candidate only if it is a plausible http(s) link.
+
+    Anything else (domains without scheme, tracker junk, javascript: URLs,
+    whitespace-riddled strings, absurd lengths) is dropped to None — the
+    field is a convenience, never a reason to trust the document.
+    """
+    if not isinstance(value, str):
+        return None
+    url = value.strip()
+    if not url or len(url) > 500 or any(ch.isspace() for ch in url):
+        return None
+    if not re.match(r"^https?://[A-Za-z0-9.\-]+(/|$)", url, re.IGNORECASE):
+        return None
+    if any(bad in url.lower() for bad in ("javascript:", "data:", "mailto:")):
+        return None
+    return url
 
 
 def _coerce_relaxations(value: object) -> dict[str, int]:
@@ -286,6 +308,8 @@ def _parse_llm_payload(parsed: dict) -> tuple[NotificationExtraction, str | None
                 field_confidence[key] = 0.5
             if key == "age_relaxations":
                 body[key] = _coerce_relaxations(value)
+            elif key == "apply_url":
+                body[key] = _coerce_url(value)
             else:
                 body[key] = value
         elif key == "confidence" and isinstance(raw, (int, float)):
