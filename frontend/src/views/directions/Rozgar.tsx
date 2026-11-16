@@ -34,8 +34,8 @@ function Masthead({
   const [accountOpen, setAccountOpen] = useState(false);
 
   return (
-    <header className="border-b border-line bg-paper">
-      <div className="mx-auto max-w-[1280px] px-4 py-3 sm:px-5">
+    <header className="bg-paper">
+      <div className="mx-auto max-w-[1280px] px-4 py-2 sm:px-5 sm:py-2.5">
         <div className="flex items-center justify-between gap-3">
           {/* wordmark + tagline */}
           <div className="flex items-center gap-3">
@@ -78,7 +78,7 @@ function Masthead({
 
         {/* Search — the one action every first-time visitor understands */}
         <form
-          className="mt-3 flex items-center gap-2 sm:mt-4"
+          className="mt-2 flex items-center gap-2"
           onSubmit={(e) => {
             e.preventDefault();
             document
@@ -347,7 +347,7 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
 
             {/* job list */}
             <main id="job-results" className="order-1 lg:order-none">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b-2 border-ink pb-3">
+              <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
                 <h2 className="flex items-baseline gap-2 text-[22px] font-extrabold tracking-tight text-ink">
                   Latest Jobs
                   {exams && (
@@ -404,7 +404,7 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
                       target={e.pdfUrl ? "_blank" : undefined}
                       rel="noopener noreferrer"
                       aria-disabled={!e.pdfUrl}
-                      className={`block border-b border-line px-4 py-3 transition-colors last:border-b-0 ${e.pdfUrl ? "hover:bg-cream/60" : "cursor-default"}`}
+                      className={`block border-b border-line px-4 py-3 last:border-b-0 ${e.pdfUrl ? "cursor-pointer" : "cursor-default"}`}
                       title={e.pdfUrl ? "Open the official notification (PDF)" : "Official PDF not linked yet"}
                     >
                       <p className="text-[14px] font-semibold leading-snug text-ink">{e.title}</p>
@@ -448,7 +448,7 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
         )}
       </div>
 
-      <Footer onNavigate={goTab} />
+      <Footer />
     </div>
   );
 }
