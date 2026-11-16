@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { STATES, FEED_QUALIFICATIONS, toFeedExam, type FeedExam } from "../../lib/exams";
+import { STATES, toFeedExam, type FeedExam } from "../../lib/exams";
 import { getExams } from "../../lib/api";
 import { loadEligibilityResult, saveEligibilityResult } from "../../lib/draft";
 import { useAuth } from "../../lib/auth";
@@ -8,12 +8,14 @@ import { ADS_ENABLED, AD_FREQUENCY, SPONSORED_JOBS, type AdLayout } from "../../
 import { JobCard, SponsoredJobCard } from "../../components/rozgar/JobCard";
 import { AdSlot } from "../../components/rozgar/AdSlot";
 import { AccountModal } from "../../components/rozgar/AccountModal";
+import { DocumentResizer } from "../../components/rozgar/DocumentResizer";
 import { EligibilityPage, RoadmapPage } from "./rozgar-pages";
 
 const NAV = [
   { label: "Latest Jobs" },
   { label: "My Eligibility" },
   { label: "My Roadmap" },
+  { label: "Photo & Signature" },
 ] as const;
 
 /* ------------------------------------------------------------------ */
@@ -193,8 +195,6 @@ const selectClass =
 function FilterBar({
   state,
   setState,
-  qual,
-  setQual,
   resultCount,
   totalCount,
   onReset,
@@ -202,8 +202,6 @@ function FilterBar({
 }: {
   state: string;
   setState: (s: string) => void;
-  qual: string;
-  setQual: (q: string) => void;
   resultCount: number;
   totalCount: number;
   onReset: () => void;
@@ -224,25 +222,6 @@ function FilterBar({
           {STATES.map((s) => (
             <option key={s} value={s}>
               {s}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="flex items-center gap-2">
-        <span className="font-mono text-[11px] font-bold tracking-[.14em] text-ink/50 uppercase">
-          Qualification
-        </span>
-        <select
-          value={qual}
-          onChange={(e) => setQual(e.target.value)}
-          className={selectClass}
-          aria-label="Filter by qualification"
-        >
-          <option value="">All qualifications</option>
-          {FEED_QUALIFICATIONS.map((q) => (
-            <option key={q} value={q}>
-              {q}
             </option>
           ))}
         </select>
@@ -271,7 +250,7 @@ function LoadingSkeleton() {
   return (
     <div aria-busy="true" aria-label="Loading notifications">
       {[0, 1, 2].map((i) => (
-        <div key={i} className="animate-pulse border-b border-line px-5 py-4 last:border-b-0">
+        <div key={i} className="animate-pulse rounded-lg border border-line bg-[#fbfaf7] px-5 py-4">
           <div className="h-4 w-40 rounded bg-cream" />
           <div className="mt-3 h-5 w-3/4 rounded bg-cream" />
           <div className="mt-2 h-4 w-1/3 rounded bg-cream" />
@@ -292,7 +271,6 @@ function LoadingSkeleton() {
 export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
   const [active, setActive] = useState<(typeof NAV)[number]["label"]>("Latest Jobs");
   const [state, setState] = useState("All India");
-  const [qual, setQual] = useState("");
   const [query, setQuery] = useState("");
 
   const [exams, setExams] = useState<FeedExam[] | null>(null);
@@ -336,7 +314,6 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
       // An "All India" notification survives a state filter; a state-specific one does not.
       if (state !== "All India" && e.state !== state && e.state !== "All India")
         return false;
-      if (qual && e.qualification !== qual) return false;
       if (query.trim()) {
         const q = query.toLowerCase();
         const hay =
@@ -345,12 +322,11 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
       }
       return true;
     });
-  }, [exams, state, qual, query]);
+  }, [exams, state, query]);
 
-  const dirty = state !== "All India" || qual !== "" || query !== "";
+  const dirty = state !== "All India" || query !== "";
   const resetFilters = () => {
     setState("All India");
-    setQual("");
     setQuery("");
   };
 
@@ -399,6 +375,7 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
             <EligibilityPage result={eligibility} onResultChange={setAndCacheEligibility} />
           )}
           {active === "My Roadmap" && <RoadmapPage />}
+          {active === "Photo & Signature" && <DocumentResizer />}
         </div>
         <SiteFooter />
       </div>
@@ -411,14 +388,12 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
       <MainNav active={active} onSelect={(l) => setActive(l as typeof active)} jobCount={exams?.length ?? null} />
       <TrustLine />
 
-      {/* Filters — two dropdowns and a result count, nothing else */}
+      {/* Filters — state and search (search lives in the masthead), one dropdown */}
       <div className="sticky top-0 z-30 border-b border-line bg-paper">
         <div className="mx-auto max-w-[1280px] px-4 sm:px-5">
           <FilterBar
             state={state}
             setState={setState}
-            qual={qual}
-            setQual={setQual}
             resultCount={filtered.length}
             totalCount={exams?.length ?? 0}
             onReset={resetFilters}
@@ -459,11 +434,11 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
             </h2>
           </div>
 
-          <div className="overflow-hidden rounded-lg border border-line bg-white">
+          <div className="space-y-2.5">
             {exams === null && !loadError ? (
               <LoadingSkeleton />
             ) : loadError ? (
-              <div className="px-5 py-14 text-center">
+              <div className="rounded-lg border border-line bg-[#fbfaf7] px-5 py-14 text-center">
                 <p className="text-[17px] font-bold text-ink">
                   Couldn't load notifications
                 </p>
@@ -476,10 +451,10 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
                 </button>
               </div>
             ) : filtered.length === 0 ? (
-              <div className="px-5 py-14 text-center">
+              <div className="rounded-lg border border-line bg-[#fbfaf7] px-5 py-14 text-center">
                 <p className="text-[17px] font-bold text-ink">No matching notifications</p>
                 <p className="mt-1 text-[14.5px] text-ink/60">
-                  Try widening the state or qualification filter.
+                  Try widening the state filter or clearing the search.
                 </p>
               </div>
             ) : (
@@ -511,7 +486,7 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
             <p className="border-b border-line bg-cream px-4 py-2.5 text-[13px] font-bold tracking-[.1em] text-ink uppercase">
               Closing Soon
             </p>
-            <div className="space-y-3 bg-white px-4 py-3.5">
+            <div className="space-y-3 bg-[#fbfaf7] px-4 py-3.5">
               {closingSoon.length === 0 && (
                 <p className="text-[13.5px] text-ink/55">
                   Nothing closes in the next 10 days.

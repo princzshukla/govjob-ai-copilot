@@ -7,15 +7,6 @@
 
 import type { ExamNotification } from "../types";
 
-export type QualificationBucket = "10th pass" | "12th pass" | "Graduate" | "B.Tech";
-
-export const FEED_QUALIFICATIONS: QualificationBucket[] = [
-  "10th pass",
-  "12th pass",
-  "Graduate",
-  "B.Tech",
-];
-
 export const STATES = [
   "All India",
   "Delhi",
@@ -38,7 +29,6 @@ export interface FeedExam {
   department: string;
   postType: string;
   state: string;
-  qualification: QualificationBucket | "";
   minPercentage: number | null;
   ageMin: number;
   ageMax: number;
@@ -93,21 +83,6 @@ function hoursSince(iso: string | null): number | null {
   return (Date.now() - d.getTime()) / 3_600_000;
 }
 
-/** Derive the coarse qualification bucket the filter dropdown uses. */
-function bucketFromDegrees(degrees: string[]): QualificationBucket | "" {
-  const hay = degrees.join(" ").toLowerCase();
-  if (/b\.?\s?(tech|e\b)|engineering|m\.?\s?tech/.test(hay)) return "B.Tech";
-  if (/matriculation|10th/.test(hay)) return "10th pass";
-  if (/12th|intermediate|higher secondary|senior/.test(hay)) return "12th pass";
-  if (
-    /graduate|degree|bachelor|m\.?\s?(a|sc|com|ba)\b|\bb\.?\s?(sc|a|com|ca|ed|pharma|arch)\b|bca|bba|bcom\b|mba/.test(
-      hay,
-    )
-  )
-    return "Graduate";
-  return "";
-}
-
 function coercePercentage(v: ExamNotification["min_percentage"]): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
@@ -122,7 +97,6 @@ export function toFeedExam(e: ExamNotification): FeedExam {
     department: e.organizing_body,
     postType: e.post_type,
     state: e.state_restriction?.trim() || "All India",
-    qualification: bucketFromDegrees(e.allowed_degrees ?? []),
     minPercentage: coercePercentage(e.min_percentage),
     ageMin: e.min_age,
     ageMax: e.max_age_general,
