@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme {
+  /* Direction D: Rozgar job portal — the only direction that ships. */
+  --color-paper: #f7f5f0;
+  --color-ink: #141210;
+  --color-saffron: #f07818;
+  --color-govgreen: #1a7a4a;
+  --color-alert: #c8102e;
+  --color-cream: #efeade;
+  --color-line: #e2ddd2;
+  --color-line-strong: #c9c2b3;
+
+  --font-sans: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  --font-ui: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  html {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  ::selection {
+    background: var(--color-saffron);
+    color: #fff;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-saffron);
+    outline-offset: 2px;
+  }
+}
+
+/* Motion is opt-out for people who ask for it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
