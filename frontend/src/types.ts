@@ -45,7 +45,7 @@ export interface CandidateProfile {
   highest_degree?: string | null;
   stream?: string | null;
   percentage_cgpa?: number | string | null;
-  passing_year?: number | null;
+  passing_year?: number | string | null;
   skills?: string[];
   [key: string]: unknown;
 }

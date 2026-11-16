@@ -6,9 +6,11 @@ one serves, and which part of the frontend consumes it.
 - **Backend:** FastAPI app `backend/app/main.py` ("GovJob Matcher & AI Roadmap API", v1.0.0)
 - **Base URL (local dev):** `http://localhost:8000`
 - **API prefix:** all application endpoints live under `/api/v1`
-- **Frontend:** TanStack Start app in `frontend/`; the API client is `frontend/src/lib/govjob/api.ts`
+- **Frontend:** RozgarBoard SPA (Vite + React 19, `frontend/`) — no SSR; serve statically.
+  The API client is `frontend/src/lib/api.ts`
   (`API_BASE` = `VITE_API_BASE_URL` / `VITE_GOVJOB_API_BASE`, default
-  `http://localhost:8000/api/v1`)
+  `http://localhost:8000/api/v1`). Top-level views are nav-state tabs
+  (Latest Jobs / My Eligibility / My Roadmap); auth and account flows live in modals.
 - **Auth model:** session cookie (`HttpOnly`, set on register/login). The cookie name comes from
   `COOKIE_NAME`. Tokens are stored hashed in the `sessions` table. There is no Bearer-token flow.
   - `current_user` → requires a valid session, else `401 Not authenticated`
@@ -82,15 +84,17 @@ The core matching engine and AI roadmap generation. Frontend: main app (`govjob-
 
 ## 6. Adaptive preparation ("Sathi AI") — `/api/v1/adaptive` (`endpoints/adaptive.py`, tag `Sathi AI`)
 
-Question bank + adaptive quizzes + mastery tracking. Frontend: the `/quiz` route (`src/routes/quiz...tsx`) and roadmap mastery badges (`src/components/govjob/use-mastery.ts`) are still wired up; the in-app "Adaptive Drill" tab (`AdaptiveQuizPanel.tsx`) was removed from the main menu.
+Question bank + adaptive quizzes + mastery tracking. No frontend UI since the SPA swap
+(`/quiz` removed); `GET /adaptive/mastery/{exam_id}` is still consumed by My Roadmap's
+mastery badges.
 
 | Method | Path | Auth | Serves / does | Frontend caller |
 |---|---|---|---|---|
-| GET | `/api/v1/adaptive/quiz` | session (30/hour) | Serves `count` questions (default 3, max 10) for `exam_id` / `subject` / `topic` from `question_bank`, generating via Groq on cache miss. Returns `QuizGenerateResponse` (`quiz_id`, questions with options/expected times). Owner is always the session user. | `/quiz` route prefetch (direct `fetch`, hardcoded `http://127.0.0.1:8000/api/v1/adaptive`); `api.fetchAdaptiveQuiz` (used by `AdaptiveQuizPanel.tsx`, which is currently unmounted) |
-| POST | `/api/v1/adaptive/submit-quiz` | session (60/hour) | Grades submitted answers against stored question rows (client scores are never trusted). Computes accuracy, net marks (per-exam marking scheme), per-question diagnostics (Rush / Time-Sink / Conceptual Gap), logs a `QuizAttempt`, updates `TopicMastery` with an EMA (α=0.35) and upserts per `(user, exam, topic)`. Returns `QuizEvaluationResponse` (score, diagnostics, micro-revision suggestions, per-question review). | `/quiz` route; `api.submitAdaptiveQuiz` (used by `AdaptiveQuizPanel.tsx`, which is currently unmounted) |
+| GET | `/api/v1/adaptive/quiz` | session (30/hour) | Serves `count` questions (default 3, max 10) for `exam_id` / `subject` / `topic` from `question_bank`, generating via Groq on cache miss. Returns `QuizGenerateResponse` (`quiz_id`, questions with options/expected times). Owner is always the session user. | No UI caller (removed in the SPA swap) |
+| POST | `/api/v1/adaptive/submit-quiz` | session (60/hour) | Grades submitted answers against stored question rows (client scores are never trusted). Computes accuracy, net marks (per-exam marking scheme), per-question diagnostics (Rush / Time-Sink / Conceptual Gap), logs a `QuizAttempt`, updates `TopicMastery` with an EMA (α=0.35) and upserts per `(user, exam, topic)`. Returns `QuizEvaluationResponse` (score, diagnostics, micro-revision suggestions, per-question review). | No UI caller (removed in the SPA swap) |
 | POST | `/api/v1/adaptive/report-question/{question_id}` | session (30/hour) | Flags a flawed question (`{reason}`). Auto-retires it at ≥3 reports or >15% report rate; decrements its quality score. | `api.reportAdaptiveQuestion` — defined in client; no UI caller yet |
 | POST | `/api/v1/adaptive/import-real-pyq` | session (20/hour) | Imports a verified "real" Previous-Year Question (`exam_id`, `subject`, `topic`, `pyq_year`, full question payload) marked `origin_type=REAL_PYQ`. Note: any signed-in user may call this — it is **not** admin-gated. | No frontend caller (operator/tooling use) |
-| GET | `/api/v1/adaptive/mastery/{exam_id}` | session (120/hour) | Returns all topic-mastery rows for the caller on one exam: per topic — `accuracy_ema`, `attempts_count`, `status` (`Mastered` / `Moderate` / `Needs Revision`), `last_reviewed_at`. | `api.fetchUserMastery` — `use-mastery.ts` → `roadmap-step.tsx` |
+| GET | `/api/v1/adaptive/mastery/{exam_id}` | session (120/hour) | Returns all topic-mastery rows for the caller on one exam: per topic — `accuracy_ema`, `attempts_count`, `status` (`Mastered` / `Moderate` / `Needs Revision`), `last_reviewed_at`. | `api.fetchUserMastery` - RoadmapPage mastery badges |
 
 ## 7. Notifications (Telegram) — `/api/v1/notifications` (`endpoints/notifications.py`, tag `Notifications`)
 
@@ -121,16 +125,12 @@ Operator-only queue for scraped exam extractions held back by the publish gate. 
 
 | Frontend location | Endpoints used |
 |---|---|
-| `src/routes/index.tsx` → `govjob-app.tsx` (main flow) | `POST /eligibility/check`, `POST /candidate/parse-resume`, `POST /candidate/profile`, `POST /eligibility/generate-roadmap/{exam_id}`, `POST /eligibility/sync-live-jobs`, `POST /users/me/claim-draft` (via auth), Telegram link/status/unlink/send-deadline-alert |
-| `eligibility-results.tsx` | (renders `/eligibility/check` response only; no direct HTTP) |
-| `AdaptiveQuizPanel.tsx` (no longer mounted — the "Adaptive Drill" tab was removed from the main app menu; component kept in tree) | `GET /adaptive/quiz`, `POST /adaptive/submit-quiz` |
-| `routes/quiz...tsx` (`/quiz`) | direct `fetch` to `/api/v1/adaptive/quiz` and `/api/v1/adaptive/submit-quiz` (hardcoded base URL — keep in sync with `API_BASE`) |
-| `use-roadmap.ts` + `roadmap-step.tsx` | `GET /users/me/roadmaps/{exam_id}`, `PUT /users/me/roadmaps/{roadmap_id}/progress`, `GET /adaptive/mastery/{exam_id}` (via `use-mastery.ts`) |
-| `routes/account.tsx` → `account-page.tsx` | `PATCH /users/me`, `POST /users/me/change-password`, `DELETE /users/me` |
-| `use-auth.ts` / `use-me.ts` | `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `POST /users/me/claim-draft`, `DELETE /users/me` |
-| `routes/admin.tsx` → `admin-review-page.tsx` | `GET /admin/review-queue`, `POST /admin/review-queue/{id}/approve`, `POST /admin/review-queue/{id}/reject`, `POST /admin/review-queue/{id}/edit` |
-| **AdaptiveDrill tab removed from the main menu (2026-11-15)** | `/api/v1/adaptive/*` endpoints remain live and are still used by the `/quiz` route and roadmap mastery badges (`GET /adaptive/mastery/{exam_id}`); the in-app drill tab and its Sathi AI shortcut buttons are gone |
-| API client defined but with **no UI caller today** | `GET /users/me/profile`, `PUT /users/me/profile`, `GET /users/me/roadmaps/{roadmap_id}/progress`, `GET /candidate/profile/{id}`, `GET /candidate/profile/{id}/eligibility`, `POST /adaptive/report-question/{id}`, `GET /eligibility/exams`, `POST /eligibility/report` |
+| `src/views/directions/Rozgar.tsx` (Latest Jobs feed + nav) | `GET /api/v1/eligibility/exams`; free verdict chips come from the cached `POST /api/v1/eligibility/check` response (no new calls) |
+| `src/views/directions/rozgar-pages.tsx` → `EligibilityPage` | `POST /api/v1/candidate/parse-resume`, `POST /api/v1/eligibility/check`, `POST /api/v1/candidate/profile` (Save), `POST /api/v1/users/me/claim-draft` (on sign-in) |
+| `src/views/directions/rozgar-pages.tsx` → `RoadmapPage` | `POST /api/v1/eligibility/generate-roadmap/{exam_id}`, `GET /api/v1/users/me/roadmaps/{exam_id}`, `PUT /api/v1/users/me/roadmaps/{id}/progress`, `GET /api/v1/adaptive/mastery/{exam_id}` |
+| `src/lib/auth.tsx` + `src/components/rozgar/AuthModal.tsx` | `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` |
+| `src/components/rozgar/AccountModal.tsx` | `PATCH /users/me`, `POST /users/me/change-password`, `DELETE /users/me`, Telegram: `POST /notifications/telegram/link`, `GET /notifications/telegram/status`, `DELETE /notifications/telegram/link` |
+| Admin review queue (`/admin`) and `/quiz` route | **removed in the SPA swap** — no UI callers; the backend endpoints remain live |
 
 ## Misc
 

@@ -57,14 +57,20 @@ export function detailToMessage(detail: unknown, fallback: string): string {
   return fallback;
 }
 
-/** Coerces a date-ish value to YYYY-MM-DD, or null when it is unusable. */
+/**
+ * Coerces a date-ish value to YYYY-MM-DD, or null when unusable.
+ * Explicitly formats local Y/M/D — `toISOString()` would shift a day backwards
+ * for IST users when the input was parsed as local midnight.
+ */
 export function toIsoDate(value: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
   const trimmed = value.trim();
   if (ISO_DATE.test(trimmed)) return trimmed;
+
   const parsed = new Date(trimmed);
   if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString().slice(0, 10);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}`;
 }
 
 function toBoolean(value: unknown): boolean {
