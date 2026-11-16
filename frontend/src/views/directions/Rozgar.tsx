@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toFeedExam, type FeedExam } from "../../lib/exams";
 import { getExams } from "../../lib/api";
 import { loadEligibilityResult, saveEligibilityResult } from "../../lib/draft";
@@ -35,7 +35,7 @@ function Masthead({
 
   return (
     <header className="bg-paper">
-      <div className="mx-auto max-w-[1280px] px-4 py-2 sm:px-5 sm:py-2.5">
+      <div className="mx-auto max-w-[1280px] px-4 py-3 sm:px-5 sm:py-3.5">
         <div className="flex items-center justify-between gap-3">
           {/* wordmark + tagline */}
           <div className="flex items-center gap-3">
@@ -129,15 +129,27 @@ function MainNav({
   onSelect: (l: Tab) => void;
   jobCount: number | null;
 }) {
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const el = trackRef.current?.querySelector<HTMLElement>('[data-active="true"]');
+    setIndicator(el ? { left: el.offsetLeft, width: el.offsetWidth } : null);
+  }, [active, jobCount]);
+
   return (
     <nav className="border-b-2 border-ink bg-paper" aria-label="Primary">
-      <div className="mx-auto flex max-w-[1280px] items-stretch overflow-x-auto px-2">
+      <div
+        ref={trackRef}
+        className="relative mx-auto flex max-w-[1280px] items-stretch overflow-x-auto px-2"
+      >
         {NAV.map((item) => {
           const on = active === item.label;
           const count = item.label === "Latest Jobs" ? jobCount : null;
           return (
             <button
               key={item.label}
+              data-active={on ? "true" : undefined}
               onClick={() => onSelect(item.label)}
               aria-current={on ? "page" : undefined}
               className={`relative flex h-[52px] shrink-0 items-center gap-2 px-4 text-[15px] font-semibold whitespace-nowrap text-ink/65 transition-colors hover:text-ink sm:px-5 sm:text-[16px] ${
@@ -154,12 +166,17 @@ function MainNav({
                   {count}
                 </span>
               )}
-              {on && (
-                <span className="absolute inset-x-3 bottom-0 h-[3px] rounded-t bg-saffron transition-all duration-200" />
-              )}
             </button>
           );
         })}
+        {/* one roving underline — animates between tabs with in/out slide */}
+        {indicator && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-0 h-[3px] rounded-t bg-saffron transition-all duration-300 ease-out"
+            style={{ left: indicator.left, width: indicator.width }}
+          />
+        )}
       </div>
     </nav>
   );
@@ -388,45 +405,53 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
 
             {/* RIGHT RAIL — Closing Soon, aligned with the feed */}
             <aside className="order-3 self-start lg:sticky lg:top-4">
-              {/* Closing Soon */}
-              <div className="overflow-hidden rounded-lg border border-line">
-                <p className="border-b border-line bg-cream px-4 py-2.5 text-[12px] font-bold tracking-[.14em] text-ink uppercase">
+              <div className="mb-4 flex items-baseline justify-between gap-3">
+                <p className="flex items-baseline gap-2 text-[22px] font-extrabold tracking-tight text-ink">
                   Closing Soon
-                </p>
-                <div className="bg-[#fbfaf7]">
-                  {closingSoon.length === 0 && (
-                    <p className="px-4 py-4 text-[13px] text-ink/55">Nothing closes in the next 10 days.</p>
+                  {closingSoon.length > 0 && (
+                    <span className="rounded-full bg-ink px-2 py-0.5 font-mono text-[12px] font-bold tabular-nums text-white">
+                      {closingSoon.length}
+                    </span>
                   )}
-                  {closingSoon.map((e) => (
-                    <a
-                      key={e.id}
-                      href={e.pdfUrl ?? undefined}
-                      target={e.pdfUrl ? "_blank" : undefined}
-                      rel="noopener noreferrer"
-                      aria-disabled={!e.pdfUrl}
-                      className={`block border-b border-line px-4 py-3 last:border-b-0 ${e.pdfUrl ? "cursor-pointer" : "cursor-default"}`}
-                      title={e.pdfUrl ? "Open the official notification (PDF)" : "Official PDF not linked yet"}
-                    >
-                      <p className="text-[14px] font-semibold leading-snug text-ink">{e.title}</p>
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <div className="h-[5px] flex-1 overflow-hidden rounded-full bg-cream">
-                          <div
-                            className={`h-full rounded-full ${e.deadlineDays <= 7 ? "bg-alert" : "bg-saffron"}`}
-                            style={{ width: `${Math.max(8, (e.deadlineDays / 45) * 100)}%` }}
-                          />
-                        </div>
-                        <span className="text-[12.5px] font-bold tabular-nums text-alert">{e.deadlineDays}d</span>
-                        {e.pdfUrl && <span aria-hidden="true" className="text-[11px] text-ink/40">↗</span>}
-                      </div>
-                    </a>
-                  ))}
-                </div>
-                {closingSoon.length > 0 && (
-                  <p className="border-t border-line bg-cream px-4 py-2 text-[12px] text-ink/70">
-                    {closingSoon.length} closing in the next 10 days
-                  </p>
-                )}
+                </p>
+                <p className="text-[12px] font-semibold tracking-wide text-ink/55 uppercase">Next 10 days</p>
               </div>
+
+              <div className="space-y-2.5">
+                {closingSoon.length === 0 && (
+                  <div className="rounded-lg border border-line bg-[#fbfaf7] px-4 py-4 text-[13px] text-ink/55">
+                    Nothing closes in the next 10 days.
+                  </div>
+                )}
+                {closingSoon.map((e) => (
+                  <a
+                    key={e.id}
+                    href={e.pdfUrl ?? undefined}
+                    target={e.pdfUrl ? "_blank" : undefined}
+                    rel="noopener noreferrer"
+                    className={`block overflow-hidden rounded-lg border border-line bg-[#fbfaf7] px-4 py-3 transition-colors ${
+                      e.pdfUrl ? "cursor-pointer hover:border-line-strong" : "cursor-default"
+                    }`}
+                    title={e.pdfUrl ? "Open the official notification (PDF)" : "Official PDF not linked yet"}
+                  >
+                    <p className="text-[14px] font-semibold leading-snug text-ink">{e.title}</p>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <div className="h-[5px] flex-1 overflow-hidden rounded-full bg-cream">
+                        <div
+                          className={`h-full rounded-full ${e.deadlineDays <= 7 ? "bg-alert" : "bg-saffron"}`}
+                          style={{ width: `${Math.max(8, (e.deadlineDays / 45) * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-[12.5px] font-bold tabular-nums text-alert">{e.deadlineDays}d</span>
+                      {e.pdfUrl && <span aria-hidden="true" className="text-[11px] text-ink/40">↗</span>}
+                    </div>
+                  </a>
+                ))}
+              </div>
+
+              <p className="mt-4 text-[12px] text-ink/60">
+                {closingSoon.length} notification{closingSoon.length === 1 ? "" : "s"} close within 10 days
+              </p>
             </aside>
           </div>
         )}
