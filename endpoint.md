@@ -10,7 +10,7 @@ one serves, and which part of the frontend consumes it.
   The API client is `frontend/src/lib/api.ts`
   (`API_BASE` = `VITE_API_BASE_URL` / `VITE_GOVJOB_API_BASE`, default
   `http://localhost:8000/api/v1`). Top-level views are nav-state tabs
-  (Latest Jobs / My Eligibility / My Roadmap); auth and account flows live in modals.
+  (Latest Jobs / My Eligibility / My Roadmap / Photo & Signature); auth and account flows live in modals.
 - **Auth model:** session cookie (`HttpOnly`, set on register/login). The cookie name comes from
   `COOKIE_NAME`. Tokens are stored hashed in the `sessions` table. There is no Bearer-token flow.
   - `current_user` → requires a valid session, else `401 Not authenticated`

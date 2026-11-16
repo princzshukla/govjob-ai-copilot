@@ -25,7 +25,7 @@ const input =
   "h-11 w-full rounded-lg border-2 border-line bg-white px-3 text-[14.5px] text-ink outline-none placeholder:text-ink/45 focus:border-saffron";
 const label = "mb-1 text-[10.5px] font-bold tracking-[.14em] text-ink/50 uppercase";
 
-function PageShell({
+export function PageShell({
   kicker,
   title,
   subtitle,

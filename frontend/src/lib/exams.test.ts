@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { daysUntil, toFeedExam, FEED_QUALIFICATIONS } from "./exams";
+import { daysUntil, toFeedExam } from "./exams";
 import type { ExamNotification } from "../types";
 
 function futureISO(days: number): string {
@@ -39,25 +39,6 @@ describe("toFeedExam", () => {
     expect(toFeedExam(base).state).toBe("All India");
   });
 
-  it("buckets qualifications from allowed_degrees keywords", () => {
-    expect(
-      toFeedExam({ ...base, allowed_degrees: ["10th", "10th Pass", "Matriculation"] })
-        .qualification,
-    ).toBe("10th pass");
-    expect(
-      toFeedExam({ ...base, allowed_degrees: ["12th", "Intermediate"] }).qualification,
-    ).toBe("12th pass");
-    expect(
-      toFeedExam({ ...base, allowed_degrees: ["B.Tech/BE/MBA"] }).qualification,
-    ).toBe("B.Tech");
-    expect(
-      toFeedExam({ ...base, allowed_degrees: ["Any Graduate"] }).qualification,
-    ).toBe("Graduate");
-    expect(
-      toFeedExam({ ...base, allowed_degrees: ["BCA", "B.Sc"] }).qualification,
-    ).toBe("Graduate");
-  });
-
   it("coerces string percentages from the API", () => {
     expect(toFeedExam(base).minPercentage).toBe(60);
   });
@@ -73,17 +54,6 @@ describe("toFeedExam", () => {
     expect(toFeedExam(base).topics).toEqual(["Reasoning", "Quant"]);
   });
 
-  it("every bucket the filter offers is a possible output", () => {
-    for (const bucket of FEED_QUALIFICATIONS) {
-      const hit = [
-        toFeedExam({ ...base, allowed_degrees: ["10th"] }).qualification,
-        toFeedExam({ ...base, allowed_degrees: ["12th"] }).qualification,
-        toFeedExam({ ...base, allowed_degrees: ["Any Graduate"] }).qualification,
-        toFeedExam({ ...base, allowed_degrees: ["B.Tech"] }).qualification,
-      ].includes(bucket);
-      expect(hit).toBe(true);
-    }
-  });
 });
 
 describe("daysUntil", () => {

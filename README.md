@@ -124,7 +124,7 @@ dedicated `pipeline` job, and a frontend typecheck + test + build job.
 
 Since the frontend rewrite, `frontend/` is a plain Vite + React 19 SPA with no
 SSR (6 runtime dependencies; no router/query/state frameworks). Views are
-top-level tabs (Latest Jobs / My Eligibility / My Roadmap); auth and account
+top-level tabs (Latest Jobs / My Eligibility / My Roadmap / Photo & Signature); auth and account
 flows are modals. Both the feed and the eligibility verdicts come from the live
 backend; the vacancy/salary fields seen in the prototype were never stored on
 `exam_notifications` and are not shown. Ads slots stay clearly labelled house

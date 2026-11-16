@@ -47,7 +47,7 @@ export function JobCard({
   const pct = exam.minPercentage;
 
   return (
-    <article className="border-b border-line bg-paper transition-colors last:border-b-0 hover:bg-cream/60">
+    <article className="rounded-lg border border-line bg-[#fbfaf7]">
       <div className="px-5 pt-4">
         <div className="flex flex-wrap items-center gap-2">
           {exam.isNew && (
@@ -73,7 +73,6 @@ export function JobCard({
 
         {/* who can apply — what the notification actually states */}
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          {exam.qualification && <Chip>{exam.qualification}</Chip>}
           <Chip>
             Min {pct === null ? "—" : `${pct}%`}
           </Chip>
@@ -158,7 +157,7 @@ export function JobCard({
       {open && (
         <div
           id={`details-${exam.id}`}
-          className="border-t border-line bg-white px-5 py-4"
+          className="border-t border-line bg-[#fbfaf7] px-5 py-4"
         >
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <DetailGrid label="Application last date" value={formatDateIN(exam.lastDateISO)} />
@@ -220,7 +219,7 @@ export function JobCard({
                 href={exam.pdfUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-[13.5px] font-bold text-white hover:bg-saffron"
+                className="inline-flex h-10 items-center rounded-lg border-2 border-ink bg-transparent px-4 text-[13.5px] font-bold text-ink transition-colors hover:border-saffron hover:text-saffron"
               >
                 Official notification (PDF) ↗
               </a>
@@ -252,7 +251,7 @@ export function SponsoredJobCard({ job }: { job: import("../../lib/ads").Sponsor
   return (
     <article
       aria-label="Sponsored job listing"
-      className="group border-y border-dashed border-ink/25 bg-cream/50 px-5 py-4 transition-colors hover:bg-cream/80"
+      className="group rounded-lg border border-dashed border-ink/25 bg-cream/50 px-5 py-4 transition-colors hover:bg-cream/80"
     >
       <div className="flex flex-wrap items-center gap-2">
         <AdLabel kind="Sponsored" />
