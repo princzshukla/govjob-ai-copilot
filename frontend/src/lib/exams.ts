@@ -16,6 +16,22 @@ export const FEED_QUALIFICATIONS: QualificationBucket[] = [
   "B.Tech",
 ];
 
+export const STATES = [
+  "All India",
+  "Delhi",
+  "Bihar",
+  "Uttar Pradesh",
+  "Maharashtra",
+  "Rajasthan",
+  "Madhya Pradesh",
+  "Haryana",
+  "Karnataka",
+  "Tamil Nadu",
+  "West Bengal",
+  "Punjab",
+  "Gujarat",
+];
+
 export interface FeedExam {
   id: string;
   title: string;
