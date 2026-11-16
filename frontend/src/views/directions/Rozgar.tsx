@@ -4,7 +4,7 @@ import { getExams } from "../../lib/api";
 import { loadEligibilityResult, saveEligibilityResult } from "../../lib/draft";
 import { useAuth } from "../../lib/auth";
 import type { EligibilityCheckResponse } from "../../types";
-import { AD_FREQUENCY, SPONSORED_JOBS, type AdLayout } from "../../lib/ads";
+import { ADS_ENABLED, AD_FREQUENCY, SPONSORED_JOBS, type AdLayout } from "../../lib/ads";
 import { JobCard, SponsoredJobCard } from "../../components/rozgar/JobCard";
 import { AdSlot } from "../../components/rozgar/AdSlot";
 import { AccountModal } from "../../components/rozgar/AccountModal";
@@ -375,11 +375,11 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
   }, [eligibility]);
 
   // Feed assembly: the only in-feed ad is a sponsored placement, injected by a
-  // hard frequency cap.
+  // hard frequency cap — only when the ad system is enabled.
   const feed = useMemo(() => {
     const items: ReactNode[] = [];
     filtered.forEach((exam, i) => {
-      if (i > 0 && i % AD_FREQUENCY === 0) {
+      if (ADS_ENABLED && i > 0 && i % AD_FREQUENCY === 0) {
         const sp = SPONSORED_JOBS[(i / AD_FREQUENCY - 1) % SPONSORED_JOBS.length];
         items.push(<SponsoredJobCard key={`sp-${sp.id}`} job={sp} />);
       }
@@ -427,18 +427,24 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
         </div>
       </div>
 
-      <div className="mx-auto grid max-w-[1280px] gap-6 px-4 py-6 sm:px-5 lg:grid-cols-[288px_1fr_288px]">
-        {/* LEFT RAIL — ad inventory, nothing else. Stacks below the feed on mobile. */}
-        <div className="order-2 space-y-4 lg:order-none">
-          {adLayout.left.map((ad) => (
-            <div
-              key={ad.id}
-              className="mx-auto w-full max-w-[300px] overflow-hidden rounded-lg border border-dashed border-line-strong bg-white/60 sm:max-w-none"
-            >
-              <AdSlot {...ad} className="border-0" />
-            </div>
-          ))}
-        </div>
+      <div
+        className={`mx-auto grid max-w-[1280px] gap-6 px-4 py-6 sm:px-5 ${
+          ADS_ENABLED ? "lg:grid-cols-[288px_1fr_288px]" : "lg:grid-cols-[1fr_320px]"
+        }`}
+      >
+        {/* LEFT RAIL — ad inventory, nothing else. Only exists with the ad system on. */}
+        {ADS_ENABLED && (
+          <div className="order-2 space-y-4 lg:order-none">
+            {adLayout.left.map((ad) => (
+              <div
+                key={ad.id}
+                className="mx-auto w-full max-w-[300px] overflow-hidden rounded-lg border border-dashed border-line-strong bg-white/60 sm:max-w-none"
+              >
+                <AdSlot {...ad} className="border-0" />
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* job list — first on mobile */}
         <main id="job-results" className="order-1 lg:order-none">
@@ -490,7 +496,8 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
 
         {/* RIGHT RAIL — Closing Soon + ads above any content heading */}
         <aside className="order-3 space-y-4">
-          {adLayout.rightOrder === "ads-first" &&
+          {ADS_ENABLED &&
+            adLayout.rightOrder === "ads-first" &&
             adLayout.right.map((ad) => (
               <div
                 key={ad.id}
@@ -537,7 +544,8 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
             )}
           </div>
 
-          {adLayout.rightOrder === "ads-last" &&
+          {ADS_ENABLED &&
+            adLayout.rightOrder === "ads-last" &&
             adLayout.right.map((ad) => (
               <div
                 key={ad.id}

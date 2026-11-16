@@ -39,6 +39,13 @@ export interface SponsoredJob {
  *   nothing, and chasing clicks risks invalid-traffic strikes.
  */
 
+/**
+ * Single switch for the ad system. The house ads and sponsored cards are
+ * prototype placeholders, not sold inventory — keep the code, render nothing.
+ * Flip to true when a real ad network or direct sponsor deals go live.
+ */
+export const ADS_ENABLED = false;
+
 export const AD_FREQUENCY = 8; // 1 sponsored card per 8 organic cards
 
 export type AdKind = "rail" | "feed" | "house";
