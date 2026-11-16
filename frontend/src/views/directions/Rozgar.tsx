@@ -8,12 +8,14 @@ import { ADS_ENABLED, AD_FREQUENCY, SPONSORED_JOBS, type AdLayout } from "../../
 import { JobCard, SponsoredJobCard } from "../../components/rozgar/JobCard";
 import { AdSlot } from "../../components/rozgar/AdSlot";
 import { AccountModal } from "../../components/rozgar/AccountModal";
+import { DocumentResizer } from "../../components/rozgar/DocumentResizer";
 import { EligibilityPage, RoadmapPage } from "./rozgar-pages";
 
 const NAV = [
   { label: "Latest Jobs" },
   { label: "My Eligibility" },
   { label: "My Roadmap" },
+  { label: "Photo & Signature" },
 ] as const;
 
 /* ------------------------------------------------------------------ */
@@ -373,6 +375,7 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
             <EligibilityPage result={eligibility} onResultChange={setAndCacheEligibility} />
           )}
           {active === "My Roadmap" && <RoadmapPage />}
+          {active === "Photo & Signature" && <DocumentResizer />}
         </div>
         <SiteFooter />
       </div>
