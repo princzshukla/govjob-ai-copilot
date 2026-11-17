@@ -142,6 +142,33 @@ async def publish_auto_admit_cards(
 
     report = PublishReport()
     for extraction, link, source in rows:
+        # Dedup: the official notice may already have a curated seed card
+        # (or an earlier pipeline-published one) with the same admit_url.
+        # Adopt it — refresh last_checked_at — instead of duplicating.
+        existing = (
+            await db.execute(
+                select(AdmitCardNotification).where(
+                    AdmitCardNotification.admit_url == link.url
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            if not dry_run:
+                from app.core.timeutils import today_ist
+
+                existing.last_checked_at = today_ist()
+                extraction.admit_card_id = existing.id
+                link.status = "processed"
+            report.published.append(
+                PublishOutcome(
+                    extraction_id=extraction.id,
+                    action="published",
+                    detail=f"adopted existing admit card {existing.id} ({link.url[:70]})",
+                    admit_card_id=existing.id,
+                )
+            )
+            continue
+
         card, problems = build_admit_card(extraction, link, source)
         if card is None:
             report.held.append(_hold(extraction, problems, dry_run))
