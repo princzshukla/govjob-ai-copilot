@@ -82,7 +82,15 @@ The core matching engine and AI roadmap generation. Frontend: main app (`govjob-
 | POST | `/api/v1/eligibility/report` | public | Stores a "this eligibility result is wrong" report (`exam_id` + verdict mismatch + a PII-stripped candidate snapshot — name and raw resume text are dropped). Returns `{report_id, status:"received"}`. | Not wired to a frontend button yet |
 | POST | `/api/v1/eligibility/sync-live-jobs` | session (4/hour) + global 15-min cooldown | Discovers new notifications from the **official pipeline sources** (Layer 1 pass over UPSC What's New + SSC Notice Board), then drains Layer 2: PDF download → Groq extraction → publish gate. Published rows carry official government links (`source_url`/`official_pdf_url`). Requires login and is globally throttled, because one call costs scrape + LLM work for everybody. Returns `{new_jobs_discovered, skipped_jobs, total_active_jobs}`. | `api.syncLiveJobs` — `govjob-app.tsx` ("Sync Live Jobs" action) |
 
-## 6. Adaptive preparation ("Sathi AI") — `/api/v1/adaptive` (`endpoints/adaptive.py`, tag `Sathi AI`)
+## 6. Admit cards — `/api/v1/admit-cards` (`endpoints/admit_cards.py`, tag `Admit Cards`)
+
+Read-only list of currently useful admit cards / exam-city intimations — deliberately **separate** from `exam_notifications` (no eligibility, no application window; validity anchored to `exam_date`, not a deadline). Seeded from official board notices/PDFs via `SEED_ADMIT_CARDS` (`app/core/admit_cards.py`), upserted at startup like the exam seed; stale rows are flipped inactive 2×/day by the background task (`expire_stale_admit_cards` in `core/tasks.py`) — never deleted.
+
+| Method | Path | Auth | Serves / does | Frontend caller |
+|---|---|---|---|---|
+| GET | `/api/v1/admit-cards` | public | Lists active admit cards useful *now*: `is_active` + (`exam_date >= today (IST)` or no exam date published) + released within 60 days. Each row is all `admit_cards` columns plus computed `exam_state` (`upcoming` / `over` / `unknown`), ordered by `notification_date` desc then `exam_date` asc. `admit_url` is the board's own official link — a PDF **or** the board's notice/login page — never a third party. | `getAdmitCards` — `Rozgar.tsx` ("Admit Cards" tab; renders `AdmitCardCard`) |
+
+## 6b. Adaptive preparation ("Sathi AI") — `/api/v1/adaptive` (`endpoints/adaptive.py`, tag `Sathi AI`)
 
 Question bank + adaptive quizzes + mastery tracking. No frontend UI since the SPA swap
 (`/quiz` removed); `GET /adaptive/mastery/{exam_id}` is still consumed by My Roadmap's

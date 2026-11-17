@@ -37,6 +37,27 @@ export interface ExamsListResponse {
   exams: ExamNotification[];
 }
 
+export interface AdmitCard {
+  id: string;
+  title: string;
+  organizing_body: string;
+  exam_name: string | null;
+  notification_date: string | null;
+  exam_date: string | null;
+  /** Official link — a PDF *or* the board's notice/login page. */
+  admit_url: string | null;
+  source_url: string | null;
+  last_checked_at: string | null;
+  is_active: boolean;
+  /** "upcoming" | "over" | "unknown" (exam date not published). */
+  exam_state?: "upcoming" | "over" | "unknown";
+}
+
+export interface AdmitCardsListResponse {
+  total: number;
+  admit_cards: AdmitCard[];
+}
+
 /* ---------- candidate profile ---------- */
 
 export interface CandidateProfile {

@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
@@ -192,6 +192,11 @@ async def publish_auto_extractions(
             .where(
                 ExtractionResult.status == "auto",
                 ExtractionResult.exam_notification_id.is_(None),
+                # admit-card extractions have their own publish gate
+                or_(
+                    ExtractionResult.extracted["kind"].astext.is_(None),
+                    ExtractionResult.extracted["kind"].astext != "admit_card",
+                ),
             )
             .order_by(ExtractionResult.id)
         )

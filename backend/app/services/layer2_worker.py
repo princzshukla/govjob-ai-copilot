@@ -30,6 +30,7 @@ import argparse
 import asyncio
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 
@@ -43,6 +44,7 @@ from app.models.pipeline import (
     ScrapeSource,
     TokenBudget,
 )
+from app.services import admit_extractor
 from app.services.exam_publisher import publish_auto_extractions
 from app.services import notification_extractor as nx
 
@@ -56,6 +58,89 @@ HTTP_HEADERS = {"User-Agent": "govjob-copilot/0.1 (notification ingestion; conta
 PDF_MAGIC = b"%PDF-"
 
 _BUDGET_ENV = "WORKER_DAILY_TOKEN_BUDGET"
+
+_ADMIT_RE = re.compile(
+    r"\b(admit(?:\s|-)?card|admission certificate|exam city|hall.?ticket|participation certificate|call letter)\b",
+    re.IGNORECASE,
+)
+
+
+def detect_notice_kind(link: RawDiscoveredLink, source: ScrapeSource | None) -> str:
+    """Classify a discovered link as an admit card vs a job notification.
+
+    The source can force the classification via ``config.notice_kind``;
+    otherwise the headline/URL is matched for admit-card vocabulary (the SSC
+    JSON API and UPSC What's New carry such headlines verbatim).
+    """
+    if source is not None:
+        config = source.config if isinstance(source.config, dict) else {}
+        if str(config.get("notice_kind") or "").strip().lower() == "admit_card":
+            return "admit_card"
+    haystack = f"{link.title or ''} {link.url or ''}"
+    return "admit_card" if _ADMIT_RE.search(haystack) else "job"
+
+
+async def _process_admit_link(
+    db,
+    link: RawDiscoveredLink,
+    stats: WorkerStats,
+    budget_left: float,
+    pdf: bytes,
+    *,
+    dry_run: bool = False,
+) -> str:
+    """Admit-card branch: minimal extraction, same trust rails, own publish gate."""
+    text, page_count, chars_per_page = nx.extract_text_stats(pdf)
+    scanned = chars_per_page < nx.MIN_CHARS_PER_PAGE
+    usage = 0.0 if scanned else _estimate_doc_tokens(len(text))
+
+    if dry_run:
+        stats.downloaded += 1
+        stats.est_tokens_spent += usage
+        stats.links.append(f"dry-run: {link.url} (~{usage:.0f} est tokens, admit card)")
+        return "ok"
+
+    if usage > budget_left:
+        stats.budget_stopped = True
+        logger.info("daily token budget reached (%.0f left, need ~%.0f) — stopping", budget_left, usage)
+        return "budget"
+
+    result = await admit_extractor.extract_admit_card(pdf, headline=link.title)
+    stats.downloaded += 1
+    stats.est_tokens_spent += usage
+    if result.is_scanned or scanned:
+        stats.scanned += 1
+    status = "auto" if not result.needs_manual_review and not result.is_scanned else "review"
+
+    await _budget_add(db, datetime.now(timezone.utc).date(), usage)
+    iso = lambda d: d.isoformat() if d else None
+    extracted = {
+        "kind": "admit_card",
+        "exam_name": result.exam_name,
+        "exam_date": iso(result.exam_date),
+        "notification_date": iso(result.notification_date),
+    }
+    db.add(
+        ExtractionResultRow(
+            raw_link_id=link.id,
+            status=status,
+            provider=result.provider,
+            extracted=extracted,
+            field_confidence=result.field_confidence or {},
+            evidence=result.evidence or {},
+            missing_fields=[f for f in ("exam_name",) if not result.exam_name],
+            review_note="; ".join(result.review_reasons or []) or None,
+        )
+    )
+    link.status = "processed"
+    link.process_attempts += 1
+
+    if status == "auto":
+        stats.auto += 1
+    else:
+        stats.review += 1
+    stats.links.append(f"{status} (admit): {link.url}")
+    return status
 
 
 @dataclass
@@ -142,6 +227,10 @@ async def process_link(
             link.status = "ignored"
         stats.ignored += 1
         return "ignored"
+
+    source = source_map.get(link.source_id)
+    if detect_notice_kind(link, source) == "admit_card":
+        return await _process_admit_link(db, link, stats, budget_left, pdf, dry_run=dry_run)
 
     text, page_count, chars_per_page = nx.extract_text_stats(pdf)
     if chars_per_page < nx.MIN_CHARS_PER_PAGE:
@@ -248,6 +337,14 @@ async def process_new_links(
             report = await publish_auto_extractions(db)
             logger.info(
                 "publish gate: %d published, %d held", len(report.published), len(report.held)
+            )
+            from app.services.admit_publisher import publish_auto_admit_cards
+
+            admit_report = await publish_auto_admit_cards(db)
+            logger.info(
+                "admit-card publish gate: %d published, %d held",
+                len(admit_report.published),
+                len(admit_report.held),
             )
 
     logger.info(

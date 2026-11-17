@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { toFeedExam, type FeedExam } from "../../lib/exams";
-import { getExams } from "../../lib/api";
+import { toFeedExam, toFeedAdmitCard, type FeedExam, type FeedAdmitCard } from "../../lib/exams";
+import { getExams, getAdmitCards } from "../../lib/api";
 import { loadEligibilityResult, saveEligibilityResult } from "../../lib/draft";
 import { useAuth } from "../../lib/auth";
 import type { EligibilityCheckResponse } from "../../types";
 import { ADS_ENABLED, AD_FREQUENCY, SPONSORED_JOBS, type AdLayout } from "../../lib/ads";
 import { JobCard, SponsoredJobCard } from "../../components/rozgar/JobCard";
+import { AdmitCardCard } from "../../components/rozgar/AdmitCard";
 import { AdSlot } from "../../components/rozgar/AdSlot";
 import { AccountModal } from "../../components/rozgar/AccountModal";
 import { DocumentResizer } from "../../components/rozgar/DocumentResizer";
@@ -14,6 +15,7 @@ import { EligibilityPage, RoadmapPage } from "./rozgar-pages";
 
 const NAV = [
   { label: "Latest Jobs" },
+  { label: "Admit Cards" },
   { label: "My Eligibility" },
   { label: "My Roadmap" },
   { label: "Photo & Signature" },
@@ -124,10 +126,12 @@ function MainNav({
   active,
   onSelect,
   jobCount,
+  admitCount,
 }: {
   active: Tab;
   onSelect: (l: Tab) => void;
   jobCount: number | null;
+  admitCount: number | null;
 }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null);
@@ -135,7 +139,7 @@ function MainNav({
   useLayoutEffect(() => {
     const el = trackRef.current?.querySelector<HTMLElement>('[data-active="true"]');
     setIndicator(el ? { left: el.offsetLeft, width: el.offsetWidth } : null);
-  }, [active, jobCount]);
+  }, [active, jobCount, admitCount]);
 
   return (
     <nav className="border-b-2 border-ink bg-paper" aria-label="Primary">
@@ -145,7 +149,8 @@ function MainNav({
       >
         {NAV.map((item) => {
           const on = active === item.label;
-          const count = item.label === "Latest Jobs" ? jobCount : null;
+          const count =
+            item.label === "Latest Jobs" ? jobCount : item.label === "Admit Cards" ? admitCount : null;
           return (
             <button
               key={item.label}
@@ -253,6 +258,9 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
+  const [admitCards, setAdmitCards] = useState<FeedAdmitCard[] | null>(null);
+  const [admitError, setAdmitError] = useState<string | null>(null);
+
   // Free once a profile is set — eligibility verdicts for every notification.
   // Cached in sessionStorage so tab switches keep them.
   const [eligibility, setEligibility] = useState<EligibilityCheckResponse | null>(
@@ -281,6 +289,34 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
       cancelled = true;
     };
   }, [retryCount]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setAdmitError(null);
+      try {
+        const res = await getAdmitCards();
+        if (cancelled) return;
+        setAdmitCards(res.admit_cards.filter((c) => c.is_active).map(toFeedAdmitCard));
+      } catch (err) {
+        if (cancelled) return;
+        setAdmitError(err instanceof Error ? err.message : "Could not load admit cards.");
+        setAdmitCards(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [retryCount]);
+
+  const filteredAdmitCards = useMemo(() => {
+    if (!admitCards) return [];
+    if (!query.trim()) return admitCards;
+    const q = query.toLowerCase();
+    return admitCards.filter((c) =>
+      `${c.title} ${c.department} ${c.examName ?? ""}`.toLowerCase().includes(q),
+    );
+  }, [admitCards, query]);
 
   const filtered = useMemo(() => {
     if (!exams) return [];
@@ -340,7 +376,7 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
   return (
     <div className="min-h-screen bg-paper text-ink">
       <Masthead query={query} onQueryChange={setQuery} />
-      <MainNav active={active} onSelect={goTab} jobCount={exams?.length ?? null} />
+      <MainNav active={active} onSelect={goTab} jobCount={exams?.length ?? null} admitCount={admitCards?.length ?? null} />
       {active === "Latest Jobs" && (
         <HeroBand total={exams?.length ?? null} closingThisWeek={closingThisWeek} />
       )}
@@ -453,6 +489,54 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
                 {closingSoon.length} notification{closingSoon.length === 1 ? "" : "s"} close within 10 days
               </p>
             </aside>
+          </div>
+        )}
+
+        {active === "Admit Cards" && (
+          <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-5">
+            <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+              <h2 className="flex items-baseline gap-2 text-[22px] font-extrabold tracking-tight text-ink">
+                Admit Cards
+                {admitCards && (
+                  <span className="rounded-full bg-ink px-2 py-0.5 font-mono text-[12px] font-bold tabular-nums text-white">
+                    {filteredAdmitCards.length}
+                  </span>
+                )}
+              </h2>
+              <p className="text-[12px] font-semibold tracking-wide text-ink/55 uppercase">
+                Official download links only
+              </p>
+            </div>
+            <p className="mb-4 max-w-2xl text-[13.5px] leading-relaxed text-ink/60">
+              e-Admit cards and exam-city intimations, straight from the boards. Exams usually 2–14
+              days away — carry a valid photo ID to the centre.
+            </p>
+            <div className="space-y-2.5">
+              {admitCards === null && !admitError ? (
+                <LoadingSkeleton />
+              ) : admitError ? (
+                <div className="rounded-lg border border-line bg-[#fbfaf7] px-5 py-14 text-center">
+                  <p className="text-[17px] font-bold text-ink">Couldn't load admit cards</p>
+                  <p className="mt-1 text-[14px] text-ink/60">{admitError}</p>
+                  <button
+                    onClick={() => setRetryCount((c) => c + 1)}
+                    className="mt-4 h-11 rounded-lg bg-ink px-4 text-[13.5px] font-bold text-white hover:bg-saffron"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : filteredAdmitCards.length === 0 ? (
+                <div className="rounded-lg border border-line bg-[#fbfaf7] px-5 py-14 text-center">
+                  <p className="text-[17px] font-bold text-ink">No admit cards right now</p>
+                  <p className="mt-1 text-[14px] text-ink/60">
+                    When a board releases an admit card, it will appear here. Check the official
+                    portal in the meantime.
+                  </p>
+                </div>
+              ) : (
+                filteredAdmitCards.map((c) => <AdmitCardCard key={c.id} card={c} />)
+              )}
+            </div>
           </div>
         )}
 

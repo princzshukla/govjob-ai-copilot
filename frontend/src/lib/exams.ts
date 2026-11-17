@@ -117,3 +117,38 @@ export function toFeedExam(e: ExamNotification): FeedExam {
     allowsFinalYear: e.allows_final_year,
   };
 }
+
+/* ---------- admit cards ---------- */
+
+export interface FeedAdmitCard {
+  id: string;
+  title: string;
+  department: string;
+  examName: string | null;
+  /** whole days until the exam; null when the board has not published a date */
+  examDays: number | null;
+  examDateISO: string | null;
+  notificationISO: string | null;
+  admitUrl: string | null;
+  sourceUrl: string | null;
+  lastChecked: string | null;
+  /** notification released within the last 72 h */
+  isNew: boolean;
+}
+
+export function toFeedAdmitCard(a: import("../types").AdmitCard): FeedAdmitCard {
+  const postedHours = hoursSince(a.notification_date);
+  return {
+    id: a.id,
+    title: a.title,
+    department: a.organizing_body,
+    examName: a.exam_name,
+    examDateISO: a.exam_date,
+    examDays: a.exam_date ? daysUntil(a.exam_date) : null,
+    notificationISO: a.notification_date,
+    admitUrl: a.admit_url,
+    sourceUrl: a.source_url,
+    lastChecked: a.last_checked_at,
+    isNew: postedHours !== null && postedHours >= 0 && postedHours < 72,
+  };
+}

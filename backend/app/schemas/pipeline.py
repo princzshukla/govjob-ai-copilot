@@ -5,6 +5,41 @@ from datetime import date
 from pydantic import BaseModel, Field
 
 
+class AdmitCardExtraction(BaseModel):
+    """LLM-extracted fields for an admit card / exam-city notice.
+
+    Deliberately minimal — admit cards carry no eligibility criteria. The
+    official download link is always the discovered link itself (stored on
+    ``raw_discovered_links.url``); it is never asked of the model.
+    """
+
+    exam_name: str | None = Field(
+        default=None,
+        description="Full exam name as written, e.g. 'Sub-Inspector in Delhi Police and CAPFs Examination, 2025'",
+    )
+    exam_date: date | None = Field(
+        default=None,
+        description="Exam day, 'YYYY-MM-DD', if explicitly published; null otherwise",
+    )
+    notification_date: date | None = Field(
+        default=None,
+        description="Date the admit card / notice was released, 'YYYY-MM-DD', if stated",
+    )
+    field_confidence: dict[str, float] = Field(default_factory=dict)
+    evidence: dict[str, str] = Field(default_factory=dict)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class AdmitCardExtractionResult(AdmitCardExtraction):
+    """Admit-card extraction plus the pipeline's trust decision."""
+
+    raw_text_chars: int = 0
+    is_scanned: bool = False
+    needs_manual_review: bool = False
+    review_reasons: list[str] = Field(default_factory=list)
+    provider: str = "groq"
+
+
 class NotificationExtraction(BaseModel):
     """LLM-extracted fields from a government recruitment notification PDF.
 

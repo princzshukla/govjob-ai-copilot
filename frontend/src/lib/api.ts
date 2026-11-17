@@ -7,6 +7,7 @@ import type {
   CandidateProfile,
   ClaimDraftResponse,
   EligibilityCheckResponse,
+  AdmitCardsListResponse,
   ExamsListResponse,
   ParseResumeResult,
   RoadmapProgress,
@@ -254,6 +255,10 @@ async function callApi<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function getExams(): Promise<ExamsListResponse> {
   return callApi<ExamsListResponse>("/eligibility/exams");
+}
+
+export function getAdmitCards(): Promise<AdmitCardsListResponse> {
+  return callApi<AdmitCardsListResponse>("/admit-cards");
 }
 
 /* ---------------- auth ---------------- */

@@ -38,6 +38,7 @@ class ReviewQueueItem(BaseModel):
     evidence: dict
     field_confidence: dict
     exam_notification_id: Optional[str]
+    admit_card_id: Optional[str]
 
 
 @router.get("/review-queue", response_model=list[ReviewQueueItem])
@@ -69,6 +70,7 @@ async def list_review_queue(db: AsyncSession = Depends(get_db), admin=Depends(re
                 evidence=extraction.evidence or {},
                 field_confidence=extraction.field_confidence or {},
                 exam_notification_id=extraction.exam_notification_id,
+                admit_card_id=extraction.admit_card_id,
             )
         )
     return items
@@ -80,6 +82,28 @@ async def _promote(row_id: int, db: AsyncSession) -> ExamNotification:
     ).scalar_one_or_none()
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Extraction not found")
+
+    # Admit-card extractions promote through their own gate.
+    if str((row.extracted or {}).get("kind") or "") == "admit_card":
+        from app.models.admit_card import AdmitCardNotification
+        from app.services.admit_publisher import publish_auto_admit_cards
+
+        row.status = "auto"
+        await db.commit()
+        report = await publish_auto_admit_cards(db)
+        promoted = next((p for p in report.published if p.extraction_id == row.id), None)
+        if promoted is None:
+            held = next((h for h in report.held if h.extraction_id == row.id), None)
+            reason = held.detail if held else "admit-card publish gate held the row"
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Cannot publish: {reason}",
+            )
+        card = (
+            await db.execute(select(AdmitCardNotification).where(AdmitCardNotification.id == promoted.admit_card_id))
+        ).scalar_one()
+        return card
+
     row.status = "auto"
     await db.commit()
     report = await publish_auto_extractions(db)
@@ -132,6 +156,9 @@ class AdminEdit(BaseModel):
     # Official online application portal/form — carried into exam_notifications
     # at publish time (validated as http(s) by the publish gate).
     apply_url: Optional[str] = None
+    # Admit-card extractions only — ignored by the job publish gate.
+    exam_date: Optional[str] = None
+    notification_date: Optional[str] = None
 
 
 @router.post("/review-queue/{result_id}/edit")

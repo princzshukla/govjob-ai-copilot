@@ -13,11 +13,12 @@ from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.api.v1.endpoints import adaptive, admin, auth, candidate, eligibility, notifications, user_data, users
+from app.api.v1.endpoints import adaptive, admit_cards, admin, auth, candidate, eligibility, notifications, user_data, users
 from app.core.config import settings
 from app.core.logging_config import configure_logging
 from app.core.rate_limit import limiter
 from app.core.tasks import exam_deadline_expiry_loop, session_cleanup_loop
+from app.services.coverage_watchdog import coverage_watchdog_loop
 
 configure_logging()
 logger = logging.getLogger("app")
@@ -47,6 +48,7 @@ async def lifespan(_app: FastAPI):
     try:
         from sqlalchemy import select as _select
 
+        from app.core.admit_cards import upsert_admit_cards
         from app.core.database import AsyncSessionLocal
         from app.core.seed import upsert_seed_exams
 
@@ -54,23 +56,37 @@ async def lifespan(_app: FastAPI):
             inserted = await upsert_seed_exams(db)
         if inserted:
             logger.info("seeded %d exam notifications (idempotent upsert)", inserted)
-    except Exception:
-        logger.exception("startup seed failed — continuing without it")
-
+        async with AsyncSessionLocal() as db:
+            inserted_cards = await upsert_admit_cards(db)
+        if inserted_cards:
+            logger.info("seeded %d admit cards (idempotent upsert)", inserted_cards)
+    except Exception as e:
+        if "admit_cards" in str(e):
+            logger.error(
+                "startup seed failed: admit_cards table missing — "
+                "run `alembic upgrade head` (migration a1c3d5e7f901)"
+            )
+        else:
+            logger.exception("startup seed failed — continuing without it")
     # Prune expired sessions hourly in-process; the DELETE is idempotent, so
     # multiple workers doing it is fine. Also hide closed job notifications
     # twice a day (idempotent flag flip; the query-time filter in
     # eligibility covers a missed run).
     cleanup_task = asyncio.create_task(session_cleanup_loop())
     expiry_task = asyncio.create_task(exam_deadline_expiry_loop())
+    # Weekly read-only coverage watchdog: alerts the admin when live jobs
+    # listed by the aggregator are missing from SEED_EXAMS. No DB writes.
+    watchdog_task = asyncio.create_task(coverage_watchdog_loop())
     try:
         yield
     finally:
         cleanup_task.cancel()
         expiry_task.cancel()
+        watchdog_task.cancel()
         with suppress(asyncio.CancelledError):
             await cleanup_task
             await expiry_task
+            await watchdog_task
 
 
 # Keep only origins from env. Dev defaults must not follow the build to prod:
@@ -152,6 +168,7 @@ app.include_router(users.router, prefix="/api/v1")
 app.include_router(user_data.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(adaptive.router, prefix="/api/v1/adaptive", tags=["Adaptive Preparation"])
+app.include_router(admit_cards.router, prefix="/api/v1")
 
 
 @app.get("/health")

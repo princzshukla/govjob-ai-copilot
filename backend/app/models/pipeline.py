@@ -29,6 +29,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.models.admit_card import AdmitCardNotification as _AdmitCardNotification  # noqa: F401
 from app.models.exam import Base
 
 
@@ -185,6 +186,11 @@ class ExtractionResult(Base):
     review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     exam_notification_id: Mapped[str | None] = mapped_column(
         String(100), ForeignKey("exam_notifications.id", ondelete="SET NULL"), nullable=True
+    )
+    # Admit-card extractions point at their admit_cards row instead. Exactly
+    # one of the two back-references is set per promoted extraction.
+    admit_card_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("admit_cards.id", ondelete="SET NULL"), nullable=True
     )
 
 
