@@ -131,7 +131,7 @@ def parse_latest_jobs(page_html: str) -> list[CoverageEntry]:
 _ADMIT_HEADING_RE = re.compile(r"All Latest Admit Card", re.I)
 # Items their "Admit Card" page lumps in that are NOT admit cards.
 _NOT_ADMIT_RE = re.compile(
-    r"exam calendar|date sheet|time table|timetable|postpon|result|answer key|cut.?off|syllabus|notification out",
+    r"exam calendar|date sheet|time table|timetable|postpon|postpn|dv schedule|document verification schedule|result|answer key|cut.?off|syllabus|notification out",
     re.IGNORECASE,
 )
 _ADMIT_ITEM_RE = re.compile(
@@ -158,6 +158,14 @@ def parse_admit_cards_page(page_html: str) -> list[CoverageEntry]:
             continue
         entries.append(CoverageEntry(title=title, url=href, last_date=None))
     return entries
+
+
+# Titles where the aggregator's wording is too different from our curated
+# title for token matching (same official notice, already seeded).
+_TITLE_ALIASES = {
+    "ssc cpo si capf paper i exam city details 2026":
+        "ssc sub inspector in delhi police capfs 2025 paper i city of examination admission certificate",
+}
 
 
 def normalize_title(title: str) -> str:
@@ -198,6 +206,8 @@ def build_report(
     missing: list[CoverageEntry] = []
     for entry in entries:
         normalized_entry = normalize_title(entry.title)
+        if kind == "admit_card":
+            normalized_entry = _TITLE_ALIASES.get(normalized_entry, normalized_entry)
         best_score, best_seed = 0.0, ""
         for seed_title, normalized_seed in zip(seed_titles, normalized_seeds):
             score = match_score(normalized_entry, normalized_seed)

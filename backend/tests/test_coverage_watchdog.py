@@ -139,3 +139,17 @@ def test_admit_card_report_matches_seed():
     report = build_report(entries, ["SSC GD Constable (CAPFs, SSF & Rifleman)"], kind="admit_card")
     assert report.kind == "admit_card"
     assert report.seed_count == 1
+
+
+def test_watchdog_filters_postponed_typos_and_maps_known_alias():
+    from app.services.coverage_watchdog import (
+        _NOT_ADMIT_RE,
+        _TITLE_ALIASES,
+        normalize_title,
+    )
+
+    assert _NOT_ADMIT_RE.search("BPSC Project Manager Pre Exam 2026 - Postpned")
+    assert _NOT_ADMIT_RE.search("Bihar BPSC Factory Inspector Revised DV Schedule 2026")
+    alias = normalize_title("SSC CPO SI CAPF Paper-I Exam City Details 2026")
+    assert alias in _TITLE_ALIASES
+    assert "delhi police" in _TITLE_ALIASES[alias]
