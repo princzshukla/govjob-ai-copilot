@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import date
 
 from pydantic import ValidationError
 
@@ -101,12 +102,30 @@ def _validate_and_flag(
     *,
     headline: str | None,
 ) -> AdmitCardExtractionResult:
+    from app.core.timeutils import today_ist
+
     reasons: list[str] = []
+    today = today_ist()
 
     if not (result.exam_name or headline):
         reasons.append("exam_name missing (PDF states none and link has no headline)")
     if result.confidence < MIN_CONFIDENCE:
         reasons.append(f"confidence {result.confidence:.2f} below {MIN_CONFIDENCE}")
+    if result.exam_date is not None:
+        if result.exam_date < today:
+            reasons.append(f"exam_date {result.exam_date} is in the past — card is no longer useful")
+        elif result.exam_date.year - today.year > 2 or (
+            result.exam_date.year - today.year == 2 and result.exam_date.month > today.month + 2
+        ):
+            reasons.append(f"exam_date {result.exam_date} implausibly far in the future")
+    if result.notification_date is not None and result.notification_date > date(today.year + 1, 1, 1):
+        reasons.append(f"notification_date {result.notification_date} implausibly far in the future")
+    if (
+        result.exam_date is not None
+        and result.notification_date is not None
+        and result.exam_date < result.notification_date
+    ):
+        reasons.append("exam_date earlier than notification_date — one of them is misparsed")
 
     return AdmitCardExtractionResult(
         **result.model_dump(),

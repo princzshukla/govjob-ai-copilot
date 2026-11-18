@@ -186,10 +186,24 @@ def _estimate_doc_tokens(text_chars: float) -> float:
 
 
 async def _fetch_pdf(url: str) -> bytes | None:
-    async with httpx.AsyncClient(timeout=30.0, headers=HTTP_HEADERS, follow_redirects=True) as client:
-        resp = await client.get(url)
-        resp.raise_for_status()
-        content = resp.content
+    try:
+        async with httpx.AsyncClient(timeout=30.0, headers=HTTP_HEADERS, follow_redirects=True) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            content = resp.content
+        return _check_pdf(url, content)
+    except Exception as exc:
+        # Servers whose TLS stack requires legacy renegotiation (e.g. RSSB)
+        # are rejected by OpenSSL 3 / httpx outright; Chromium (already used
+        # for playwright-rendered pages in layer1) can fetch them fine.
+        if "UNSAFE_LEGACY_RENEGOTIATION" in str(exc):
+            logger.info("httpx TLS failure for %s — retrying via Chromium", url)
+            content = await _fetch_via_chromium(url)
+            return _check_pdf(url, content)
+        raise
+
+
+def _check_pdf(url: str, content: bytes) -> bytes | None:
     if len(content) > MAX_PDF_BYTES:
         logger.warning("skipping oversize document (%d bytes): %s", len(content), url)
         return None
@@ -197,6 +211,48 @@ async def _fetch_pdf(url: str) -> bytes | None:
         logger.info("not a PDF (magic bytes missing): %s", url)
         return None
     return content
+
+
+async def _fetch_via_chromium(url: str) -> bytes:
+    """Fetch bytes through a real Chromium navigation — the only thing that
+    accepts servers demanding legacy TLS renegotiation (RSSB)."""
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError as exc:
+        raise RuntimeError(
+            "cannot fetch %s — server requires legacy TLS renegotiation; pip install playwright && playwright install chromium" % url
+        ) from exc
+
+    async with async_playwright() as pw:
+        import base64  # local import keeps module top-level cheap
+
+        from urllib.parse import urlsplit
+
+        parts = urlsplit(url)
+        origin = f"{parts.scheme}://{parts.netloc}"
+        browser = await pw.chromium.launch(headless=True)
+        try:
+            page = await browser.new_page(user_agent=HTTP_HEADERS["User-Agent"])
+            await page.goto(origin, wait_until="domcontentloaded", timeout=60000)
+            # Same-origin fetch inside the browser — the only stack that
+            # accepts the server's legacy TLS renegotiation.
+            b64 = await page.evaluate(
+                """async (target) => {
+                    const r = await fetch(target);
+                    if (!r.ok) throw new Error('fetch HTTP ' + r.status + ' for ' + target);
+                    const buf = new Uint8Array(await r.arrayBuffer());
+                    let s = '';
+                    const chunk = 8192;
+                    for (let i = 0; i < buf.length; i += chunk) {
+                        s += String.fromCharCode.apply(null, buf.subarray(i, i + chunk));
+                    }
+                    return btoa(s);
+                }""",
+                url,
+            )
+            return base64.b64decode(b64)
+        finally:
+            await browser.close()
 
 
 async def process_link(

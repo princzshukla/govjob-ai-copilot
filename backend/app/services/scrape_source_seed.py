@@ -118,6 +118,23 @@ SOURCES: list[dict] = [
         "interval_seconds": 3600,
     },
     {
+        # RSSB (Rajasthan) homepage carries the latest /storage/*_item PDFs
+        # (exam calendar, admit cards, results, press notes). The admit-card
+        # JSON API (filteradmitcard/<year>/<name>) is real but empty for
+        # 2026 as of 2026-11 — whole-page hash for now, link_pattern scoped
+        # to /storage PDF drops only.
+        "slug": "rssb-home",
+        "name": "RSSB — News / Notices",
+        "url": "https://rssb.rajasthan.gov.in/",
+        "tier": 2,
+        "fetch_mode": "playwright",  # their TLS stack requires legacy renegotiation — httpx cannot connect (SSL UNSAFE_LEGACY_RENEGOTIATION_DISABLED); Chromium handles it
+        "css_selector": None,
+        "ignore_selector": None,
+        "config": {"organizing_body": "RSSB (Rajasthan)"},
+        "link_pattern": r"/storage/(news_item|admitcard_item|advertisement_item)/[^/]+\.pdf",
+        "interval_seconds": 300,
+    },
+    {
         "slug": "local-test-notices",
         "name": "LOCAL — test_notices.html (Layer 1 test fixture)",
         "url": "http://127.0.0.1:8001/test_notices.html",

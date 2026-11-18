@@ -156,14 +156,27 @@ async def publish_auto_admit_cards(
             if not dry_run:
                 from app.core.timeutils import today_ist
 
+                data = extraction.extracted or {}
                 existing.last_checked_at = today_ist()
+                # Adopt = refresh, not degrade: fill dates the board publishes
+                # only on the notice itself, when our seed has none. Never
+                # overwrite a date we already trust.
+                ext_exam = _parse_date(data.get("exam_date"))
+                if ext_exam and not existing.exam_date:
+                    existing.exam_date = ext_exam
+                ext_notif = _parse_date(data.get("notification_date"))
+                if ext_notif and not existing.notification_date:
+                    existing.notification_date = ext_notif
                 extraction.admit_card_id = existing.id
                 link.status = "processed"
+            detail = f"adopted existing admit card {existing.id} ({link.url[:70]})"
+            if not dry_run:
+                logger.info("admit-card publish gate: %s", detail)
             report.published.append(
                 PublishOutcome(
                     extraction_id=extraction.id,
                     action="published",
-                    detail=f"adopted existing admit card {existing.id} ({link.url[:70]})",
+                    detail=detail,
                     admit_card_id=existing.id,
                 )
             )

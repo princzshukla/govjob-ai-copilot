@@ -91,3 +91,47 @@ def test_build_admit_card_holds_when_nothing_identifiable():
     card, problems = build_admit_card(extraction, link, _source())
     assert card is None
     assert any("exam_name" in p for p in problems)
+
+
+def test_validate_and_flag_holds_past_exam_date():
+    from app.services.admit_extractor import _validate_and_flag, _parse_llm_payload
+    from datetime import date
+
+    parsed = {
+        "exam_name": {"value": "Some Exam 2026: Admit Card", "confidence": 0.9, "evidence": "admit card"},
+        "exam_date": {"value": "2020-05-01", "confidence": 0.9, "evidence": "1 May 2020"},
+    }
+    extraction, err = _parse_llm_payload(parsed)
+    assert err is None
+    result = _validate_and_flag(extraction, raw_chars=100, is_scanned=False, provider="groq", headline="Some Exam")
+    assert result.needs_manual_review is True
+    assert any("past" in r for r in result.review_reasons)
+
+
+def test_validate_and_flag_holds_reversed_dates():
+    from app.services.admit_extractor import _validate_and_flag, _parse_llm_payload
+
+    parsed = {
+        "exam_name": {"value": "Some Exam 2027: Admit Card", "confidence": 0.95, "evidence": "admit card"},
+        "exam_date": {"value": "2027-01-01", "confidence": 0.95, "evidence": "1 Jan 2027"},
+        "notification_date": {"value": "2027-06-01", "confidence": 0.95, "evidence": "1 Jun 2027"},
+    }
+    extraction, err = _parse_llm_payload(parsed)
+    assert err is None
+    result = _validate_and_flag(extraction, raw_chars=100, is_scanned=False, provider="groq", headline="Some Exam")
+    assert result.needs_manual_review is True
+
+
+def test_validate_and_flag_accepts_sane_card():
+    from app.services.admit_extractor import _validate_and_flag, _parse_llm_payload
+
+    parsed = {
+        "exam_name": {"value": "RRB NTPC 2026: Admit Card", "confidence": 0.9, "evidence": "admit card"},
+        "exam_date": {"value": "2027-03-01", "confidence": 0.9, "evidence": "1 Mar 2027"},
+        "notification_date": {"value": "2026-11-10", "confidence": 0.9, "evidence": "10 Nov 2026"},
+    }
+    extraction, err = _parse_llm_payload(parsed)
+    assert err is None
+    result = _validate_and_flag(extraction, raw_chars=100, is_scanned=False, provider="groq", headline="RRB NTPC")
+    # 2026-11-10 <= exam_date 2027-03-01 and both plausible → clean auto
+    assert result.needs_manual_review is False
