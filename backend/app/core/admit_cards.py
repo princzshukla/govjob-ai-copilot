@@ -6,14 +6,17 @@ automation feeds this later; the eligibility pipeline never sees these rows.
 """
 from __future__ import annotations
 
+import json
 import logging
+import os
 from datetime import date
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 # Verified against the official source on 2026-11-17 (both SSC PDFs returned
 # HTTP 200 from ssc.gov.in; the UPSC page returned HTTP 200).
-SEED_ADMIT_CARDS: list[dict] = [
+_BASE_SEED_ADMIT_CARDS: list[dict] = [
     {
         "id": "ssc-si-dp-capf-2025-cpo-admit-card",
         "title": "SSC — Sub-Inspector in Delhi Police & CAPFs (2025), Paper-I: City of Examination & Admission Certificate",
@@ -528,6 +531,61 @@ SEED_ADMIT_CARDS: list[dict] = [
         "last_checked_at": date(2026, 11, 18),
     },
 ]
+# Admin-approved discoveries are persisted in a small JSON overlay and become
+# part of the same seed list used by upsert_admit_cards(). No second pipeline.
+APPROVED_SEED_PATH = Path(
+    os.environ.get("DISCOVERY_SEED_OVERLAY")
+    or Path(__file__).with_name("approved_discoveries.json")
+)
+
+
+def load_approved_discoveries() -> list[dict]:
+    try:
+        data = json.loads(APPROVED_SEED_PATH.read_text(encoding="utf-8"))
+        if not isinstance(data, list):
+            return []
+        for card in data:
+            for field in ("notification_date", "exam_date", "last_checked_at"):
+                value = card.get(field)
+                if isinstance(value, str):
+                    card[field] = date.fromisoformat(value)
+        return data
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return []
+
+
+def record_approved_seed(item: dict) -> dict:
+    """Append an approved discovery to the overlay (id/url dedup enforced)."""
+    existing = load_approved_discoveries()
+    if any(card["id"] == item["id"] or card.get("admit_url") == item.get("admit_url")
+           for card in existing + _BASE_SEED_ADMIT_CARDS):
+        raise ValueError("approved discovery duplicates an existing seed id or URL")
+    serializable = {
+        key: (value.isoformat() if isinstance(value, date) else value)
+        for key, value in item.items()
+    }
+    existing.append(serializable)
+    APPROVED_SEED_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = APPROVED_SEED_PATH.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(existing, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, APPROVED_SEED_PATH)
+    # Refresh the live list so upsert_admit_cards() sees the new row.
+    refresh_approved_discoveries()
+    return item
+
+
+def refresh_approved_discoveries() -> None:
+    approved = load_approved_discoveries()
+    known = {card["id"] for card in SEED_ADMIT_CARDS}
+    for item in approved:
+        if item.get("id") not in known:
+            SEED_ADMIT_CARDS.append(item)
+            known.add(item["id"])
+
+
+SEED_ADMIT_CARDS: list[dict] = _BASE_SEED_ADMIT_CARDS + load_approved_discoveries()
+
+
 # Older seed entries predate notice_subtype/link_kind — fill sane defaults so
 # a refresh can never write NULL into a NOT NULL column.
 for _seed_card in SEED_ADMIT_CARDS:

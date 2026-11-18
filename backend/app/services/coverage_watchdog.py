@@ -495,8 +495,8 @@ async def send_watchdog_alert(report: CoverageReport) -> bool:
 
 
 async def coverage_watchdog_loop(interval_seconds: int = _WATCHDOG_INTERVAL_SECONDS) -> None:
-    """Weekly in-process watchdog; safe to run from every worker (read-only
-    fetch + an admin alert; no writes to the database)."""
+    """Weekly watchdog: report coverage gaps and feed unmatched admit-card
+    entries into the discovery queue (research only, never publishes)."""
     while True:
         for kind, url in (("latest_jobs", LATEST_JOBS_URL), ("admit_card", ADMIT_CARD_URL)):
             try:
@@ -507,6 +507,17 @@ async def coverage_watchdog_loop(interval_seconds: int = _WATCHDOG_INTERVAL_SECO
                         kind,
                         len(report.missing),
                     )
+                    if kind == "admit_card":
+                        # Same watchdog pass: feed unmatched entries to the
+                        # discovery queue without re-scraping the aggregator.
+                        try:
+                            from app.core.database import AsyncSessionLocal
+                            from app.services.discovery_engine import run_discovery
+
+                            async with AsyncSessionLocal() as db:
+                                await run_discovery(db, report.missing)
+                        except Exception:
+                            logger.exception("discovery run from watchdog failed")
                     await send_watchdog_alert(report)
                 else:
                     logger.info(
