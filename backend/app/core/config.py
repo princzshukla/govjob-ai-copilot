@@ -24,6 +24,9 @@ def mask_secret(value: str, keep: int = 4) -> str:
 class Settings(BaseSettings):
     PROJECT_NAME: str = "GovJob Matcher API"
     GROQ_API_KEY: str
+    # Second Groq key used for automatic rotation when the primary is
+    # rate-limited (HTTP 429). Empty = no rotation. Never logged.
+    GROQ_API_KEY_EXTRA: str = ""
     GROQ_MODEL: str = "openai/gpt-oss-120b"
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/govjobs_db"
     TELEGRAM_BOT_TOKEN: str = ""

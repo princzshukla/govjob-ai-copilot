@@ -42,12 +42,37 @@ from app.schemas.pipeline import ExtractionResult, NotificationExtraction
 logger = logging.getLogger(__name__)
 
 _client: AsyncGroq | None = None
+_key_index = 0
+
+
+def _groq_keys() -> list[str]:
+    """Configured Groq keys, primary first. Never logged."""
+    return [
+        key.strip()
+        for key in (settings.GROQ_API_KEY, settings.GROQ_API_KEY_EXTRA)
+        if key and key.strip()
+    ]
+
+
+def _rotate_groq_key() -> bool:
+    """Switch to the next Groq key after a 429. Returns False if only one key."""
+    global _client, _key_index
+    keys = _groq_keys()
+    if len(keys) < 2:
+        return False
+    _key_index = (_key_index + 1) % len(keys)
+    _client = None
+    logger.info("Groq rate-limited; rotated to key #%d of %d", _key_index + 1, len(keys))
+    return True
 
 
 def _groq() -> AsyncGroq:
     global _client
     if _client is None:
-        _client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        keys = _groq_keys()
+        if not keys:
+            raise RuntimeError("GROQ_API_KEY is not configured")
+        _client = AsyncGroq(api_key=keys[_key_index % len(keys)])
     return _client
 
 
@@ -463,6 +488,10 @@ async def _groq_completion(make_messages) -> str:
                 continue
             if attempt == MAX_ATTEMPTS - 1:
                 raise
+            if status == 429 and _rotate_groq_key():
+                # A second key gives an immediate retry without waiting out
+                # the first key's per-minute limit.
+                continue
             wait = _retry_after_seconds(exc, attempt)
             logger.warning("groq attempt %d failed (status %s); retrying in %.1fs", attempt + 1, status, wait)
             await asyncio.sleep(wait)
