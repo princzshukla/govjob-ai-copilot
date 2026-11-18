@@ -132,6 +132,7 @@ export interface FeedAdmitCard {
   admitUrl: string | null;
   sourceUrl: string | null;
   lastChecked: string | null;
+  linkKind: "notice_pdf" | "notice_page" | "candidate_portal" | null;
   /** notification released within the last 72 h */
   isNew: boolean;
 }
@@ -149,6 +150,7 @@ export function toFeedAdmitCard(a: import("../types").AdmitCard): FeedAdmitCard 
     admitUrl: a.admit_url,
     sourceUrl: a.source_url,
     lastChecked: a.last_checked_at,
+    linkKind: (a.link_kind as FeedAdmitCard["linkKind"]) ?? null,
     isNew: postedHours !== null && postedHours >= 0 && postedHours < 72,
   };
 }

@@ -5,7 +5,15 @@ import { formatDateIN } from "../../lib/exams";
 /** Admit card card — official download link only, never a third-party mirror. */
 export function AdmitCardCard({ card }: { card: FeedAdmitCard }) {
   const [open, setOpen] = useState(false);
-  const isPdf = (card.admitUrl ?? "").toLowerCase().includes(".pdf");
+  const isPdf = card.linkKind === "notice_pdf" || (card.linkKind == null && (card.admitUrl ?? "").toLowerCase().includes(".pdf"));
+  const cta =
+    card.linkKind === "candidate_portal"
+      ? "Open Candidate Login"
+      : card.linkKind === "notice_page"
+        ? "Open Official Notice"
+        : card.linkKind === "notice_pdf" || isPdf
+          ? "Download Admit Card"
+          : "Open Official Notice";
   const examDay = card.examDateISO ? `exam in ${card.examDays} day${card.examDays === 1 ? "" : "s"}` : null;
 
   return (
@@ -59,7 +67,7 @@ export function AdmitCardCard({ card }: { card: FeedAdmitCard }) {
               rel="noopener noreferrer"
               className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-ink px-4 text-[13.5px] font-bold text-white transition-colors hover:bg-saffron"
             >
-              {isPdf ? "Download Admit Card" : "Open Official Notice"}
+              {cta}
               <span aria-hidden="true">↗</span>
             </a>
           ) : (
@@ -94,8 +102,9 @@ export function AdmitCardCard({ card }: { card: FeedAdmitCard }) {
             </div>
           </div>
           <p className="mt-3 text-[12px] leading-relaxed text-ink/55">
-            The link opens the board's official notice{isPdf ? " (PDF)" : ""}. If it does not load,
-            the board's website is the source of truth — availability can change without notice.
+            {card.linkKind === "candidate_portal"
+              ? "The admit card downloads on the board's official portal after you log in with your application/registration number and date of birth — no public file link exists (by design, boards only release it to candidates)."
+              : `This link opens the board's official notice${isPdf ? " (PDF)" : ""}. If it does not load, the board's website is the source of truth — availability can change without notice.`}
           </p>
           {card.sourceUrl && (
             <a

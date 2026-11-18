@@ -122,6 +122,87 @@ async def expire_stale_admit_cards() -> list[str]:
     return flat_ids
 
 
+async def check_admit_cards_links() -> list[str]:
+    """Weekly liveness check on every active admit-card URL.
+
+    Boards move/delete notice PDFs around and after exam day. This pass
+    HEAD-requests each active admit_url (GET-range fallback for 405):
+
+    * 2xx          → refresh last_checked_at (link is healthy)
+    * 404 / 410    → flip is_active=False — the card is dead, hide it —
+                     and Telegram the admin "admit card link died" finding
+    * anything else (403/5xx/timeout/TLS) → leave unchanged; log + try next
+                     week. A portal block never hides a live card.
+
+    Returns the ids flipped inactive.
+    """
+    import httpx
+
+    HEADERS = {"User-Agent": "govjob-copilot/0.1 (admit-card link health check)"}
+    dead: list[str] = []
+    refreshed = 0
+    async with AsyncSessionLocal() as db:
+        rows = list(
+            (await db.execute(select(AdmitCardNotification).where(AdmitCardNotification.is_active.is_(True)))).scalars().all()
+        )
+        async with httpx.AsyncClient(timeout=15.0, headers=HEADERS, follow_redirects=True) as client:
+            for row in rows:
+                url = (row.admit_url or "").strip()
+                if not url:
+                    continue
+                try:
+                    resp = await client.head(url)
+                    if resp.status_code == 405:
+                        resp = await client.get(url, headers={**HEADERS, "Range": "bytes=0-0"})
+                except Exception as exc:
+                    logger.info("admit-card link check failed for %s (%s) — will retry weekly", url, type(exc).__name__)
+                    continue
+                if resp.status_code in (404, 410):
+                    # Never deactivate candidate-portal rows on 4xx: boards
+                    # routinely block non-browser clients (bot filtering) while
+                    # the portal works fine in a real browser. Only files/pages
+                    # are trustworthy enough to call "gone".
+                    if (row.link_kind or "notice_pdf") in ("notice_pdf", "notice_page"):
+                        row.is_active = False
+                        dead.append(row.id)
+                    else:
+                        logger.info("portal row %s returned %s — treating as unverified, not dead", url, resp.status_code)
+                elif resp.status_code < 400:
+                    row.last_checked_at = today_ist()
+                    refreshed += 1
+                else:
+                    logger.info("admit-card link %s returned %s — left visible, retry weekly", url, resp.status_code)
+        if dead or refreshed:
+            await db.commit()
+    if dead:
+        logger.warning("admit-card links unhealthy (%d): %s", len(dead), ", ".join(dead))
+        try:
+            from app.core.config import settings
+            from app.services.notifier import send_telegram_alert
+
+            if settings.TELEGRAM_ADMIN_CHAT_ID:
+                await send_telegram_alert(
+                    settings.TELEGRAM_ADMIN_CHAT_ID,
+                    "Admit-card links went dead (%d): %s" % (len(dead), ", ".join(dead)),
+                )
+        except Exception:
+            logger.exception("admit-card link-check alert failed — continuing")
+    logger.info("admit-card link check done: %d refreshed, %d marked dead", refreshed, len(dead))
+    return dead
+
+
+async def admit_link_check_loop(interval_seconds: int = 7 * 24 * 3600) -> None:
+    """Run the admit-card link liveness check once a week (and at startup)."""
+    while True:
+        try:
+            await check_admit_cards_links()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Admit-card link check failed")
+        await asyncio.sleep(interval_seconds)
+
+
 async def exam_deadline_expiry_loop(interval_seconds: int = 12 * 3600) -> None:
     """Run the expiry pass twice a day (and once at startup)."""
     while True:

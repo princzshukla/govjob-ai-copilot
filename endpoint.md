@@ -88,7 +88,7 @@ Read-only list of currently useful admit cards / exam-city intimations — delib
 
 | Method | Path | Auth | Serves / does | Frontend caller |
 |---|---|---|---|---|
-| GET | `/api/v1/admit-cards` | public | Lists active admit cards useful *now*: `is_active` + (`exam_date >= today (IST)` or no exam date published) + released within 60 days. Each row is all `admit_cards` columns plus computed `exam_state` (`upcoming` / `over` / `unknown`), ordered by `notification_date` desc then `exam_date` asc. `admit_url` is the board's own official link — a PDF **or** the board's notice/login page — never a third party. | `getAdmitCards` — `Rozgar.tsx` ("Admit Cards" tab; renders `AdmitCardCard`) |
+| GET | `/api/v1/admit-cards` | public | Lists active admit cards useful *now*: `is_active` + (`exam_date >= today (IST)` or no exam date published) + released within 60 days. Each row is all `admit_cards` columns plus computed `exam_state` (`upcoming` / `over` / `unknown`), ordered by `notification_date` desc then `exam_date` asc. `admit_url` is the board's own official link — a PDF (notice PDF), official notice page, or candidate-login portal — controlled by `link_kind` (`notice_pdf` / `notice_page` / `candidate_portal`), never a third party. Link liveness is sweep-checked weekly in-process (`check_admit_cards_links` in `core/tasks.py`): 404/410 → `is_active=False` + admin Telegram alert; 2xx → `last_checked_at` refreshed; portal blocks never hide a card. | `getAdmitCards` — `Rozgar.tsx` ("Admit Cards" tab; renders `AdmitCardCard`) |
 
 ## 6b. Adaptive preparation ("Sathi AI") — `/api/v1/adaptive` (`endpoints/adaptive.py`, tag `Sathi AI`)
 

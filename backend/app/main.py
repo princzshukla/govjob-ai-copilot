@@ -17,7 +17,7 @@ from app.api.v1.endpoints import adaptive, admit_cards, admin, auth, candidate, 
 from app.core.config import settings
 from app.core.logging_config import configure_logging
 from app.core.rate_limit import limiter
-from app.core.tasks import exam_deadline_expiry_loop, session_cleanup_loop
+from app.core.tasks import admit_link_check_loop, exam_deadline_expiry_loop, session_cleanup_loop
 from app.services.coverage_watchdog import coverage_watchdog_loop
 
 configure_logging()
@@ -77,16 +77,21 @@ async def lifespan(_app: FastAPI):
     # Weekly read-only coverage watchdog: alerts the admin when live jobs
     # listed by the aggregator are missing from SEED_EXAMS. No DB writes.
     watchdog_task = asyncio.create_task(coverage_watchdog_loop())
+    # Weekly admit-card link liveness check (HEAD each admit_url; refresh
+    # last_checked_at on 2xx, hide on 404/410, alert admin either way).
+    link_check_task = asyncio.create_task(admit_link_check_loop())
     try:
         yield
     finally:
         cleanup_task.cancel()
         expiry_task.cancel()
         watchdog_task.cancel()
+        link_check_task.cancel()
         with suppress(asyncio.CancelledError):
             await cleanup_task
             await expiry_task
             await watchdog_task
+            await link_check_task
 
 
 # Keep only origins from env. Dev defaults must not follow the build to prod:

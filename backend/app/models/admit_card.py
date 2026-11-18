@@ -29,6 +29,8 @@ class AdmitCardNotification(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     organizing_body: Mapped[str] = mapped_column(String(100), nullable=False)
     exam_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    # notice_pdf | notice_page | candidate_portal — what admit_url actually is
+    link_kind: Mapped[str] = mapped_column(String(20), default="notice_pdf", nullable=False)
 
     notification_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     exam_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)

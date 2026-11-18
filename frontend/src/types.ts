@@ -44,8 +44,10 @@ export interface AdmitCard {
   exam_name: string | null;
   notification_date: string | null;
   exam_date: string | null;
-  /** Official link — a PDF *or* the board's notice/login page. */
+  /** Official link — notice PDF / board page / candidate login portal. */
   admit_url: string | null;
+  /** notice_pdf → real download; notice_page → board page; candidate_portal → login portal (never a public file). */
+  link_kind?: "notice_pdf" | "notice_page" | "candidate_portal" | null;
   source_url: string | null;
   last_checked_at: string | null;
   is_active: boolean;
