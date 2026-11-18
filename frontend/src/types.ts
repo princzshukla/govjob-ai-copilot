@@ -48,6 +48,8 @@ export interface AdmitCard {
   admit_url: string | null;
   /** notice_pdf → real download; notice_page → board page; candidate_portal → login portal (never a public file). */
   link_kind?: "notice_pdf" | "notice_page" | "candidate_portal" | null;
+  /** "admit_card" (default) or "exam_city" intimation. */
+  notice_subtype?: "admit_card" | "exam_city" | null;
   source_url: string | null;
   last_checked_at: string | null;
   is_active: boolean;

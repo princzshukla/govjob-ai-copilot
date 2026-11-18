@@ -1,5 +1,24 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator, model_validator
+import re
+
+
+# Telegram bot tokens are `<numeric bot id>:<35+ char secret>`; chat IDs are
+# numeric (private/group) or @channelusername. Reject anything else so a
+# token can never be mistaken for a chat id again (values are never echoed).
+_TELEGRAM_TOKEN_RE = re.compile(r"^\d+:[A-Za-z0-9_-]{30,}$")
+_TELEGRAM_CHAT_RE = re.compile(r"^-?\d{5,20}$|^@[A-Za-z0-9_]{4,32}$")
+
+
+def mask_secret(value: str, keep: int = 4) -> str:
+    """Log-safe rendering of a credential or chat id — never the full value."""
+    value = (value or "").strip()
+    if not value:
+        return "<unset>"
+    if len(value) <= keep:
+        return "*" * len(value)
+    return f"***{value[-keep:]}"
+
 
 
 class Settings(BaseSettings):
@@ -75,6 +94,29 @@ class Settings(BaseSettings):
             if samesite == "none" and not self.COOKIE_SECURE:
                 raise ValueError("COOKIE_SAMESITE=none requires COOKIE_SECURE=true")
         return self
+
+    @field_validator("TELEGRAM_BOT_TOKEN", mode="after")
+    @classmethod
+    def validate_bot_token(cls, v: str) -> str:
+        v = v.strip()
+        if v and not _TELEGRAM_TOKEN_RE.match(v):
+            raise ValueError("TELEGRAM_BOT_TOKEN must be '<bot_id>:<secret>' (value masked)")
+        return v
+
+    @field_validator("TELEGRAM_ADMIN_CHAT_ID", mode="after")
+    @classmethod
+    def validate_admin_chat_id(cls, v: str) -> str:
+        v = v.strip()
+        if v and not _TELEGRAM_CHAT_RE.match(v):
+            raise ValueError(
+                "TELEGRAM_ADMIN_CHAT_ID must be a numeric chat id or @channelusername, "
+                "NOT a bot token (value masked)"
+            )
+        return v
+
+    @property
+    def telegram_admin_ready(self) -> bool:
+        return bool(self.TELEGRAM_BOT_TOKEN and self.TELEGRAM_ADMIN_CHAT_ID)
 
     @field_validator("DATABASE_URL", mode="after")
     @classmethod

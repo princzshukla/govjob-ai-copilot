@@ -98,6 +98,7 @@ def build_admit_card(
 
     card = AdmitCardNotification(
         id=_build_id(extraction.id),
+        notice_subtype=str(data.get("subtype") or "admit_card")[:20],
         title=title,
         organizing_body=organizing_body,
         exam_name=(exam_name or title)[:255],

@@ -129,6 +129,11 @@ def parse_latest_jobs(page_html: str) -> list[CoverageEntry]:
 
 
 _ADMIT_HEADING_RE = re.compile(r"All Latest Admit Card", re.I)
+# Items their "Admit Card" page lumps in that are NOT admit cards.
+_NOT_ADMIT_RE = re.compile(
+    r"exam calendar|date sheet|time table|timetable|postpon|result|answer key|cut.?off|syllabus|notification out",
+    re.IGNORECASE,
+)
 _ADMIT_ITEM_RE = re.compile(
     r'<a[^>]*class="[^"]*latest-posts__post-title[^"]*"[^>]*href="([^"]+)"[^>]*>([^<]+)</a>',
     re.S,
@@ -148,6 +153,8 @@ def parse_admit_cards_page(page_html: str) -> list[CoverageEntry]:
     for href, raw_title in _ADMIT_ITEM_RE.findall(scope):
         title = _strip_html(raw_title)
         if len(title) < 10:
+            continue
+        if _NOT_ADMIT_RE.search(title):
             continue
         entries.append(CoverageEntry(title=title, url=href, last_date=None))
     return entries
@@ -301,15 +308,15 @@ def format_report(report: CoverageReport, limit: int = 60) -> str:
 
 async def send_watchdog_alert(report: CoverageReport) -> bool:
     from app.core.config import settings
-    from app.services.notifier import send_telegram_alert
+    from app.services.notifier import send_admin_alert
 
     if not report.missing:
         return True
     text = format_report(report)
     if not settings.TELEGRAM_ADMIN_CHAT_ID:
-        logger.info("admin chat not configured; watchdog report not sent:\n%s", text)
+        logger.info("admin chat not configured; watchdog report not sent (%d gaps)", len(report.missing))
         return False
-    return await send_telegram_alert(settings.TELEGRAM_ADMIN_CHAT_ID, text)
+    return await send_admin_alert(text)
 
 
 async def coverage_watchdog_loop(interval_seconds: int = _WATCHDOG_INTERVAL_SECONDS) -> None:

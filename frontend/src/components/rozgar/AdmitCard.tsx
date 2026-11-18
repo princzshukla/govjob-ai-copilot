@@ -26,6 +26,9 @@ export function AdmitCardCard({ card }: { card: FeedAdmitCard }) {
             </span>
           )}
           <span className="text-[12.5px] text-ink/55">{card.department}</span>
+          {card.noticeSubtype === "exam_city" && (
+            <span className="rounded bg-saffron/15 px-1.5 py-0.5 text-[11px] font-bold text-saffron">EXAM CITY</span>
+          )}
           {card.lastChecked && (
             <span className="ml-auto text-[11.5px] text-ink/45">
               Last checked {formatDateIN(card.lastChecked)}

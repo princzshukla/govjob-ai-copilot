@@ -41,3 +41,6 @@ poller.pid
 
 # TypeScript build info
 *.tsbuildinfo
+
+# Local worker logs (scheduled tasks)
+logs/

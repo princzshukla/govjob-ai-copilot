@@ -71,7 +71,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.pipeline import RawDiscoveredLink, ScrapeLog, ScrapeSource
-from app.services.notifier import send_telegram_alert
 
 logger = logging.getLogger("app.layer1")
 
@@ -361,18 +360,46 @@ def _parse_iso(value: object) -> datetime | None:
     return dt
 
 
+_FETCH_RETRIES = 3
+_FETCH_RETRY_DELAY = 1.5
+
+
+async def _with_fetch_retries(fn) -> tuple[str, httpx.Headers]:
+    """Retry transient connection/read errors before a source is marked failed.
+
+    Never retries ``NotModified`` (a normal 304) or a deliberate ScrapeError.
+    """
+    last_exc: Exception | None = None
+    for attempt in range(_FETCH_RETRIES):
+        try:
+            return await fn()
+        except NotModified:
+            raise
+        except ScrapeError:
+            raise
+        except Exception as exc:
+            last_exc = exc
+            if attempt < _FETCH_RETRIES - 1:
+                logger.info(
+                    "fetch attempt %d/%d failed (%s); retrying in %.1fs",
+                    attempt + 1, _FETCH_RETRIES, type(exc).__name__, _FETCH_RETRY_DELAY * (attempt + 1),
+                )
+                await asyncio.sleep(_FETCH_RETRY_DELAY * (attempt + 1))
+    raise last_exc  # type: ignore[misc]
+
+
 async def fetch_content(
     source: ScrapeSource,
 ) -> tuple[str, list[tuple[str, str]], dict[str, datetime], dict[str, str | None]]:
     """Returns (normalized fingerprint, links, published_map, cache_headers)."""
     if source.fetch_mode == "json_api":
-        fingerprint, links, published = await _fetch_json_api(source)
+        fingerprint, links, published = await _with_fetch_retries(lambda: _fetch_json_api(source))
         return fingerprint, links, published, {}
 
     if source.fetch_mode == "playwright":
-        html, headers = await _fetch_html_playwright(source)
+        html, headers = await _with_fetch_retries(lambda: _fetch_html_playwright(source))
     elif source.fetch_mode == "httpx":
-        html, headers = await _fetch_html_httpx(source)
+        html, headers = await _with_fetch_retries(lambda: _fetch_html_httpx(source))
     else:
         raise ScrapeError(f"unknown fetch_mode {source.fetch_mode!r}")
 
@@ -439,10 +466,12 @@ def _mark_recovered(source: ScrapeSource) -> bool:
 
 
 async def _alert(text: str) -> None:
+    from app.services.notifier import send_admin_alert
+
     if settings.TELEGRAM_ADMIN_CHAT_ID:
-        await send_telegram_alert(settings.TELEGRAM_ADMIN_CHAT_ID, text)
+        await send_admin_alert(text)
     else:
-        logger.info("admin alert (no TELEGRAM_ADMIN_CHAT_ID): %s", text)
+        logger.info("admin alert skipped (TELEGRAM_ADMIN_CHAT_ID unset): %s", text[:200])
 
 
 async def poll_source(db: AsyncSession, source: ScrapeSource) -> PollOutcome:

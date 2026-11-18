@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import os
 import re
@@ -60,24 +61,91 @@ PDF_MAGIC = b"%PDF-"
 _BUDGET_ENV = "WORKER_DAILY_TOKEN_BUDGET"
 
 _ADMIT_RE = re.compile(
-    r"\b(admit(?:\s|-)?card|admission certificate|exam city|hall.?ticket|participation certificate|call letter)\b",
+    r"(?:"
+    r"\b(?:admit(?:\s|-)?card|admission certificate|hall.?ticket|call letter|e-?admit)\b"
+    r"|एडमिट\s*कार्ड|प्रवेश\s*पत्र|प्रवेश\s*पत्र|कॉल\s*लेटर|हॉल\s*टिकट|कॉल\s*लेटर"
+    r")",
     re.IGNORECASE,
 )
+_EXAM_CITY_RE = re.compile(
+    r"(?:exam(?:\s|-)?city|city\s+of\s+(?:examination|exam)|exam\s+centre|examination\s+centre"
+    r"|परीक्षा\s*शहर|परीक्षा\s*नगर|परीक्षा\s*केंद्र|परीक्षा\s*केन्द्र)",
+    re.IGNORECASE,
+)
+_LLM_CLASSIFY_CACHE: dict[str, str] = {}
+
+
+async def classify_notice(title: str | None, url: str | None, source=None) -> tuple[str, str, float]:
+    """Return ``(kind, subtype, confidence)``.
+
+    kind = 'admit_card' | 'job'; subtype = 'admit_card' | 'exam_city'.
+    Regex handles English + Hindi headlines; an LLM fallback (reusing the
+    existing Groq client) resolves ambiguous cases, never overriding a
+    confident regex match. Exam-city intimations stay a separate subtype.
+    """
+    text = f"{title or ''} {url or ''}"
+    if source is not None:
+        config = source.config if isinstance(source.config, dict) else {}
+        forced = str(config.get("notice_kind") or "").strip().lower()
+        if forced in ("admit_card", "exam_city"):
+            return "admit_card", forced, 1.0
+
+    if _EXAM_CITY_RE.search(text):
+        return "admit_card", "exam_city", 0.95
+    if _ADMIT_RE.search(text):
+        return "admit_card", "admit_card", 0.95
+
+    # Ambiguous title — consult the existing LLM client (cheap, cached by text).
+    key = text.strip().lower()[:300]
+    if key and key in _LLM_CLASSIFY_CACHE:
+        return _LLM_CLASSIFY_CACHE[key], "admit_card", 0.7
+    if key:
+        try:
+            from app.services.notification_extractor import _groq_completion
+
+            raw = await _groq_completion(
+                lambda budget: [
+                    {"role": "system", "content": "You output only valid JSON objects."},
+                    {"role": "user", "content":
+                        "Classify this government recruitment notification headline (English or Hindi). "
+                        "Return JSON {\"kind\": \"admit_card\"|\"exam_city\"|\"job\", \"confidence\": 0..1}. "
+                        "admit_card = e-admit card/hall ticket/call letter released or download; "
+                        "exam_city = exam city/centre intimation only (NOT an admit card); job = everything else. "
+                        "HEADLINE: " + title[:400]},
+                ]
+            )
+            data = json.loads(raw)
+            kind = str(data.get("kind") or "job").lower()
+            if kind not in ("admit_card", "exam_city", "job"):
+                kind = "job"
+            if kind == "exam_city":
+                _LLM_CLASSIFY_CACHE[key] = "admit_card"
+                return "admit_card", "exam_city", float(data.get("confidence") or 0.6)
+            _LLM_CLASSIFY_CACHE[key] = kind
+            return kind, "admit_card", float(data.get("confidence") or 0.6)
+        except Exception:
+            logger.debug("LLM classification unavailable; using regex default", exc_info=True)
+    return "job", "admit_card", 0.5
 
 
 def detect_notice_kind(link: RawDiscoveredLink, source: ScrapeSource | None) -> str:
-    """Classify a discovered link as an admit card vs a job notification.
+    """Synchronous regex classification (backward-compatible API).
 
-    The source can force the classification via ``config.notice_kind``;
-    otherwise the headline/URL is matched for admit-card vocabulary (the SSC
-    JSON API and UPSC What's New carry such headlines verbatim).
+    The async, LLM-assisted classifier is ``classify_notice`` — the worker
+    uses that one so Hindi/ambiguous headlines are not silently dropped.
     """
+    return _sync_classify(link, source)
+
+
+def _sync_classify(link: RawDiscoveredLink, source: ScrapeSource | None) -> str:
+    """Fast synchronous regex classification (the worker calls the async one)."""
     if source is not None:
         config = source.config if isinstance(source.config, dict) else {}
-        if str(config.get("notice_kind") or "").strip().lower() == "admit_card":
+        forced = str(config.get("notice_kind") or "").strip().lower()
+        if forced in ("admit_card", "exam_city"):
             return "admit_card"
-    haystack = f"{link.title or ''} {link.url or ''}"
-    return "admit_card" if _ADMIT_RE.search(haystack) else "job"
+    text = f"{link.title or ''} {link.url or ''}"
+    return "admit_card" if (_ADMIT_RE.search(text) or _EXAM_CITY_RE.search(text)) else "job"
 
 
 async def _process_admit_link(
@@ -87,6 +155,7 @@ async def _process_admit_link(
     budget_left: float,
     pdf: bytes,
     *,
+    subtype: str = "admit_card",
     dry_run: bool = False,
 ) -> str:
     """Admit-card branch: minimal extraction, same trust rails, own publish gate."""
@@ -116,6 +185,7 @@ async def _process_admit_link(
     iso = lambda d: d.isoformat() if d else None
     extracted = {
         "kind": "admit_card",
+        "subtype": subtype,
         "exam_name": result.exam_name,
         "exam_date": iso(result.exam_date),
         "notification_date": iso(result.notification_date),
@@ -285,8 +355,11 @@ async def process_link(
         return "ignored"
 
     source = source_map.get(link.source_id)
-    if detect_notice_kind(link, source) == "admit_card":
-        return await _process_admit_link(db, link, stats, budget_left, pdf, dry_run=dry_run)
+    kind, subtype, _confidence = await classify_notice(link.title, link.url, source)
+    if kind == "admit_card":
+        return await _process_admit_link(
+            db, link, stats, budget_left, pdf, subtype=subtype, dry_run=dry_run
+        )
 
     text, page_count, chars_per_page = nx.extract_text_stats(pdf)
     if chars_per_page < nx.MIN_CHARS_PER_PAGE:
@@ -346,47 +419,76 @@ async def process_link(
     return status
 
 
+async def _process_sources_once(
+    db,
+    sources: list[ScrapeSource],
+    source_map: dict,
+    max_docs: int,
+    stats: WorkerStats,
+    limit: float,
+    used: float,
+    dry_run: bool,
+) -> None:
+    for source in sources:
+        if stats.budget_stopped:
+            break
+        rows = (
+            await db.execute(
+                select(RawDiscoveredLink)
+                .where(RawDiscoveredLink.source_id == source.id, RawDiscoveredLink.status == "new")
+                .order_by(RawDiscoveredLink.first_seen_at)
+                .limit(max_docs)
+            )
+        ).scalars().all()
+        for link in rows:
+            if stats.budget_stopped:
+                break
+            budget_left = max(0.0, limit - used - stats.est_tokens_spent)
+            outcome = await process_link(db, link, stats, source_map, budget_left, dry_run=dry_run)
+            if outcome == "budget":
+                stats.budget_stopped = True
+                break
+
+
 async def process_new_links(
     source_slugs: tuple[str, ...] = DEFAULT_SOURCES,
     *,
     max_docs: int = 50,
     dry_run: bool = False,
+    all_sources: bool = False,
+    drain: bool = False,
 ) -> WorkerStats:
     stats = WorkerStats()
     async with AsyncSessionLocal() as db:
-        sources = list(
-            (
-                await db.execute(
-                    select(ScrapeSource).where(ScrapeSource.slug.in_(source_slugs), ScrapeSource.enabled.is_(True))
-                )
-            ).scalars().all()
-        )
+        if all_sources:
+            sources = list(
+                (await db.execute(select(ScrapeSource).where(ScrapeSource.enabled.is_(True)))).scalars().all()
+            )
+        else:
+            sources = list(
+                (
+                    await db.execute(
+                        select(ScrapeSource).where(ScrapeSource.slug.in_(source_slugs), ScrapeSource.enabled.is_(True))
+                    )
+                ).scalars().all()
+            )
         source_map = {s.id: s for s in sources}
         day = datetime.now(timezone.utc).date()
         used = await _budget_used(db, day)
         limit = daily_budget()
         logger.info("token budget today: %.0f used / %d limit", used, limit)
-        budget_left = limit - used
-        for source in sources:
-            if stats.budget_stopped:
-                break
-            rows = (
-                await db.execute(
-                    select(RawDiscoveredLink)
-                    .where(RawDiscoveredLink.source_id == source.id, RawDiscoveredLink.status == "new")
-                    .order_by(RawDiscoveredLink.first_seen_at)
-                    .limit(max_docs)
-                )
-            ).scalars().all()
-            for link in rows:
-                if stats.budget_stopped:
+        if drain:
+            # Keep draining until every eligible `status='new'` link is
+            # handled (or budget stops). Each inner pass is capped by
+            # max_docs so one poison source cannot starve the others.
+            while not stats.budget_stopped:
+                before = stats.downloaded + stats.failed + stats.ignored + stats.skipped_attempts
+                await _process_sources_once(db, sources, source_map, max_docs, stats, limit, used, dry_run)
+                handled = stats.downloaded + stats.failed + stats.ignored + stats.skipped_attempts
+                if handled == before or stats.downloaded >= max_docs * max(1, len(sources)):
                     break
-                if stats.downloaded >= max_docs:
-                    break
-                outcome = await process_link(db, link, stats, source_map, budget_left, dry_run=dry_run)
-                if outcome == "budget":
-                    break
-                budget_left = max(0.0, limit - used - stats.est_tokens_spent)
+        else:
+            await _process_sources_once(db, sources, source_map, max_docs, stats, limit, used, dry_run)
         if not dry_run:
             await db.commit()
         if not dry_run:
@@ -402,6 +504,21 @@ async def process_new_links(
                 len(admit_report.published),
                 len(admit_report.held),
             )
+            alerts = []
+            published = len(report.published) + len(admit_report.published)
+            if published:
+                alerts.append(f"Layer 2 published {published} new item(s); {len(report.held) + len(admit_report.held)} held for review")
+            if stats.failed or stats.skipped_attempts:
+                alerts.append(
+                    f"Layer 2 failures: {stats.failed} downloads failed, {stats.skipped_attempts} links skipped after retries"
+                )
+            if alerts:
+                try:
+                    from app.services.notifier import send_admin_alert
+
+                    await send_admin_alert("\n".join(alerts))
+                except Exception:
+                    logger.exception("Layer 2 admin alert failed — continuing")
 
     logger.info(
         "worker done: downloaded=%d scanned=%d auto=%d review=%d ignored=%d failed=%d skipped_attempts=%d budget_stopped=%s est_tokens=%.0f",
@@ -416,11 +533,25 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", help="fetch and estimate only; no DB writes, no LLM")
     parser.add_argument("--source", default=",".join(DEFAULT_SOURCES), help="comma-separated source slugs")
     parser.add_argument("--max-docs", type=int, default=50)
+    parser.add_argument("--all-sources", action="store_true", help="drain every enabled source (scheduled mode)")
+    parser.add_argument("--drain", action="store_true", help="keep processing until no eligible new links remain (or budget stops)")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    from app.core.logging_config import configure_logging, RedactSecretsFilter
+
+    configure_logging()
+    logging.getLogger("httpx").addFilter(RedactSecretsFilter())
     slugs = tuple(s.strip() for s in args.source.split(",") if s.strip())
-    stats = asyncio.run(process_new_links(slugs, max_docs=args.max_docs, dry_run=args.dry_run))
+    stats = asyncio.run(
+        process_new_links(
+            slugs,
+            max_docs=args.max_docs,
+            dry_run=args.dry_run,
+            all_sources=args.all_sources,
+            drain=args.drain,
+        )
+    )
     if args.dry_run:
         print("dry-run: nothing written")
     print(

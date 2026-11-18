@@ -9,7 +9,7 @@ deadline. See app/models/admit_card.py.
 
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,7 +34,10 @@ def _admit_card_item(card: AdmitCardNotification) -> dict:
 
 
 @router.get("")
-async def list_admit_cards(db: AsyncSession = Depends(get_db)):
+async def list_admit_cards(
+    db: AsyncSession = Depends(get_db),
+    subtype: str | None = Query(default=None, pattern="^(admit_card|exam_city)$"),
+):
     """List currently useful admit cards (active + not older than 60 days).
 
     Rows stay active past exam day until the expiry task flips them; a card
@@ -48,6 +51,7 @@ async def list_admit_cards(db: AsyncSession = Depends(get_db)):
         select(AdmitCardNotification)
         .where(
             AdmitCardNotification.is_active.is_(True),
+            *([AdmitCardNotification.notice_subtype == subtype] if subtype else []),
             or_(
                 AdmitCardNotification.exam_date >= today,
                 AdmitCardNotification.exam_date.is_(None),

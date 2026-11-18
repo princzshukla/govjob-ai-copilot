@@ -177,12 +177,10 @@ async def check_admit_cards_links() -> list[str]:
     if dead:
         logger.warning("admit-card links unhealthy (%d): %s", len(dead), ", ".join(dead))
         try:
-            from app.core.config import settings
-            from app.services.notifier import send_telegram_alert
+            from app.services.notifier import send_admin_alert
 
             if settings.TELEGRAM_ADMIN_CHAT_ID:
-                await send_telegram_alert(
-                    settings.TELEGRAM_ADMIN_CHAT_ID,
+                await send_admin_alert(
                     "Admit-card links went dead (%d): %s" % (len(dead), ", ".join(dead)),
                 )
         except Exception:
@@ -211,8 +209,7 @@ async def exam_deadline_expiry_loop(interval_seconds: int = 12 * 3600) -> None:
             expired_cards = await expire_stale_admit_cards()
             if expired or expired_cards:
                 try:
-                    from app.services.notifier import send_telegram_alert
-                    from app.core.config import settings
+                    from app.services.notifier import send_admin_alert
 
                     if settings.TELEGRAM_ADMIN_CHAT_ID:
                         parts = []
@@ -226,7 +223,7 @@ async def exam_deadline_expiry_loop(interval_seconds: int = 12 * 3600) -> None:
                                 f"Stale admit cards hidden ({len(expired_cards)}): "
                                 + ", ".join(expired_cards[:10])
                             )
-                        await send_telegram_alert(settings.TELEGRAM_ADMIN_CHAT_ID, "\n".join(parts))
+                        await send_admin_alert("\n".join(parts))
                 except Exception:
                     logger.exception("expiry admin alert failed — continuing")
         except asyncio.CancelledError:
