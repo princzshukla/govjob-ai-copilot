@@ -85,7 +85,13 @@ def main() -> int:
             "live_entries": len(report.entries),
             "seed_rows": report.seed_count,
             "matched": len(report.matched),
+            "distinct_matched_seeds": len(report.distinct_matched_seeds),
             "coverage_pct": report.coverage_pct,
+            "distinct_seed_pct": report.distinct_seed_pct,
+            "unmatched": len(report.missing),
+            "duplicate_candidates": sum(len(v) for v in report.duplicate_matches.values()),
+            "ambiguous": [{"title": e.title, "seed": seed, "score": round(score, 3)}
+                          for e, seed, score in report.ambiguous],
             "missing": [asdict(e) for e in report.missing],
         }, indent=2, ensure_ascii=False))
     else:

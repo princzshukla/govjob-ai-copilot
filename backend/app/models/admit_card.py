@@ -2,7 +2,7 @@
 from datetime import date
 from typing import Optional
 
-from sqlalchemy import Boolean, Date, String, Text
+from sqlalchemy import Boolean, Date, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.exam import Base
@@ -42,3 +42,8 @@ class AdmitCardNotification(Base):
     last_checked_at: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Weekly link-health sweep: consecutive *confirmed* 404/410 responses
+    # required before the row is hidden; note explains the last decision.
+    link_fail_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    link_health_note: Mapped[str | None] = mapped_column(Text, nullable=True)

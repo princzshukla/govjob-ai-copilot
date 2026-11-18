@@ -24,7 +24,7 @@ import asyncio
 import html
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 
 import httpx
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 LATEST_JOBS_URL = "https://sarkariresult.com.cm/latest-jobs/"
 ADMIT_CARD_URL = "https://sarkariresult.com.cm/admit-card/"
-ADMIT_CARD_MATCH_THRESHOLD = 0.5
+ADMIT_CARD_MATCH_THRESHOLD = 0.72
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/126.0 Safari/537.36 "
@@ -96,12 +96,22 @@ class CoverageReport:
     seed_count: int
     filtered_out: int = 0
     kind: str = "latest_jobs"
+    # One-to-one reporting: one seed can cover at most one aggregator entry.
+    distinct_matched_seeds: list[str] = field(default_factory=list)
+    ambiguous: list[tuple[CoverageEntry, str, float]] = field(default_factory=list)
+    duplicate_matches: dict[str, list[str]] = field(default_factory=dict)
 
     @property
     def coverage_pct(self) -> float:
         if not self.entries:
             return 0.0
         return round(100.0 * len(self.matched) / len(self.entries), 1)
+
+    @property
+    def distinct_seed_pct(self) -> float:
+        if not self.seed_count:
+            return 0.0
+        return round(100.0 * len(self.distinct_matched_seeds) / self.seed_count, 1)
 
 
 def _strip_html(fragment: str) -> str:
@@ -165,13 +175,118 @@ def parse_admit_cards_page(page_html: str) -> list[CoverageEntry]:
 _TITLE_ALIASES = {
     "ssc cpo si capf paper i exam city details 2026":
         "ssc sub inspector in delhi police capfs 2025 paper i city of examination admission certificate",
+    # Seed carries the advertisement year (2025) while the aggregator uses the
+    # exam year (2026); explicit alias keeps this legitimate coverage.
+    "rrb ntpc 10 2 ug cbtst exam city details 2026":
+        "rrb ntpc ug cen 07 2025 cbtst exam city admit card",
 }
+_ALIAS_MATCH_SCORE = 1.0  # explicit aliases bypass fuzzy scoring/year mismatch
 
+# Filler tokens that do not identify a notice. Removed in strong mode only,
+# so legacy normalize_title() stays backward-compatible.
+_FILLER_TOKENS = {
+    "online", "form", "forms", "notification", "notifications", "download",
+    "link", "links", "out", "the", "of", "for", "and", "advt", "no", "regarding",
+    "information", "candidates", "candidate", "important", "latest", "exam",
+    "examination", "details", "issue", "released", "release", "date", "dates",
+}
+_YEAR_RE = re.compile(r"\b20\d{2}\b")
+
+# Organization signals: a title is tagged with the canonical boards it names.
+# Both sides must be tagged AND disjoint to count as a hard mismatch.
+_ORG_PATTERNS: dict[str, tuple[str, ...]] = {
+    "ssc": (r"\bssc\b", r"staff selection commission"),
+    "upsc": (r"\bupsc\b", r"union public service commission"),
+    "upsssc": (r"\bupsssc\b", r"subordinate services selection commission"),
+    "uppsc": (r"\buppsc\b", r"up public service commission"),
+    "upessc": (r"\bupessc\b", r"up secondary education"),
+    "ibps": (r"\bibps\b", r"institute of banking personnel selection"),
+    "sbi": (r"\bsbi\b", r"state bank of india"),
+    "rrb": (r"\brrb\b", r"railway recruitment board"),
+    "rssb": (r"\brssb\b", r"rajasthan staff selection board"),
+    "iim": (r"\biim\b", r"\bcat\b"),
+    "mphc": (r"\bmphc\b", r"\bmp\b.*\bhigh court\b", r"madhya pradesh high court"),
+    "allhc": (r"allahabad high court", r"\ballhc\b"),
+    "dhc": (r"delhi high court", r"\bdhc\b"),
+    "bpsc": (r"\bpsc\b", r"bihar public service commission"),
+    "cgpsc": (r"\bcgpsc\b", r"chhattisgarh public service commission"),
+    "mppsc": (r"\bmppsc\b", r"madhya pradesh public service commission"),
+    "ctet": (r"\bctet\b", r"teacher eligibility test"),
+    "navy": (r"\bnavy\b", r"agniveer"),
+    "cisf": (r"\bcisf\b", r"central industrial security force"),
+    "bsf": (r"\bbsf\b", r"border security force"),
+    "ssb": (r"\bssb\b", r"sashastra seema bal"),
+    "skau": (r"\bskau\b", r"kurukshetra"),
+    "upcisb": (r"\bupcisb\b", r"cooperative institutional service board"),
+    "bob": (r"bank of baroda", r"\bbob\b"),
+    "iob": (r"indian overseas bank", r"\biob\b"),
+    "nicl": (r"\bnicl\b", r"national insurance"),
+    "kvs": (r"\bkvs\b", r"kendriya vidyalaya"),
+    "nvs": (r"\bnvs\b", r"navodaya vidyalaya"),
+}
+_SUBTYPE_PATTERNS: dict[str, tuple[str, ...]] = {
+    "exam_city": (r"exam city", r"city of examination", r"exam centre", r"centre of examination"),
+    "admit_card": (r"admit card", r"e admit card", r"hall ticket", r"admission certificate"),
+    "interview": (r"interview", r"call letter"),
+    "exam_date": (r"exam date", r"pre exam", r"schedule", r"timetable"),
+}
 
 def normalize_title(title: str) -> str:
     text = html.unescape(title).lower()
     text = re.sub(r"[^a-z0-9 ]+", " ", text)
     return " ".join(text.split())
+
+
+def normalize_strong(title: str) -> str:
+    """Aggressive normalization: drop filler words and standalone years.
+
+    Both years and organization are checked separately as signals, so they
+    are removed from the fuzzy token set to stop them dominating similarity.
+    """
+    tokens = normalize_title(title).split()
+    return " ".join(
+        t for t in tokens if t not in _FILLER_TOKENS and not _YEAR_RE.fullmatch(t)
+    )
+
+
+def org_signals(title: str) -> set[str]:
+    text = normalize_title(title)
+    return {
+        org
+        for org, patterns in _ORG_PATTERNS.items()
+        if any(re.search(pattern, text) for pattern in patterns)
+    }
+
+
+def year_signals(title: str) -> set[str]:
+    return set(_YEAR_RE.findall(title))
+
+
+def subtype_signals(title: str) -> set[str]:
+    text = normalize_title(title)
+    return {
+        subtype
+        for subtype, patterns in _SUBTYPE_PATTERNS.items()
+        if any(re.search(pattern, text) for pattern in patterns)
+    }
+
+
+def signal_penalty(a: str, b: str) -> float:
+    """Signal disagreement penalty (negative) or agreement bonus (positive)."""
+    oa, ob = org_signals(a), org_signals(b)
+    if oa and ob and not (oa & ob):
+        return -1.0  # hard mismatch — unrelated organizations
+    penalty = 0.0
+    ya, yb = year_signals(a), year_signals(b)
+    if ya and yb and not (ya & yb):
+        penalty -= 0.35
+    sa, sb = subtype_signals(a), subtype_signals(b)
+    if sa and sb and not (sa & sb):
+        penalty -= 0.2
+    bonus = 0.08 if oa & ob else 0.0
+    if ya & yb:
+        bonus += 0.05
+    return bonus + penalty
 
 
 def match_score(normalized_a: str, normalized_b: str) -> float:
@@ -184,7 +299,7 @@ def match_score(normalized_a: str, normalized_b: str) -> float:
     seq = SequenceMatcher(None, normalized_a, normalized_b).ratio()
     set_a, set_b = set(normalized_a.split()), set(normalized_b.split())
     jaccard = len(set_a & set_b) / max(1, len(set_a | set_b))
-    return max(seq, jaccard * 1.4)
+    return min(1.0, max(seq, jaccard * 1.4))
 
 
 def build_report(
@@ -201,22 +316,63 @@ def build_report(
         actionable = [e for e in entries if is_actionable(e, today)]
         filtered_out = len(entries) - len(actionable)
         entries = actionable
-    normalized_seeds = [normalize_title(t) for t in seed_titles]
-    matched: list[tuple[CoverageEntry, str, float]] = []
-    missing: list[CoverageEntry] = []
-    for entry in entries:
-        normalized_entry = normalize_title(entry.title)
-        if kind == "admit_card":
-            normalized_entry = _TITLE_ALIASES.get(normalized_entry, normalized_entry)
-        best_score, best_seed = 0.0, ""
-        for seed_title, normalized_seed in zip(seed_titles, normalized_seeds):
-            score = match_score(normalized_entry, normalized_seed)
+    # Score every (entry, seed) pair, then assign one seed to at most one
+    # entry so multiple loose hits on the same curated row cannot inflate
+    # coverage. Explicit aliases bypass fuzzy scoring entirely.
+    candidates: list[tuple[int, CoverageEntry, str, float, bool, bool]] = []
+    for index, entry in enumerate(entries):
+        alias_target = _TITLE_ALIASES.get(normalize_title(entry.title)) if kind == "admit_card" else None
+        if alias_target:
+            # Resolve the normalized alias back to the real seed title so the
+            # report names the actual row rather than a normalized string.
+            resolved = next(
+                (t for t in seed_titles if normalize_title(t) == alias_target),
+                alias_target,
+            )
+            candidates.append((index, entry, resolved, _ALIAS_MATCH_SCORE, True, False))
+            continue
+        entry_strong = normalize_strong(entry.title)
+        best_score, second_score, best_seed = 0.0, 0.0, ""
+        for seed_title in seed_titles:
+            base = match_score(entry_strong, normalize_strong(seed_title))
+            score = max(0.0, base + signal_penalty(entry.title, seed_title))
             if score > best_score:
-                best_score, best_seed = score, seed_title
-        if best_score >= threshold:
-            matched.append((entry, best_seed, best_score))
-        else:
-            missing.append(entry)
+                second_score, best_score, best_seed = best_score, score, seed_title
+            elif score > second_score:
+                second_score = score
+        close_second = second_score >= threshold - 0.03 and second_score >= best_score - 0.03
+        weak_signals = (
+            score < threshold + 0.05
+            and bool(
+                (year_signals(entry.title) and year_signals(best_seed)
+                 and not (year_signals(entry.title) & year_signals(best_seed)))
+                or (subtype_signals(entry.title) and subtype_signals(best_seed)
+                    and not (subtype_signals(entry.title) & subtype_signals(best_seed)))
+            )
+        ) if best_seed else False
+        candidates.append((index, entry, best_seed, best_score, False, close_second or weak_signals))
+
+    # Aliases first, then strongest scores; greedy one-to-one assignment.
+    candidates.sort(key=lambda c: (c[4], c[3]), reverse=True)
+    used_seeds: set[str] = set()
+    used_entries: set[int] = set()
+    matched: list[tuple[CoverageEntry, str, float]] = []
+    ambiguous: list[tuple[CoverageEntry, str, float]] = []
+    duplicate_matches: dict[str, list[str]] = {}
+    for index, entry, seed, score, is_alias, is_ambiguous in candidates:
+        if not is_alias and score < threshold:
+            continue
+        if is_ambiguous and not is_alias:
+            ambiguous.append((entry, seed, score))
+            continue
+        if seed in used_seeds:
+            duplicate_matches.setdefault(seed, []).append(entry.title)
+            continue
+        used_seeds.add(seed)
+        used_entries.add(index)
+        matched.append((entry, seed, score))
+
+    missing = [e for i, e in enumerate(entries) if i not in used_entries]
     return CoverageReport(
         source_url=source_url,
         entries=entries,
@@ -225,6 +381,9 @@ def build_report(
         seed_count=len(seed_titles),
         filtered_out=filtered_out,
         kind=kind,
+        distinct_matched_seeds=sorted(used_seeds),
+        ambiguous=ambiguous,
+        duplicate_matches=duplicate_matches,
     )
 
 
@@ -298,8 +457,14 @@ def format_report(report: CoverageReport, limit: int = 60) -> str:
         f"{label} — {report.source_url}",
         (
             f"{unit}: {len(report.entries)}{skipped} | seed rows: {report.seed_count} | "
-            f"matched: {len(report.matched)} ({report.coverage_pct}%) | "
-            f"missing: {len(report.missing)}"
+            f"matched entries (1:1): {len(report.matched)} ({report.coverage_pct}%) | "
+            f"distinct seeds: {len(report.distinct_matched_seeds)}/{report.seed_count} "
+            f"({report.distinct_seed_pct}%)"
+        ),
+        (
+            f"unmatched: {len(report.missing)} | duplicate candidates: "
+            f"{sum(len(v) for v in report.duplicate_matches.values())} | "
+            f"ambiguous: {len(report.ambiguous)}"
         ),
         "",
     ]

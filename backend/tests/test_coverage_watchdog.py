@@ -153,3 +153,55 @@ def test_watchdog_filters_postponed_typos_and_maps_known_alias():
     alias = normalize_title("SSC CPO SI CAPF Paper-I Exam City Details 2026")
     assert alias in _TITLE_ALIASES
     assert "delhi police" in _TITLE_ALIASES[alias]
+
+
+def test_false_positive_upessc_vs_mphc_is_not_covered():
+    from app.services.coverage_watchdog import (
+        ADMIT_CARD_MATCH_THRESHOLD,
+        CoverageEntry,
+        build_report,
+    )
+
+    entry = CoverageEntry("UPESSC UP Assistant Professor Admit Card 2026", "https://x/1", None)
+    seed = "Madhya Pradesh High Court — Assistant Grade III 2026: Pre-Exam Date / Admit Card"
+    report = build_report(
+        [entry], [seed], threshold=ADMIT_CARD_MATCH_THRESHOLD, kind="admit_card"
+    )
+    assert report.matched == []
+    assert [e.title for e in report.missing] == [entry.title]
+
+
+def test_one_seed_cannot_cover_multiple_sbi_entries():
+    from app.services.coverage_watchdog import CoverageEntry, build_report
+
+    seed = "SBI Junior Associates (Clerk) 2026 — Mains Admit Card"
+    entries = [
+        CoverageEntry(t, f"https://x/{i}", None)
+        for i, t in enumerate([
+            "SBI Junior Associates Clerk Mains Admit Card 2026",
+            "SBI Junior Associates Clerk Mains Exam Date 2026",
+            "SBI Junior Associates Clerk Backlog Mains Admit Card 2026",
+        ])
+    ]
+    report = build_report(entries, [seed], threshold=0.5, kind="admit_card")
+    assert len(report.matched) == 1
+    assert report.distinct_matched_seeds == [seed]
+    assert len(report.missing) == 2
+    assert len(report.duplicate_matches.get(seed, [])) == 2
+
+
+def test_explicit_ssc_cpo_alias_survives_strict_threshold():
+    from app.services.coverage_watchdog import CoverageEntry, build_report
+    from app.core.admit_cards import SEED_ADMIT_CARDS
+
+    seed = next(
+        s["title"] for s in SEED_ADMIT_CARDS
+        if s["id"] == "ssc-si-dp-capf-2025-cpo-admit-card"
+    )
+    entry = CoverageEntry("SSC CPO SI CAPF Paper-I Exam City Details 2026", "https://x/1", None)
+    report = build_report(
+        [entry], [seed], threshold=0.99, kind="admit_card"
+    )
+    assert len(report.matched) == 1
+    assert report.matched[0][1] == seed
+    assert report.matched[0][2] == 1.0

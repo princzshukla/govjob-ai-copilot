@@ -122,56 +122,117 @@ async def expire_stale_admit_cards() -> list[str]:
     return flat_ids
 
 
-async def check_admit_cards_links() -> list[str]:
-    """Weekly liveness check on every active admit-card URL.
+LINK_FAILURE_DEACTIVATE_THRESHOLD = 2
 
-    Boards move/delete notice PDFs around and after exam day. This pass
-    HEAD-requests each active admit_url (GET-range fallback for 405):
 
-    * 2xx          → refresh last_checked_at (link is healthy)
-    * 404 / 410    → flip is_active=False — the card is dead, hide it —
-                     and Telegram the admin "admit card link died" finding
-    * anything else (403/5xx/timeout/TLS) → leave unchanged; log + try next
-                     week. A portal block never hides a live card.
+async def probe_admit_link(client, url: str, headers: dict[str, str]) -> dict:
+    """Probe one admit-card URL conservatively.
 
-    Returns the ids flipped inactive.
+    HEAD is tried first. A 404/410/405 response is *inconclusive* — many
+    boards reject HEAD but serve GET — so a ranged GET follows. Only a
+    confirmed GET 404/410 can lead (eventually) to deactivation. 403/429,
+    5xx and network errors are always inconclusive.
+    """
+    attempts = 0
+    method = "HEAD"
+    status = 0
+    try:
+        response = await client.head(url)
+        attempts = 1
+        method, status = "HEAD", response.status_code
+        if status in (404, 410, 405):
+            response = await client.get(url, headers={**headers, "Range": "bytes=0-0"})
+            attempts = 2
+            method, status = "GET", response.status_code
+    except Exception as exc:
+        return {
+            "method": method,
+            "status": status,
+            "attempts": max(1, attempts),
+            "reachable": False,
+            "confirmed_dead": False,
+            "decision": f"inconclusive: {type(exc).__name__}",
+        }
+
+    if 200 <= status < 300:
+        verdict = "reachable"
+    elif method == "GET" and status in (404, 410):
+        verdict = "confirmed_dead"
+    elif status in (403, 429) or status >= 500:
+        verdict = "inconclusive: throttled/server error"
+    else:
+        verdict = "inconclusive: unverified response"
+    return {
+        "method": method,
+        "status": status,
+        "attempts": attempts,
+        "reachable": verdict == "reachable",
+        "confirmed_dead": verdict == "confirmed_dead",
+        "decision": verdict,
+    }
+
+
+def link_health_decision(row, probe: dict, threshold: int = LINK_FAILURE_DEACTIVATE_THRESHOLD) -> tuple[int, bool, str]:
+    """Return ``(new_fail_count, deactivate, decision_note)`` for one row."""
+    if probe["reachable"]:
+        return 0, False, f"reachable via {probe['method']} {probe['status']}; counter reset"
+    if not probe["confirmed_dead"]:
+        return (
+            row.link_fail_count or 0,
+            False,
+            f"inconclusive ({probe['method']} {probe['status']}): {probe['decision']}; kept visible",
+        )
+    count = (row.link_fail_count or 0) + 1
+    if (row.link_kind or "notice_pdf") == "candidate_portal":
+        return count, False, f"portal returned 404/410 x{count}; candidate portals are never deactivated"
+    if count >= threshold:
+        return count, True, f"confirmed 404/410 x{count} via {probe['method']}; deactivated"
+    return count, False, f"confirmed 404/410 x{count}/{threshold}; kept visible"
+
+
+async def check_admit_cards_links(
+    link_failure_threshold: int = LINK_FAILURE_DEACTIVATE_THRESHOLD,
+) -> list[str]:
+    """Weekly liveness sweep of active admit-card URLs.
+
+    A link is hidden only after ``link_failure_threshold`` consecutive
+    sweeps return a *confirmed* GET 404/410. HEAD 404, 405, 403/429, 5xx
+    and timeouts are inconclusive and leave the card visible. Every decision
+    is logged with the HTTP method, status, retry count and outcome.
     """
     import httpx
 
-    HEADERS = {"User-Agent": "govjob-copilot/0.1 (admit-card link health check)"}
+    headers = {"User-Agent": "govjob-copilot/0.1 (admit-card link health check)"}
     dead: list[str] = []
     refreshed = 0
     async with AsyncSessionLocal() as db:
         rows = list(
             (await db.execute(select(AdmitCardNotification).where(AdmitCardNotification.is_active.is_(True)))).scalars().all()
         )
-        async with httpx.AsyncClient(timeout=15.0, headers=HEADERS, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=15.0, headers=headers, follow_redirects=True) as client:
             for row in rows:
                 url = (row.admit_url or "").strip()
                 if not url:
                     continue
-                try:
-                    resp = await client.head(url)
-                    if resp.status_code == 405:
-                        resp = await client.get(url, headers={**HEADERS, "Range": "bytes=0-0"})
-                except Exception as exc:
-                    logger.info("admit-card link check failed for %s (%s) — will retry weekly", url, type(exc).__name__)
-                    continue
-                if resp.status_code in (404, 410):
-                    # Never deactivate candidate-portal rows on 4xx: boards
-                    # routinely block non-browser clients (bot filtering) while
-                    # the portal works fine in a real browser. Only files/pages
-                    # are trustworthy enough to call "gone".
-                    if (row.link_kind or "notice_pdf") in ("notice_pdf", "notice_page"):
-                        row.is_active = False
-                        dead.append(row.id)
-                    else:
-                        logger.info("portal row %s returned %s — treating as unverified, not dead", url, resp.status_code)
-                elif resp.status_code < 400:
+                probe = await probe_admit_link(client, url, headers)
+                fail_count, deactivate, note = link_health_decision(row, probe, link_failure_threshold)
+                logger.info(
+                    "admit-card link %s (%s): %s %s, attempt %d/%d, decision: %s",
+                    row.id, url, probe["method"], probe["status"],
+                    probe["attempts"], link_failure_threshold, note,
+                )
+                row.link_fail_count = fail_count
+                # Preserve prior operator context (e.g. why a row was restored)
+                # alongside the latest sweep decision.
+                previous_note = (row.link_health_note or "").strip()
+                merged_note = f"{previous_note} | {note}" if previous_note else note
+                row.link_health_note = merged_note[-1000:]
+                if deactivate:
+                    row.is_active = False
+                    dead.append(row.id)
+                elif probe["reachable"]:
                     row.last_checked_at = today_ist()
                     refreshed += 1
-                else:
-                    logger.info("admit-card link %s returned %s — left visible, retry weekly", url, resp.status_code)
         if dead or refreshed:
             await db.commit()
     if dead:
@@ -187,7 +248,6 @@ async def check_admit_cards_links() -> list[str]:
             logger.exception("admit-card link-check alert failed — continuing")
     logger.info("admit-card link check done: %d refreshed, %d marked dead", refreshed, len(dead))
     return dead
-
 
 async def admit_link_check_loop(interval_seconds: int = 7 * 24 * 3600) -> None:
     """Run the admit-card link liveness check once a week (and at startup)."""
