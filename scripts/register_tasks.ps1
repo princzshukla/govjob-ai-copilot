@@ -1,17 +1,16 @@
 # scripts/register_tasks.ps1
-# Registers the GovJob workers as Windows Scheduled Tasks so job/admit-card
-# updates keep running without anyone opening a terminal. Uses schtasks.exe
-# (works unelevated for per-user tasks; PowerShell's Register-ScheduledTask
-# can be denied by policy on some machines).
+# Registers hidden GovJob workers as Windows Scheduled Tasks.
 #
 #   powershell -ExecutionPolicy Bypass -File scripts\register_tasks.ps1
 #   powershell -ExecutionPolicy Bypass -File scripts\register_tasks.ps1 -Unregister
 #
-# Creates:
-#   GovJob-Poller   - Layer 1 discovery loop (starts at logon, restarts itself)
-#   GovJob-Layer2   - Layer 2 extraction + publish gate, every 15 min, ALL sources drained
-# Both write to logs\poller.log and logs\layer2.log.
-# Prereq: backend\venv312 exists and `alembic upgrade head` already applied.
+# Execution method: pythonw.exe runs scripts\run_worker.py with NO console and
+# NO cmd.exe. The launcher redirects stdout/stderr to logs\*.log, captures
+# uncaught Python exceptions with tracebacks, chdir's to backend, and holds an
+# OS-level lock so two workers can never overlap. Task Scheduler itself uses
+# MultipleInstancesPolicy=IgnoreNew as a second layer of protection.
+#
+# Schedules: Poller every 1 minute; Layer 2 every 15 minutes.
 
 param(
     [switch]$Unregister,
@@ -20,33 +19,22 @@ param(
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$Backend = Join-Path $RepoRoot "backend"
-$Python = Join-Path $Backend "venv312\Scripts\python.exe"
+$PythonW = Join-Path $RepoRoot "backend\venv312\Scripts\pythonw.exe"
+$Launcher = Join-Path $RepoRoot "scripts\run_worker.py"
 $LogDir = Join-Path $RepoRoot "logs"
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
-if (-not (Test-Path $Python)) {
-    throw "Python not found at $Python - create the venv first"
-}
+if (-not (Test-Path $PythonW)) { throw "pythonw.exe not found: $PythonW" }
+if (-not (Test-Path $Launcher)) { throw "launcher not found: $Launcher" }
 
 $tasks = @(
-    @{
-        Name = "GovJob-Poller"
-        Frequency = "MINUTE"
-        Modifier = 1
-        Command = 'cmd /c cd /d "{0}" && "{1}" -m app.services.layer1_poller --once >> "{2}" 2>&1' -f $Backend, $Python, (Join-Path $LogDir "poller.log")
-    },
-    @{
-        Name = "GovJob-Layer2"
-        Frequency = "MINUTE"
-        Modifier = 15
-        Command = 'cmd /c cd /d "{0}" && "{1}" -m app.services.layer2_worker --all-sources --drain --max-docs 50 >> "{2}" 2>&1' -f $Backend, $Python, (Join-Path $LogDir "layer2.log")
-    }
+    @{ Name = "GovJob-Poller"; Frequency = "MINUTE"; Modifier = 1; Args = "--worker poller" },
+    @{ Name = "GovJob-Layer2"; Frequency = "MINUTE"; Modifier = 15; Args = "--worker layer2" }
 )
 
 foreach ($t in $tasks) {
     if ($WhatIf) {
-        Write-Host "[WhatIf] would $(if ($Unregister) {'delete'} else {'create'}) task $($t.Name)"
+        Write-Host "[WhatIf] would $(if ($Unregister) {'delete'} else {'create'}) $($t.Name)"
         continue
     }
     if ($Unregister) {
@@ -54,17 +42,21 @@ foreach ($t in $tasks) {
         Write-Host "deleted $($t.Name)"
         continue
     }
-    $schtaskArgs = @("/Create", "/TN", $t.Name, "/TR", $t.Command, "/SC", $t.Frequency)
-    if ($t.Modifier) { $schtaskArgs += @("/MO", $t.Modifier) }
-    $schtaskArgs += "/F"
+
+    # Quoted /TR: pythonw.exe with the hidden launcher; no cmd.exe at all.
+    $command = '"{0}" "{1}" {2}' -f $PythonW, $Launcher, $t.Args
+    $schtaskArgs = @("/Create", "/TN", $t.Name, "/TR", $command, "/SC", $t.Frequency, "/MO", $t.Modifier, "/F")
     $result = & schtasks @schtaskArgs 2>&1
     if ($LASTEXITCODE -ne 0) { throw "failed to create $($t.Name): $result" }
-    Write-Host "registered $($t.Name)"
+    Write-Host "registered $($t.Name)  ->  pythonw.exe (hidden), $($t.Args)"
 }
 
 if (-not $Unregister -and -not $WhatIf) {
+    # Harden settings (no battery blocks, IgnoreNew, start-if-missed).
+    $py = Join-Path $RepoRoot "backend/venv312/Scripts/python.exe"
+    $hardener = Join-Path $PSScriptRoot "harden_tasks.py"
+    & $py $hardener
     Write-Host ""
-    Write-Host "Start now: schtasks /Run /TN GovJob-Poller ; schtasks /Run /TN GovJob-Layer2"
-    Write-Host "Verify:    schtasks /Query /TN GovJob-Layer2 /V /FO LIST"
-    Write-Host "Logs:      $LogDir"
+    Write-Host "Logs: $LogDir\poller.log and $LogDir\layer2.log (uncaught exceptions included)"
+    Write-Host "Run now: schtasks /Run /TN GovJob-Poller ; schtasks /Run /TN GovJob-Layer2"
 }
