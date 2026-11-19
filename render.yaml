@@ -1,0 +1,81 @@
+# Render Blueprint for the GovJob Copilot backend API.
+#
+# The Dockerfile lives in backend/ and its COPY commands assume backend/ is the
+# build context (see backend/.dockerignore). Point Render at the Dockerfile
+# FILE — not the directory — and keep the context at backend/. Otherwise the
+# build fails with "failed to read dockerfile: ... /backend: is a directory",
+# or COPY fails if the context is the repo root.
+#
+# Connect this Blueprint to your EXISTING Render web service by setting `name`
+# below to that service's exact name before syncing. All env vars use
+# sync: false so Render preserves the values already set in the dashboard.
+
+services:
+  - type: web
+    name: govjob-backend # TODO: set to the exact name of the existing Render service
+    runtime: docker
+    branch: main
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+
+    # sync: false = Render prompts for a value on first creation and otherwise
+    # preserves the dashboard value (no secrets are stored in this file).
+    envVars:
+      # --- required ---
+      - key: GROQ_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+
+      # --- LLM rotation / fallback (optional) ---
+      - key: GROQ_MODEL
+        sync: false
+      - key: GROQ_API_KEY_EXTRA
+        sync: false
+      - key: LLM_FALLBACK_BASE_URL
+        sync: false
+      - key: LLM_FALLBACK_API_KEY
+        sync: false
+      - key: LLM_FALLBACK_MODEL
+        sync: false
+
+      # --- Telegram (bot + admin alerts + webhook) ---
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_USERNAME
+        sync: false
+      - key: TELEGRAM_WEBHOOK_SECRET
+        sync: false
+      - key: TELEGRAM_ADMIN_CHAT_ID
+        sync: false
+
+      # --- auth / security (production requires shared rate-limit storage) ---
+      - key: ENVIRONMENT
+        sync: false
+      - key: COOKIE_SAMESITE
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: RATE_LIMIT_STORAGE_URL
+        sync: false
+
+      # --- admin access, error reporting, email digest (optional) ---
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: MAIL_PROVIDER
+        sync: false
+      - key: MAIL_SMTP_HOST
+        sync: false
+      - key: MAIL_SMTP_PORT
+        sync: false
+      - key: MAIL_SMTP_USER
+        sync: false
+      - key: MAIL_SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: MAIL_DIGEST_TO
+        sync: false
