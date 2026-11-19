@@ -3,6 +3,7 @@ import { Share2 } from "lucide-react";
 import type { FeedExam } from "../../lib/exams";
 import { formatDateIN } from "../../lib/exams";
 import { shareLink, whatsappShareUrl } from "../../lib/share";
+import { safeUrl } from "../../lib/safeUrl";
 import { toast } from "../../lib/toast";
 import { AdLabel } from "./AdSlot";
 
@@ -185,7 +186,7 @@ export function JobCard({
             </button>
           ) : exam.applyUrl ? (
             <a
-              href={exam.applyUrl}
+              href={safeUrl(exam.applyUrl)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex h-11 flex-1 items-center justify-center rounded-lg bg-saffron text-[14px] font-bold text-white"
@@ -242,7 +243,7 @@ export function JobCard({
             </button>
           ) : exam.applyUrl ? (
             <a
-              href={exam.applyUrl}
+              href={safeUrl(exam.applyUrl)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex h-11 items-center rounded-lg bg-saffron px-5 text-[14px] font-bold text-white shadow-[0_2px_0_rgba(0,0,0,.12)]"
@@ -310,7 +311,7 @@ export function JobCard({
           <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-3">
             {exam.applyUrl && (
               <a
-                href={exam.applyUrl}
+                href={safeUrl(exam.applyUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex h-11 items-center rounded-lg bg-saffron px-4 text-[13.5px] font-bold text-white hover:bg-ink"
@@ -320,7 +321,7 @@ export function JobCard({
             )}
             {exam.pdfUrl && (
               <a
-                href={exam.pdfUrl}
+                href={safeUrl(exam.pdfUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex h-11 items-center rounded-lg border-2 border-ink px-4 text-[13.5px] font-bold text-ink hover:border-saffron hover:text-saffron"
@@ -330,7 +331,7 @@ export function JobCard({
             )}
             {exam.sourceUrl && !exam.applyUrl && (
               <a
-                href={exam.sourceUrl}
+                href={safeUrl(exam.sourceUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[13px] font-semibold text-saffron hover:underline"
@@ -339,7 +340,7 @@ export function JobCard({
               </a>
             )}
             <a
-              href={shareUrl}
+              href={safeUrl(shareUrl)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex h-11 items-center gap-1.5 rounded-lg border-2 border-line px-4 text-[13px] font-semibold text-ink/70 hover:border-saffron hover:text-saffron"

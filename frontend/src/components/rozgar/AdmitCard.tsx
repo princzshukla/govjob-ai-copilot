@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FeedAdmitCard } from "../../lib/exams";
 import { formatDateIN } from "../../lib/exams";
+import { safeUrl } from "../../lib/safeUrl";
 
 /** Admit card card — official download link only, never a third-party mirror. */
 export function AdmitCardCard({ card }: { card: FeedAdmitCard }) {
@@ -61,7 +62,7 @@ export function AdmitCardCard({ card }: { card: FeedAdmitCard }) {
           </button>
           {card.admitUrl ? (
             <a
-              href={card.admitUrl}
+              href={safeUrl(card.admitUrl)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-ink px-4 text-[13.5px] font-bold text-white transition-colors hover:bg-saffron sm:flex-none sm:ml-auto"
@@ -99,7 +100,7 @@ export function AdmitCardCard({ card }: { card: FeedAdmitCard }) {
           </p>
           {card.sourceUrl && (
             <a
-              href={card.sourceUrl}
+              href={safeUrl(card.sourceUrl)}
               target="_blank"
               rel="noopener noreferrer"
               className="mt-2 inline-block text-[13px] font-semibold text-saffron underline-offset-2 hover:underline"

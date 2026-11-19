@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { toFeedExam, toFeedAdmitCard, type FeedExam, type FeedAdmitCard } from "../../lib/exams";
 import { getExams, getAdmitCards } from "../../lib/api";
+import { safeUrl } from "../../lib/safeUrl";
 import { loadEligibilityResult, saveEligibilityResult } from "../../lib/draft";
 import { useAuth } from "../../lib/auth";
 import type { EligibilityCheckResponse } from "../../types";
@@ -447,7 +448,7 @@ function MobileClosingSoon({ exams, loading }: { exams: FeedExam[]; loading: boo
           exams.map((e) => (
             <a
               key={e.id}
-              href={e.pdfUrl ?? undefined}
+              href={safeUrl(e.pdfUrl)}
               target={e.pdfUrl ? "_blank" : undefined}
               rel="noopener noreferrer"
               className="w-[240px] shrink-0 snap-start rounded-lg border border-line bg-[#fbfaf7] px-4 py-3"
@@ -747,7 +748,7 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
                   {closingSoon.map((e) => (
                     <a
                       key={e.id}
-                      href={e.pdfUrl ?? undefined}
+                      href={safeUrl(e.pdfUrl)}
                       target={e.pdfUrl ? "_blank" : undefined}
                       rel="noopener noreferrer"
                       className="block overflow-hidden rounded-lg border border-line bg-[#fbfaf7] px-4 py-3 transition-colors hover:border-line-strong"
