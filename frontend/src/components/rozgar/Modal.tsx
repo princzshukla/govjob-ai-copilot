@@ -25,7 +25,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-ink/55 p-4 backdrop-blur-sm sm:p-8"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/55 backdrop-blur-sm sm:items-center sm:p-8"
       role="presentation"
       onClick={onClose}
     >
@@ -33,22 +33,24 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`w-full rounded-lg border border-line bg-white shadow-xl ${
-          wide ? "max-w-2xl" : "max-w-md"
+        className={`flex max-h-[88dvh] w-full flex-col rounded-t-xl border border-line bg-white shadow-xl sm:max-h-[85dvh] sm:rounded-lg ${
+          wide ? "sm:max-w-2xl" : "sm:max-w-md"
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
+        <div className="flex shrink-0 items-center justify-between border-b border-line px-5 py-3.5">
           <h2 className="text-[16px] font-extrabold text-ink">{title}</h2>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="grid size-9 place-items-center rounded-lg text-ink/60 hover:bg-cream hover:text-ink"
+            className="grid size-11 place-items-center rounded-lg text-ink/60 hover:bg-cream hover:text-ink"
           >
             ✕
           </button>
         </div>
-        <div className="max-h-[80vh] overflow-y-auto p-5">{children}</div>
+        <div className="min-h-0 overflow-y-auto p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:pb-5">
+          {children}
+        </div>
       </div>
     </div>
   );

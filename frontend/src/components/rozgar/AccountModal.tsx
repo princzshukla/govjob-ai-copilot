@@ -6,7 +6,7 @@ import { toast } from "../../lib/toast";
 import type { TelegramLinkStatusResponse } from "../../types";
 
 const input =
-  "h-11 w-full rounded-lg border-2 border-line bg-white px-3 text-[14.5px] text-ink outline-none placeholder:text-ink/45 focus:border-saffron";
+  "h-11 w-full rounded-lg border-2 border-line bg-white px-3 text-base text-ink outline-none placeholder:text-ink/45 focus:border-saffron sm:text-[14.5px]";
 const label = "mb-1 text-[11px] font-bold tracking-[.12em] text-ink/55 uppercase";
 const danger =
   "h-11 w-full rounded-lg border-2 border-alert bg-white px-4 text-[14px] font-bold text-alert transition-colors hover:bg-alert hover:text-white disabled:opacity-50";

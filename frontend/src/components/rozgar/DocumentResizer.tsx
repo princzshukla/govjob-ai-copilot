@@ -37,9 +37,9 @@ interface OutputImage {
 }
 
 const input =
-  "h-11 w-full rounded-lg border-2 border-line bg-white px-3 text-[14px] text-ink outline-none placeholder:text-ink/45 focus:border-saffron";
+  "h-11 w-full rounded-lg border-2 border-line bg-white px-3 text-base text-ink outline-none placeholder:text-ink/45 focus:border-saffron sm:text-[14px]";
 const smallInput =
-  "h-8 w-full rounded-md border-2 border-line bg-white px-2 text-[12px] text-ink outline-none placeholder:text-ink/45 focus:border-saffron";
+  "min-h-11 w-full rounded-md border-2 border-line bg-white px-2 text-base text-ink outline-none placeholder:text-ink/45 focus:border-saffron sm:h-8 sm:text-[12px]";
 const label = "mb-1 block text-[10.5px] font-bold tracking-[.14em] text-ink/50 uppercase";
 const range = "w-full accent-saffron cursor-pointer";
 
@@ -345,20 +345,30 @@ export function DocumentResizer() {
 
       {/* dropzone */}
       {!srcUrl && (
-        <label
-          className={`mt-4 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-line-strong bg-cream/40 px-6 py-12 text-center transition-colors hover:border-saffron ${
-            processing ? "pointer-events-none opacity-70" : ""
-          }`}
-        >
-          {processing ? (
-            <Loader2 className="size-8 animate-spin text-saffron" />
-          ) : (
-            <FileUp className="size-8 text-ink/40" />
-          )}
-          <span className="text-[15px] font-semibold text-ink">Click to select a photo or signature image</span>
-          <span className="text-[12.5px] text-ink/55">JPG, PNG or WEBP — auto-converts to portal-compliant JPEG</span>
-          <input type="file" accept="image/*" className="sr-only" onChange={handleFile} />
-        </label>
+        <div className="mt-4">
+          <label
+            className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-line-strong bg-cream/40 px-6 py-12 text-center transition-colors hover:border-saffron ${
+              processing ? "pointer-events-none opacity-70" : ""
+            }`}
+          >
+            {processing ? (
+              <Loader2 className="size-8 animate-spin text-saffron" />
+            ) : (
+              <FileUp className="size-8 text-ink/40" />
+            )}
+            <span className="text-[15px] font-semibold text-ink">Click to select a photo or signature image</span>
+            <span className="text-[12.5px] text-ink/55">JPG, PNG or WEBP — auto-converts to portal-compliant JPEG</span>
+            <input type="file" accept="image/*" className="sr-only" onChange={handleFile} />
+          </label>
+          <label
+            className={`mt-2 flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-line bg-white text-[14px] font-bold text-ink ${
+              processing ? "pointer-events-none opacity-70" : ""
+            }`}
+          >
+            Take photo with camera
+            <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={handleFile} />
+          </label>
+        </div>
       )}
 
       {/* workspace */}
@@ -375,7 +385,7 @@ export function DocumentResizer() {
                 </span>
               )}
             </div>
-            <label className="shrink-0 cursor-pointer text-[12.5px] font-bold text-saffron hover:underline">
+            <label className="flex min-h-11 shrink-0 cursor-pointer items-center text-[13px] font-bold text-saffron hover:underline">
               Replace file
               <input type="file" accept="image/*" className="sr-only" onChange={handleFile} />
             </label>

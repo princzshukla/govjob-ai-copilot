@@ -22,7 +22,7 @@ import type {
  */
 
 const input =
-  "h-11 w-full rounded-lg border-2 border-line bg-white px-3 text-[14.5px] text-ink outline-none placeholder:text-ink/45 focus:border-saffron";
+  "h-11 w-full rounded-lg border-2 border-line bg-white px-3 text-base text-ink outline-none placeholder:text-ink/45 focus:border-saffron sm:text-[14.5px]";
 const label = "mb-1 text-[10.5px] font-bold tracking-[.14em] text-ink/50 uppercase";
 
 export function PageShell({
@@ -147,6 +147,7 @@ export function EligibilityPage({
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [showMore, setShowMore] = useState(false);
 
   const update = (field: keyof CandidateProfile, value: unknown) =>
     setProfile((p) => {
@@ -284,7 +285,7 @@ export function EligibilityPage({
       </div>
 
       {/* profile form */}
-      <form onSubmit={runCheck} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <form onSubmit={runCheck} className="grid gap-4 pb-16 sm:grid-cols-2 md:pb-0 lg:grid-cols-3">
         <div>
           <label className={label} htmlFor="f-name">Full name</label>
           <input
@@ -359,6 +360,15 @@ export function EligibilityPage({
             required
           />
         </div>
+        <button
+          type="button"
+          onClick={() => setShowMore((v) => !v)}
+          aria-expanded={showMore}
+          className="col-span-full min-h-11 scroll-mb-24 rounded-lg border-2 border-line bg-white px-4 text-[13.5px] font-bold text-ink md:hidden"
+        >
+          {showMore ? "Hide education details" : "More details — stream, % and passing year"}
+        </button>
+        <div className={`${showMore ? "grid" : "hidden"} gap-4 sm:grid-cols-2 md:contents lg:grid-cols-3`}>
         <div>
           <label className={label} htmlFor="f-stream">Stream / branch</label>
           <input
@@ -408,6 +418,7 @@ export function EligibilityPage({
           />
           PwD (with disability certificate)
         </label>
+        </div>
       </form>
 
       {formError && (
@@ -416,11 +427,11 @@ export function EligibilityPage({
         </p>
       )}
 
-      <div className="mt-4 flex flex-wrap items-center gap-3">
+      <div className="sticky bottom-[calc(58px+env(safe-area-inset-bottom))] z-30 -mx-5 mt-4 flex flex-wrap items-center gap-3 border-t-2 border-line bg-paper px-5 py-2 md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:py-0">
         <button
           onClick={() => runCheck()}
           disabled={checking}
-          className="h-12 rounded-lg bg-saffron px-6 text-[15px] font-bold text-white shadow-[0_2px_0_rgba(0,0,0,.12)] transition-opacity disabled:opacity-60"
+          className="min-h-12 flex-1 rounded-lg bg-saffron px-6 text-[15px] font-bold text-white shadow-[0_2px_0_rgba(0,0,0,.12)] transition-opacity disabled:opacity-60 md:flex-none"
         >
           {checking ? "Checking every rule…" : "Check eligibility"}
         </button>
