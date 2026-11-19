@@ -78,7 +78,7 @@ class QuestionReport(Base):
         nullable=False,
     )
     reason = Column(String(500), nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     __table_args__ = (
         UniqueConstraint("question_id", "user_id", name="uq_question_reports_question_user"),
