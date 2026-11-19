@@ -159,11 +159,26 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    # Last-resort JSON 500. Without a handler here the exception escapes the
-    # middleware stack entirely and the client gets a connection-level
-    # failure with no CORS headers (browser: "Failed to fetch").
+    # Last-resort JSON 500. Starlette installs handlers registered for
+    # `Exception` on ServerErrorMiddleware, which is OUTSIDE CORSMiddleware.
+    # So this response never passes through CORS and would go back without an
+    # Access-Control-Allow-Origin header — the browser then reports the
+    # misleading "No 'Access-Control-Allow-Origin' header" error instead of the
+    # real 500. Mirror the CORS headers onto error responses for allowed origins.
     logger.exception("unhandled error on %s %s", request.method, request.url.path)
-    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+    headers: dict[str, str] = {}
+    origin = request.headers.get("origin")
+    if origin and origin in CORS_ORIGINS:
+        headers = {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Vary": "Origin",
+        }
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+        headers=headers,
+    )
 
 
 app.add_middleware(
