@@ -52,21 +52,25 @@ export function Footer() {
         </div>
 
         {/* bottom bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-4 text-[12px] text-ink/55">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-2 text-[12px] text-ink/55">
           <p>© 2026 RozgarBoard · Government jobs in India</p>
-          <p className="flex gap-4">
-            <a href="https://ssc.gov.in" target="_blank" rel="noopener noreferrer" className="hover:text-ink">
-              SSC
-            </a>
-            <a href="https://www.upsc.gov.in" target="_blank" rel="noopener noreferrer" className="hover:text-ink">
-              UPSC
-            </a>
-            <a href="https://www.ibps.in" target="_blank" rel="noopener noreferrer" className="hover:text-ink">
-              IBPS
-            </a>
-            <a href="https://www.rrb.gov.in" target="_blank" rel="noopener noreferrer" className="hover:text-ink">
-              RRB
-            </a>
+          <p className="flex flex-wrap gap-2">
+            {[
+              ["SSC", "https://ssc.gov.in"],
+              ["UPSC", "https://www.upsc.gov.in"],
+              ["IBPS", "https://www.ibps.in"],
+              ["RRB", "https://www.rrb.gov.in"],
+            ].map(([label, href]) => (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center px-2 hover:text-ink"
+              >
+                {label}
+              </a>
+            ))}
           </p>
         </div>
       </div>

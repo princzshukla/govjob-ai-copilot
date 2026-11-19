@@ -18,34 +18,30 @@ export function AdmitCardCard({ card }: { card: FeedAdmitCard }) {
 
   return (
     <article className="rounded-lg border border-line bg-[#fbfaf7]">
-      <div className="px-5 pt-4">
+      <div className="px-4 pt-3 sm:px-5 sm:pt-4">
         <div className="flex flex-wrap items-center gap-2">
           {card.isNew && (
-            <span className="rounded bg-govgreen px-1.5 py-0.5 text-[11px] font-bold text-white">
-              NEW
-            </span>
+            <span className="rounded bg-govgreen px-1.5 py-0.5 text-[11px] font-bold text-white">NEW</span>
           )}
           <span className="text-[12.5px] text-ink/55">{card.department}</span>
           {card.noticeSubtype === "exam_city" && (
             <span className="rounded bg-saffron/15 px-1.5 py-0.5 text-[11px] font-bold text-saffron">EXAM CITY</span>
           )}
           {card.lastChecked && (
-            <span className="ml-auto text-[11.5px] text-ink/45">
-              Last checked {formatDateIN(card.lastChecked)}
-            </span>
+            <span className="ml-auto text-[11.5px] text-ink/45">Last checked {formatDateIN(card.lastChecked)}</span>
           )}
         </div>
 
-        <h3 className="font-ui mt-1.5 text-[18px] font-bold leading-snug text-ink">
+        <h3 className="font-ui mt-1.5 text-[17px] font-bold leading-snug text-ink sm:text-[18px]">
           {card.title}
         </h3>
         {card.examName && (
-          <p className="mt-1 text-[14px] text-ink/65">{card.examName}</p>
+          <p className="mt-1 text-[13px] text-ink/65 sm:text-[14px]">{card.examName}</p>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 pb-4 pt-3">
-        <p className="min-w-[130px] flex-1 text-[14px] font-semibold text-ink/70">
+      <div className="px-4 pb-3 pt-3 sm:px-5 sm:pb-4">
+        <p className="min-h-11 text-[13px] font-semibold leading-snug text-ink/70 sm:text-[14px]">
           {examDay ? (
             <>
               Exam date: <span className="tabular-nums">{formatDateIN(card.examDateISO)}</span>
@@ -55,27 +51,27 @@ export function AdmitCardCard({ card }: { card: FeedAdmitCard }) {
             "Exam date: check the notice"
           )}
         </p>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="mt-2 flex items-center gap-2 sm:mt-0">
           <button
             onClick={() => setOpen((v) => !v)}
-            className="h-10 rounded-lg border border-line bg-paper px-3 text-[13px] font-semibold text-ink/75 transition-colors hover:border-line-strong hover:text-ink"
+            className="h-11 shrink-0 rounded-lg border border-line bg-paper px-4 text-[13.5px] font-semibold text-ink/75 transition-colors hover:border-line-strong hover:text-ink"
             aria-expanded={open}
           >
-            Details
+            {open ? "Hide" : "Details"}
           </button>
           {card.admitUrl ? (
             <a
               href={card.admitUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-ink px-4 text-[13.5px] font-bold text-white transition-colors hover:bg-saffron"
+              className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-ink px-4 text-[13.5px] font-bold text-white transition-colors hover:bg-saffron sm:flex-none sm:ml-auto"
             >
               {cta}
               <span aria-hidden="true">↗</span>
             </a>
           ) : (
             <span
-              className="inline-flex h-10 cursor-not-allowed items-center rounded-lg border border-line px-4 text-[13px] font-semibold text-ink/45"
+              className="inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-line text-[13px] font-semibold text-ink/45 sm:flex-none sm:ml-auto sm:px-4"
               title="Official download link is not on file yet"
             >
               Link pending
@@ -85,23 +81,15 @@ export function AdmitCardCard({ card }: { card: FeedAdmitCard }) {
       </div>
 
       {open && (
-        <div className="border-t border-line px-5 py-4">
+        <div className="border-t border-line px-4 py-4 sm:px-5">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <div>
-              <p className="text-[10.5px] font-bold tracking-[.12em] text-ink/50 uppercase">
-                Exam date
-              </p>
-              <p className="mt-0.5 text-[13.5px] leading-snug text-ink">
-                {formatDateIN(card.examDateISO)}
-              </p>
+              <p className="text-[10.5px] font-bold tracking-[.12em] text-ink/50 uppercase">Exam date</p>
+              <p className="mt-0.5 text-[13.5px] leading-snug text-ink">{formatDateIN(card.examDateISO)}</p>
             </div>
             <div>
-              <p className="text-[10.5px] font-bold tracking-[.12em] text-ink/50 uppercase">
-                Released
-              </p>
-              <p className="mt-0.5 text-[13.5px] leading-snug text-ink">
-                {formatDateIN(card.notificationISO)}
-              </p>
+              <p className="text-[10.5px] font-bold tracking-[.12em] text-ink/50 uppercase">Released</p>
+              <p className="mt-0.5 text-[13.5px] leading-snug text-ink">{formatDateIN(card.notificationISO)}</p>
             </div>
           </div>
           <p className="mt-3 text-[12px] leading-relaxed text-ink/55">
