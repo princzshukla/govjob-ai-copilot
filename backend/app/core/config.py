@@ -73,7 +73,12 @@ class Settings(BaseSettings):
     COOKIE_SAMESITE: str = "lax"
     SESSION_TTL_DAYS: int = 7
     # Comma-separated list of exact frontend origins. Never "*" with credentials.
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:8080"
+    # Includes the deployed Vercel frontend so a fresh deploy works out of the
+    # box; set CORS_ORIGINS in the environment to override for other domains.
+    CORS_ORIGINS: str = (
+        "http://localhost:5173,http://localhost:8080,"
+        "https://govjob-ai-copilot.vercel.app"
+    )
     # "memory://" works single-process; point at redis://<host> in multi-worker prod.
     RATE_LIMIT_STORAGE_URL: str = "memory://"
 

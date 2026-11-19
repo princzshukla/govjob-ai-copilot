@@ -102,8 +102,9 @@ async def lifespan(_app: FastAPI):
             await link_check_task
 
 
-# Keep only origins from env. Dev defaults must not follow the build to prod:
-# the deployment supplies exact HTTPS origins through CORS_ORIGINS there.
+# Only exact origins from settings are allowed. The default list covers the
+# local dev servers and the deployed Vercel frontend; set CORS_ORIGINS in the
+# environment to override for custom domains.
 _cors_origins = list(dict.fromkeys(settings.cors_origins_list))
 
 app = FastAPI(
