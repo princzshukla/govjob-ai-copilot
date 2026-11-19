@@ -240,6 +240,24 @@ async def test_locked_deadline_is_not_overwritten_by_seed_upsert(db, cleanup_job
     assert exam.source_url == "https://ssc.gov.in/official.pdf"
 
 
+async def test_report_marks_census_drift_as_dishonest(db, cleanup_jobs):
+    report = cw.CoverageReport(
+        source_url="https://agg.example/latest-jobs/",
+        entries=[], matched=[], missing=[], seed_count=87,
+    )
+    census = {
+        "markup_ok": False, "drift": ["jobs: listing selector missing"],
+        "jobs": {"raw_listings": 0, "effective_listings": 0},
+        "admit_cards": {"raw_listings": 0, "effective_listings": 0},
+    }
+    data = await jobs_report.build_jobs_watchdog_report(db, report, {}, {}, census=census)
+    assert data["honest"] is False
+    assert "markup drift" in data["coverage_note"]
+    assert data["listing_census"] == census
+    row = (await db.execute(select(JobsWatchdogReport))).scalar_one_or_none()
+    assert row.honest is False and row.payload["listing_census"] == census
+
+
 async def test_report_counts_are_explicit_and_persisted(db, cleanup_jobs):
     report = cw.CoverageReport(
         source_url="https://agg.example/latest-jobs/",

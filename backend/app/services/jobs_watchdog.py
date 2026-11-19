@@ -160,9 +160,15 @@ def check_jobs_coverage(
 async def check_jobs_coverage_async(
     url: str = cw.LATEST_JOBS_URL,
     threshold: float = JOBS_MATCH_THRESHOLD,
+    page_html: str | None = None,
 ) -> cw.CoverageReport:
-    """Async variant used by the watchdog pass and the admin API."""
-    page_html = await cw.fetch_latest_jobs_html(url)
+    """Async variant used by the watchdog pass and the admin API.
+
+    ``page_html`` lets the watchdog pass reuse the single fetch that also
+    feeds the listing census — no duplicate request to the aggregator.
+    """
+    if page_html is None:
+        page_html = await cw.fetch_latest_jobs_html(url)
     entries = [e for e in cw.parse_latest_jobs(page_html) if is_job_entry(e)]
     report = build_jobs_report(entries, cw.seed_titles(), threshold=threshold, source_url=url)
     if len(entries) < 5:
@@ -394,13 +400,33 @@ async def run_jobs_watchdog_pass() -> dict:
         from app.core.database import AsyncSessionLocal
         from app.services import job_deadline_watchdog as jdw
         from app.services import jobs_report
+        from scripts.listing_census import collect_census
 
-        report = await check_jobs_coverage_async()
+        jobs_html = await cw.fetch_latest_jobs_html()
+        report = await check_jobs_coverage_async(page_html=jobs_html)
+        census = await collect_census(jobs_html=jobs_html)
+        # Drift guard: a parser/count mismatch or a missing selector means we
+        # must not present a confident coverage figure.
+        jobs_census = census.get("jobs", {})
+        if not census.get("markup_ok") or jobs_census.get("raw_listings") != len(report.entries):
+            drift_note = (
+                f"listing census drift: rendered={jobs_census.get('raw_listings')} "
+                f"parsed={len(report.entries)}; {'; '.join(census.get('drift', []))}"
+            )
+            logger.warning(drift_note)
+            try:
+                from app.core.config import settings
+                from app.services.notifier import send_admin_alert
+
+                if settings.telegram_admin_ready:
+                    await send_admin_alert(f"Jobs Watchdog — {drift_note}")
+            except Exception:
+                logger.exception("listing drift alert failed")
         async with AsyncSessionLocal() as db:
             discovery_stats = await run_jobs_discovery(db, report)
             deadline_stats = await jdw.check_exam_deadlines(db)
             data = await jobs_report.build_jobs_watchdog_report(
-                db, report, discovery_stats, deadline_stats
+                db, report, discovery_stats, deadline_stats, census=census
             )
         text = jobs_report.format_jobs_report(data)
         logger.info("jobs watchdog pass completed:\n%s", text)

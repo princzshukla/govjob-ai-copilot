@@ -7,8 +7,15 @@ from app.api.v1.deps import require_admin
 from app.core.database import get_db
 from app.services import jobs_report
 from app.services.jobs_watchdog import run_jobs_watchdog_pass
+from scripts.listing_census import collect_census
 
 router = APIRouter(prefix="/admin/jobs-watchdog", tags=["Admin: Jobs Watchdog"])
+
+
+@router.get("/listing-census")
+async def get_listing_census(admin=Depends(require_admin)):
+    """Exact, live listing counts from both sarkariresult.com.cm pages."""
+    return await collect_census()
 
 
 @router.get("/report")

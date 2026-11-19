@@ -24,7 +24,8 @@ _FINAL_STATUSES = ("approved", "rejected", "duplicate")
 
 
 async def build_jobs_watchdog_report(db, coverage_report, discovery_stats: dict,
-                                     deadline_stats: dict) -> dict:
+                                     deadline_stats: dict,
+                                     census: dict | None = None) -> dict:
     today = today_ist()
     awaiting = (await db.execute(
         select(func.count(NotificationDiscovery.id)).where(
@@ -63,6 +64,17 @@ async def build_jobs_watchdog_report(db, coverage_report, discovery_stats: dict,
             f"{unmatched} unmatched, {ambiguous} ambiguous and {duplicates} duplicate "
             "candidates are excluded from the coverage percentage"
         )
+    if census:
+        jobs_count = census.get("jobs", {}).get("raw_listings")
+        if jobs_count is not None and jobs_count != len(coverage_report.entries):
+            honest = False
+            notes.append(
+                f"listing census rendered {jobs_count} jobs but the parser read "
+                f"{len(coverage_report.entries)} — counts disagree"
+            )
+        if not census.get("markup_ok"):
+            honest = False
+            notes.append("listing markup drift detected: " + "; ".join(census.get("drift", [])))
     data = {
         "status": "ok",
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -82,6 +94,7 @@ async def build_jobs_watchdog_report(db, coverage_report, discovery_stats: dict,
         "coverage_note": " ".join(notes) or "counts are one-to-one; no unverified job is published",
         "discovery_stats": discovery_stats,
         "deadline_stats": deadline_stats,
+        "listing_census": census,
         "deadlines_approaching_days": APPROACHING_DAYS,
     }
     db.add(JobsWatchdogReport(
@@ -98,8 +111,17 @@ async def build_jobs_watchdog_report(db, coverage_report, discovery_stats: dict,
 
 def format_jobs_report(data: dict) -> str:
     pct = "unknown" if data.get("coverage_pct") is None else f"{data['coverage_pct']}%"
+    census = data.get("listing_census") or {}
+    jobs_c = census.get("jobs") or {}
+    admit_c = census.get("admit_cards") or {}
+    census_line = (
+        f"site census (exact): jobs {jobs_c.get('raw_listings', '?')} listed / "
+        f"{jobs_c.get('effective_listings', '?')} relevant | admit cards "
+        f"{admit_c.get('raw_listings', '?')} listed / {admit_c.get('effective_listings', '?')} relevant"
+    ) if census else "site census (exact): not collected"
     lines = [
         "Jobs Watchdog report — strict 0.72 one-to-one matching",
+        census_line,
         f"live job notifications: {data.get('total_live', 0)} | seed records: {data.get('total_seeds', 0)}",
         f"distinct seeds matched: {data.get('distinct_matched_seeds', 0)} | coverage (matched/live): {pct}",
         f"unmatched: {data.get('unmatched', 0)} | duplicate candidates: "
