@@ -1,4 +1,19 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  Briefcase,
+  FileText,
+  ClipboardCheck,
+  Map as MapIcon,
+  Image as ImageIcon,
+  Search as SearchIcon,
+} from "lucide-react";
 import { toFeedExam, toFeedAdmitCard, type FeedExam, type FeedAdmitCard } from "../../lib/exams";
 import { getExams, getAdmitCards } from "../../lib/api";
 import { loadEligibilityResult, saveEligibilityResult } from "../../lib/draft";
@@ -14,34 +29,105 @@ import { Footer } from "../../components/rozgar/Footer";
 import { EligibilityPage, RoadmapPage } from "./rozgar-pages";
 
 const NAV = [
-  { label: "Latest Jobs" },
-  { label: "Admit Cards" },
-  { label: "My Eligibility" },
-  { label: "My Roadmap" },
-  { label: "Photo & Signature" },
+  { label: "Latest Jobs", param: "jobs" },
+  { label: "Admit Cards", param: "admit" },
+  { label: "My Eligibility", param: "eligibility" },
+  { label: "My Roadmap", param: "roadmap" },
+  { label: "Photo & Signature", param: "documents" },
 ] as const;
 
 type Tab = (typeof NAV)[number]["label"];
+
+const BOTTOM_NAV = [
+  { label: "Latest Jobs", short: "Jobs", icon: Briefcase, param: "jobs" },
+  { label: "Admit Cards", short: "Admits", icon: FileText, param: "admit" },
+  { label: "My Eligibility", short: "Eligibility", icon: ClipboardCheck, param: "eligibility" },
+  { label: "My Roadmap", short: "Roadmap", icon: MapIcon, param: "roadmap" },
+  { label: "Photo & Signature", short: "Documents", icon: ImageIcon, param: "documents" },
+] as const;
+
+type Chip = "all" | "closing" | "graduate" | "12th" | "10th";
+
+const FILTER_CHIPS: { id: Chip; label: string }[] = [
+  { id: "all", label: "All jobs" },
+  { id: "closing", label: "Closing soon" },
+  { id: "graduate", label: "Graduate" },
+  { id: "12th", label: "12th pass" },
+  { id: "10th", label: "10th pass" },
+];
+
+const MOBILE_PAGE_SIZE = 15;
+
+/* ------------------------------------------------------------------ */
+
+function useScrolled(threshold = 80): boolean {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > threshold);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [threshold]);
+  return scrolled;
+}
+
+function useIsDesktop(): boolean {
+  const [desktop, setDesktop] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const onChange = () => setDesktop(mq.matches);
+    mq.addEventListener("change", onChange);
+    onChange();
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return desktop;
+}
+
+function tabFromUrl(): Tab {
+  if (typeof window === "undefined") return "Latest Jobs";
+  const param = new URLSearchParams(window.location.search).get("tab");
+  return NAV.find((n) => n.param === param)?.label ?? "Latest Jobs";
+}
+
+function pushUrl(tab: Tab, keepExam = false) {
+  const exam = keepExam ? new URLSearchParams(window.location.search).get("exam") : null;
+  const params = new URLSearchParams();
+  params.set("tab", NAV.find((n) => n.label === tab)?.param ?? "jobs");
+  if (exam) params.set("exam", exam);
+  window.history.pushState({}, "", `${window.location.pathname}?${params.toString()}`);
+}
 
 /* ------------------------------------------------------------------ */
 
 function Masthead({
   query,
   onQueryChange,
+  compact,
+  onExpand,
+  onAccount,
 }: {
   query: string;
   onQueryChange: (v: string) => void;
+  compact: boolean;
+  onExpand: () => void;
+  onAccount: () => void;
 }) {
   const { user, loading, promptSignIn } = useAuth();
-  const [accountOpen, setAccountOpen] = useState(false);
+
+  const focusSearch = () => {
+    onExpand();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.setTimeout(() => document.getElementById("job-search")?.focus(), 200);
+  };
 
   return (
     <header className="bg-paper">
-      <div className="mx-auto max-w-[1280px] px-4 py-4 sm:px-5 sm:py-5">
+      <div className="mx-auto max-w-[1280px] px-4 py-3 sm:px-5 sm:py-5">
         <div className="flex items-center justify-between gap-3">
-          {/* wordmark + tagline */}
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-1.5 flex-col overflow-hidden rounded-full sm:h-11" aria-hidden="true">
+            <div className="flex h-9 w-1.5 flex-col overflow-hidden rounded-full sm:h-11" aria-hidden="true">
               <span className="flex-1 bg-saffron" />
               <span className="flex-1 bg-white" />
               <span className="flex-1 bg-govgreen" />
@@ -50,37 +136,49 @@ function Masthead({
               <p className="flex items-center gap-2 text-[18px] leading-none font-extrabold tracking-tight text-ink sm:text-[22px]">
                 Rozgar<span className="text-saffron">Board</span>
               </p>
-              <p className="mt-1 text-[10.5px] font-semibold tracking-[.14em] text-ink/55 uppercase">
+              <p
+                className={`mt-1 text-[10.5px] font-semibold tracking-[.14em] text-ink/55 uppercase ${
+                  compact ? "hidden sm:block" : ""
+                }`}
+              >
                 sarkari naukri, structured
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {compact && (
+              <button
+                onClick={focusSearch}
+                aria-label="Search jobs"
+                className="grid size-11 place-items-center rounded-lg border-2 border-line bg-white text-ink md:hidden"
+              >
+                <SearchIcon size={18} aria-hidden="true" />
+              </button>
+            )}
             {loading ? (
-              <div className="h-9 w-28 animate-pulse rounded-lg bg-cream sm:h-11" aria-hidden="true" />
+              <div className="h-11 w-28 animate-pulse rounded-lg bg-cream" aria-hidden="true" />
             ) : user ? (
               <button
-                onClick={() => setAccountOpen(true)}
-                className="h-9 rounded-lg bg-ink px-3 text-[13.5px] font-semibold text-white sm:h-11 sm:px-4 sm:text-[14.5px]"
+                onClick={onAccount}
+                className="h-11 rounded-lg bg-ink px-3 text-[13.5px] font-semibold text-white sm:px-4 sm:text-[14.5px]"
               >
                 {user.full_name ? `Hi, ${user.full_name.split(" ")[0]}` : "My account"}
               </button>
             ) : (
               <button
                 onClick={() => promptSignIn("login")}
-                className="h-9 rounded-lg bg-saffron px-4 text-[13.5px] font-bold text-white sm:h-11 sm:px-5 sm:text-[14.5px]"
+                className="h-11 rounded-lg bg-saffron px-4 text-[13.5px] font-bold text-white sm:px-5 sm:text-[14.5px]"
               >
                 Login
               </button>
             )}
           </div>
-          {accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}
         </div>
 
-        {/* Search — the one action every first-time visitor understands */}
+        {/* Search — icon-only on mobile, full field on sm+ */}
         <form
-          className="mt-2 flex items-center gap-2"
+          className={`mt-2 flex items-center gap-2 ${compact ? "hidden sm:flex" : "flex"}`}
           onSubmit={(e) => {
             e.preventDefault();
             document
@@ -97,23 +195,25 @@ function Masthead({
               value={query}
               onChange={(e) => onQueryChange(e.target.value)}
               placeholder="Search exam, post or department — e.g. SSC CHSL"
-              className="h-11 w-full rounded-lg border-2 border-line bg-white px-4 text-[14.5px] text-ink outline-none placeholder:text-ink/45 focus:border-saffron sm:h-12 sm:text-[15px]"
+              className="h-11 w-full rounded-lg border-2 border-line bg-white px-3 pr-12 text-base text-ink outline-none placeholder:text-ink/45 focus:border-saffron sm:h-12 sm:px-4 sm:text-[15px] sm:pr-24"
             />
             {query && (
               <button
                 type="button"
                 onClick={() => onQueryChange("")}
                 aria-label="Clear search"
-                className="absolute right-[104px] top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-ink/45 hover:bg-cream hover:text-ink"
+                className="absolute right-[60px] top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full text-ink/45 hover:bg-cream hover:text-ink sm:right-[84px]"
               >
-                ✕
+                <span aria-hidden="true">✕</span>
               </button>
             )}
             <button
               type="submit"
-              className="absolute right-1.5 top-1/2 h-8 -translate-y-1/2 rounded-md bg-ink px-3 text-[13px] font-semibold text-white hover:bg-saffron sm:h-9 sm:px-4 sm:text-[14px]"
+              aria-label="Search"
+              className="absolute right-1.5 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-md bg-ink text-white hover:bg-saffron sm:h-9 sm:w-auto sm:px-4 sm:text-[14px]"
             >
-              Search
+              <SearchIcon size={16} aria-hidden="true" className="sm:hidden" />
+              <span className="hidden sm:inline">Search</span>
             </button>
           </div>
         </form>
@@ -142,7 +242,7 @@ function MainNav({
   }, [active, jobCount, admitCount]);
 
   return (
-    <nav className="border-b-2 border-ink bg-paper" aria-label="Primary">
+    <nav className="hidden border-t border-line bg-paper md:block" aria-label="Primary">
       <div
         ref={trackRef}
         className="relative mx-auto flex max-w-[1280px] items-stretch overflow-x-auto px-2"
@@ -174,7 +274,6 @@ function MainNav({
             </button>
           );
         })}
-        {/* one roving underline — animates between tabs with in/out slide */}
         {indicator && (
           <span
             aria-hidden="true"
@@ -182,6 +281,42 @@ function MainNav({
             style={{ left: indicator.left, width: indicator.width }}
           />
         )}
+      </div>
+    </nav>
+  );
+}
+
+function BottomNav({
+  active,
+  onSelect,
+}: {
+  active: Tab;
+  onSelect: (l: Tab) => void;
+}) {
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-ink bg-paper/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+      aria-label="Mobile navigation"
+    >
+      <div className="mx-auto grid max-w-[520px] grid-cols-5">
+        {BOTTOM_NAV.map((item) => {
+          const on = active === item.label;
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.label}
+              onClick={() => onSelect(item.label)}
+              aria-current={on ? "page" : undefined}
+              aria-label={item.label}
+              className={`flex min-h-[58px] flex-col items-center justify-center gap-0.5 px-1 text-[10.5px] font-semibold ${
+                on ? "text-saffron" : "text-ink/55"
+              }`}
+            >
+              <Icon size={20} strokeWidth={on ? 2.4 : 1.9} aria-hidden="true" />
+              <span>{item.short}</span>
+            </button>
+          );
+        })}
       </div>
     </nav>
   );
@@ -195,29 +330,46 @@ function HeroBand({
   total: number | null;
   closingThisWeek: number | null;
 }) {
-  if (total === null) return null; // during load the skeleton handles the space
+  if (total === null) {
+    return (
+      <div className="border-b border-line bg-paper px-4 py-6 sm:px-5 sm:py-10" aria-hidden="true">
+        <div className="h-3 w-40 animate-pulse rounded bg-cream" />
+        <div className="mt-3 h-8 w-3/4 animate-pulse rounded bg-cream" />
+        <div className="mt-2 h-8 w-1/2 animate-pulse rounded bg-cream" />
+        <div className="mt-4 h-3 w-56 animate-pulse rounded bg-cream" />
+      </div>
+    );
+  }
   return (
     <section className="border-b border-line bg-paper">
-      <div className="mx-auto max-w-[1280px] px-4 pt-8 pb-7 sm:px-5 sm:pt-10 sm:pb-8">
+      <div className="mx-auto max-w-[1280px] px-4 pt-6 pb-5 sm:px-5 sm:pt-10 sm:pb-8">
         <p className="font-mono text-[11px] font-bold tracking-[.18em] text-saffron uppercase">
           sarkari naukri · official notifications
         </p>
-        <h1 className="mt-2 max-w-3xl text-[34px] font-extrabold leading-[1.08] tracking-tight text-ink sm:text-[46px]">
+        {/* compact mobile headline */}
+        <h1 className="mt-2 text-[27px] font-extrabold leading-[1.1] tracking-tight text-ink sm:hidden">
           Government jobs, <span className="text-saffron">without the noise.</span>
         </h1>
-        <p className="mt-3 max-w-xl text-[15.5px] leading-relaxed text-ink/65">
+        <p className="mt-2 text-[12px] font-mono font-bold tabular-nums text-ink/70 sm:hidden">
+          {total} live · {closingThisWeek ?? 0} closing · updated today
+        </p>
+        {/* full editorial hero on sm+ */}
+        <h1 className="mt-2 hidden max-w-3xl text-[46px] font-extrabold leading-[1.08] tracking-tight text-ink sm:block">
+          Government jobs, <span className="text-saffron">without the noise.</span>
+        </h1>
+        <p className="mt-3 hidden max-w-xl text-[15.5px] leading-relaxed text-ink/65 sm:block">
           Every notification linked to its official PDF. Eligibility in seconds,
           one place to everything that's live.
         </p>
-        <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line pt-4 font-mono text-[12.5px] tabular-nums text-ink/70">
+        <div className="mt-5 hidden flex-wrap items-center gap-x-5 gap-y-2 border-t border-line pt-4 font-mono text-[12.5px] tabular-nums text-ink/70 sm:flex">
           <span>
             <span className="font-extrabold text-ink">{total}</span> notifications live
           </span>
-          <span aria-hidden="true" className="hidden text-line-strong sm:inline">|</span>
+          <span aria-hidden="true" className="text-line-strong">|</span>
           <span>
             <span className="font-extrabold text-ink">{closingThisWeek ?? 0}</span> closing this week
           </span>
-          <span aria-hidden="true" className="hidden text-line-strong sm:inline">|</span>
+          <span aria-hidden="true" className="text-line-strong">|</span>
           <span>
             <span className="font-extrabold text-govgreen">✓</span> updated today
           </span>
@@ -226,8 +378,6 @@ function HeroBand({
     </section>
   );
 }
-
-/* ------------------------------------------------------------------ */
 
 function LoadingSkeleton() {
   return (
@@ -248,11 +398,85 @@ function LoadingSkeleton() {
   );
 }
 
+function FilterChips({ active, onChange }: { active: Chip; onChange: (c: Chip) => void }) {
+  return (
+    <div
+      className="no-scrollbar -mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 md:hidden"
+      aria-label="Filter notifications"
+    >
+      {FILTER_CHIPS.map((chip) => (
+        <button
+          key={chip.id}
+          onClick={() => onChange(chip.id)}
+          aria-pressed={active === chip.id}
+          className={`min-h-11 shrink-0 rounded-full border-2 px-4 text-[13px] font-semibold ${
+            active === chip.id
+              ? "border-saffron bg-saffron text-white"
+              : "border-line bg-white text-ink/70"
+          }`}
+        >
+          {chip.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function MobileClosingSoon({ exams, loading }: { exams: FeedExam[]; loading: boolean }) {
+  return (
+    <section className="border-b border-line bg-paper px-4 py-5 md:hidden">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="flex items-baseline gap-2 text-[20px] font-extrabold tracking-tight text-ink">
+          Closing Soon
+          {exams.length > 0 && (
+            <span className="rounded-full bg-ink px-2 py-0.5 font-mono text-[12px] font-bold tabular-nums text-white">
+              {exams.length}
+            </span>
+          )}
+        </h2>
+        <p className="text-[11px] font-semibold tracking-wide text-ink/55 uppercase">Next 10 days</p>
+      </div>
+      <div className="no-scrollbar -mx-4 mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 pb-2">
+        {loading ? (
+          <div className="h-20 w-[240px] shrink-0 animate-pulse rounded-lg bg-cream" />
+        ) : exams.length === 0 ? (
+          <div className="rounded-lg border border-line bg-[#fbfaf7] px-4 py-3 text-[13px] text-ink/55">
+            Nothing closes in the next 10 days.
+          </div>
+        ) : (
+          exams.map((e) => (
+            <a
+              key={e.id}
+              href={e.pdfUrl ?? undefined}
+              target={e.pdfUrl ? "_blank" : undefined}
+              rel="noopener noreferrer"
+              className="w-[240px] shrink-0 snap-start rounded-lg border border-line bg-[#fbfaf7] px-4 py-3"
+            >
+              <p className="line-clamp-2 text-[13.5px] font-semibold leading-snug text-ink">{e.title}</p>
+              <div className="mt-2 flex items-center gap-2">
+                <div className="h-[5px] flex-1 overflow-hidden rounded-full bg-cream">
+                  <div
+                    className={`h-full rounded-full ${e.deadlineDays <= 7 ? "bg-alert" : "bg-saffron"}`}
+                    style={{ width: `${Math.max(8, (e.deadlineDays / 45) * 100)}%` }}
+                  />
+                </div>
+                <span className="text-[12.5px] font-bold tabular-nums text-alert">{e.deadlineDays}d</span>
+              </div>
+            </a>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 
 export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
-  const [active, setActive] = useState<Tab>("Latest Jobs");
+  const [active, setActive] = useState<Tab>(() => tabFromUrl());
   const [query, setQuery] = useState("");
+  const [chip, setChip] = useState<Chip>("all");
+  const [accountOpen, setAccountOpen] = useState(false);
 
   const [exams, setExams] = useState<FeedExam[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -261,8 +485,6 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
   const [admitCards, setAdmitCards] = useState<FeedAdmitCard[] | null>(null);
   const [admitError, setAdmitError] = useState<string | null>(null);
 
-  // Free once a profile is set — eligibility verdicts for every notification.
-  // Cached in sessionStorage so tab switches keep them.
   const [eligibility, setEligibility] = useState<EligibilityCheckResponse | null>(
     () => loadEligibilityResult(),
   );
@@ -270,6 +492,17 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
     setEligibility(r);
     if (r) saveEligibilityResult(r);
   };
+
+  const scrolled = useScrolled(80);
+  const [forceExpanded, setForceExpanded] = useState(false);
+  const desktop = useIsDesktop();
+  const [loadMore, setLoadMore] = useState(false);
+
+  useEffect(() => {
+    const onPop = () => setActive(tabFromUrl());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -329,6 +562,23 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
     });
   }, [exams, query]);
 
+  const chipped = useMemo(() => {
+    switch (chip) {
+      case "closing":
+        return filtered.filter((e) => e.deadlineDays > 0 && e.deadlineDays <= 10);
+      case "graduate":
+        return filtered.filter((e) => e.degrees.some((d) => /graduat|b\.?tech|b\.?e\b|bca|bsc|b\.?sc|mca|mba|m\.?tech/i.test(d)));
+      case "12th":
+        return filtered.filter((e) => /12th|intermediate|senior secondary|hsc/i.test(e.degrees.join(" ")));
+      case "10th":
+        return filtered.filter((e) => /10th|matric|high school/i.test(e.degrees.join(" ")));
+      default:
+        return filtered;
+    }
+  }, [filtered, chip]);
+
+  const visible = desktop || loadMore ? chipped : chipped.slice(0, MOBILE_PAGE_SIZE);
+
   const closingSoon = useMemo(
     () =>
       (exams ?? [])
@@ -343,7 +593,6 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
     [exams],
   );
 
-  // Verdict map for the feed: every exam evaluated by the eligibility check.
   const verdicts = useMemo(() => {
     const map = new Map<string, "eligible" | "borderline" | "check" | "ineligible">();
     if (!eligibility) return map;
@@ -354,11 +603,9 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
     return map;
   }, [eligibility]);
 
-  // Feed assembly: the only in-feed ad is a sponsored placement, injected by a
-  // hard frequency cap — only when the ad system is enabled.
   const feed = useMemo(() => {
     const items: ReactNode[] = [];
-    filtered.forEach((exam, i) => {
+    visible.forEach((exam, i) => {
       if (ADS_ENABLED && i > 0 && i % AD_FREQUENCY === 0) {
         const sp = SPONSORED_JOBS[(i / AD_FREQUENCY - 1) % SPONSORED_JOBS.length];
         items.push(<SponsoredJobCard key={`sp-${sp.id}`} job={sp} />);
@@ -366,130 +613,167 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
       items.push(<JobCard key={exam.id} exam={exam} verdict={verdicts.get(exam.id) ?? null} />);
     });
     return items;
-  }, [filtered, verdicts]);
+  }, [visible, verdicts]);
 
   const goTab = (tab: Tab) => {
     setActive(tab);
+    setForceExpanded(false);
+    setChip("all");
+    setLoadMore(false);
+    pushUrl(tab);
     window.scrollTo({ top: 0 });
   };
 
+  const openAccount = () => {
+    setAccountOpen(true);
+  };
+
   return (
-    <div className="min-h-screen bg-paper text-ink">
-      <Masthead query={query} onQueryChange={setQuery} />
-      <MainNav active={active} onSelect={goTab} jobCount={exams?.length ?? null} admitCount={admitCards?.length ?? null} />
+    <div className="min-h-screen bg-paper pb-[calc(58px+env(safe-area-inset-bottom))] text-ink md:pb-0">
+      <div
+        className={`sticky top-0 z-40 border-b-2 border-ink ${
+          scrolled ? "shadow-[0_2px_10px_rgba(0,0,0,.08)]" : ""
+        }`}
+      >
+        <Masthead
+          query={query}
+          onQueryChange={setQuery}
+          compact={scrolled && !forceExpanded}
+          onExpand={() => setForceExpanded(true)}
+          onAccount={openAccount}
+        />
+        <div className={scrolled && !forceExpanded ? "hidden md:block" : ""}>
+          <MainNav active={active} onSelect={goTab} jobCount={exams?.length ?? null} admitCount={admitCards?.length ?? null} />
+        </div>
+      </div>
+
+      <BottomNav active={active} onSelect={goTab} />
+      {accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}
+
       {active === "Latest Jobs" && (
         <HeroBand total={exams?.length ?? null} closingThisWeek={closingThisWeek} />
       )}
 
       <div key={active} className="animate-[tab-in_.35s_ease-out]">
         {active === "Latest Jobs" && (
-          <div className={`mx-auto grid max-w-[1280px] gap-6 px-4 py-6 sm:px-5 ${ADS_ENABLED ? "lg:grid-cols-[288px_1fr_288px]" : "lg:grid-cols-[1fr_340px]"}`}>
-            {/* LEFT RAIL — ad inventory, only with the ad system on */}
-            {ADS_ENABLED && (
-              <div className="order-2 space-y-4 lg:order-none">
-                {adLayout.left.map((ad) => (
-                  <div
-                    key={ad.id}
-                    className="mx-auto w-full max-w-[300px] overflow-hidden rounded-lg border border-dashed border-line-strong bg-white/60 sm:max-w-none"
-                  >
-                    <AdSlot {...ad} className="border-0" />
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* job list */}
-            <main id="job-results" className="order-1 lg:order-none">
-              <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
-                <h2 className="flex items-baseline gap-2 text-[22px] font-extrabold tracking-tight text-ink">
-                  Latest Jobs
-                  {exams && (
-                    <span className="rounded-full bg-ink px-2 py-0.5 font-mono text-[12px] font-bold tabular-nums text-white">
-                      {filtered.length}
-                    </span>
-                  )}
-                </h2>
-                <p className="text-[12px] font-semibold tracking-wide text-ink/55 uppercase">
-                  Official sources only
-                </p>
-              </div>
-
-              <div className="space-y-2.5">
-                {exams === null && !loadError ? (
-                  <LoadingSkeleton />
-                ) : loadError ? (
-                  <div className="rounded-lg border border-line bg-[#fbfaf7] px-5 py-14 text-center">
-                    <p className="text-[17px] font-bold text-ink">Couldn't load notifications</p>
-                    <p className="mt-1 text-[14px] text-ink/60">{loadError}</p>
-                    <button
-                      onClick={() => setRetryCount((c) => c + 1)}
-                      className="mt-4 h-11 rounded-lg bg-ink px-4 text-[13.5px] font-bold text-white hover:bg-saffron"
+          <>
+            <MobileClosingSoon exams={closingSoon} loading={exams === null && !loadError} />
+            <div className={`mx-auto grid max-w-[1280px] gap-6 px-4 py-6 sm:px-5 ${ADS_ENABLED ? "lg:grid-cols-[288px_1fr_288px]" : "lg:grid-cols-[1fr_340px]"}`}>
+              {ADS_ENABLED && (
+                <div className="hidden space-y-4 lg:block">
+                  {adLayout.left.map((ad) => (
+                    <div
+                      key={ad.id}
+                      className="mx-auto w-full max-w-[300px] overflow-hidden rounded-lg border border-dashed border-line-strong bg-white/60"
                     >
-                      Try again
-                    </button>
-                  </div>
-                ) : filtered.length === 0 ? (
-                  <div className="rounded-lg border border-line bg-[#fbfaf7] px-5 py-14 text-center">
-                    <p className="text-[17px] font-bold text-ink">No matching notifications</p>
-                    <p className="mt-1 text-[14px] text-ink/60">Try clearing the search.</p>
-                  </div>
-                ) : (
-                  feed
-                )}
-              </div>
-            </main>
-
-            {/* RIGHT RAIL — Closing Soon, aligned with the feed */}
-            <aside className="order-3 self-start lg:sticky lg:top-4">
-              <div className="mb-4 flex items-baseline justify-between gap-3">
-                <p className="flex items-baseline gap-2 text-[22px] font-extrabold tracking-tight text-ink">
-                  Closing Soon
-                  {closingSoon.length > 0 && (
-                    <span className="rounded-full bg-ink px-2 py-0.5 font-mono text-[12px] font-bold tabular-nums text-white">
-                      {closingSoon.length}
-                    </span>
-                  )}
-                </p>
-                <p className="text-[12px] font-semibold tracking-wide text-ink/55 uppercase">Next 10 days</p>
-              </div>
-
-              <div className="space-y-2.5">
-                {closingSoon.length === 0 && (
-                  <div className="rounded-lg border border-line bg-[#fbfaf7] px-4 py-4 text-[13px] text-ink/55">
-                    Nothing closes in the next 10 days.
-                  </div>
-                )}
-                {closingSoon.map((e) => (
-                  <a
-                    key={e.id}
-                    href={e.pdfUrl ?? undefined}
-                    target={e.pdfUrl ? "_blank" : undefined}
-                    rel="noopener noreferrer"
-                    className={`block overflow-hidden rounded-lg border border-line bg-[#fbfaf7] px-4 py-3 transition-colors ${
-                      e.pdfUrl ? "cursor-pointer hover:border-line-strong" : "cursor-default"
-                    }`}
-                    title={e.pdfUrl ? "Open the official notification (PDF)" : "Official PDF not linked yet"}
-                  >
-                    <p className="text-[14px] font-semibold leading-snug text-ink">{e.title}</p>
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <div className="h-[5px] flex-1 overflow-hidden rounded-full bg-cream">
-                        <div
-                          className={`h-full rounded-full ${e.deadlineDays <= 7 ? "bg-alert" : "bg-saffron"}`}
-                          style={{ width: `${Math.max(8, (e.deadlineDays / 45) * 100)}%` }}
-                        />
-                      </div>
-                      <span className="text-[12.5px] font-bold tabular-nums text-alert">{e.deadlineDays}d</span>
-                      {e.pdfUrl && <span aria-hidden="true" className="text-[11px] text-ink/40">↗</span>}
+                      <AdSlot {...ad} className="border-0" />
                     </div>
-                  </a>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
-              <p className="mt-4 text-[12px] text-ink/60">
-                {closingSoon.length} notification{closingSoon.length === 1 ? "" : "s"} close within 10 days
-              </p>
-            </aside>
-          </div>
+              <main id="job-results" className="min-w-0">
+                <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+                  <h2 className="flex items-baseline gap-2 text-[22px] font-extrabold tracking-tight text-ink">
+                    Latest Jobs
+                    {exams && (
+                      <span className="rounded-full bg-ink px-2 py-0.5 font-mono text-[12px] font-bold tabular-nums text-white">
+                        {chipped.length}
+                      </span>
+                    )}
+                  </h2>
+                  <p className="text-[12px] font-semibold tracking-wide text-ink/55 uppercase">
+                    Official sources only
+                  </p>
+                </div>
+
+                <FilterChips active={chip} onChange={(c) => { setChip(c); setLoadMore(false); }} />
+
+                <div className="space-y-2.5">
+                  {exams === null && !loadError ? (
+                    <LoadingSkeleton />
+                  ) : loadError ? (
+                    <div className="rounded-lg border border-line bg-[#fbfaf7] px-5 py-14 text-center">
+                      <p className="text-[17px] font-bold text-ink">Couldn't load notifications</p>
+                      <p className="mt-1 text-[14px] text-ink/60">{loadError}</p>
+                      <button
+                        onClick={() => setRetryCount((c) => c + 1)}
+                        className="mt-4 h-11 rounded-lg bg-ink px-4 text-[13.5px] font-bold text-white hover:bg-saffron"
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  ) : chipped.length === 0 ? (
+                    <div className="rounded-lg border border-line bg-[#fbfaf7] px-5 py-14 text-center">
+                      <p className="text-[17px] font-bold text-ink">No matching notifications</p>
+                      <p className="mt-1 text-[14px] text-ink/60">Try clearing the search or filter.</p>
+                    </div>
+                  ) : (
+                    feed
+                  )}
+                </div>
+
+                {!desktop && !loadMore && chipped.length > MOBILE_PAGE_SIZE && (
+                  <button
+                    onClick={() => setLoadMore(true)}
+                    className="mt-4 min-h-11 w-full rounded-lg border-2 border-line bg-white text-[14px] font-bold text-ink hover:border-line-strong"
+                  >
+                    Load {chipped.length - MOBILE_PAGE_SIZE} more jobs
+                  </button>
+                )}
+              </main>
+
+              <aside className="hidden self-start lg:sticky lg:top-4 lg:block">
+                <div className="mb-4 flex items-baseline justify-between gap-3">
+                  <p className="flex items-baseline gap-2 text-[22px] font-extrabold tracking-tight text-ink">
+                    Closing Soon
+                    {closingSoon.length > 0 && (
+                      <span className="rounded-full bg-ink px-2 py-0.5 font-mono text-[12px] font-bold tabular-nums text-white">
+                        {closingSoon.length}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[12px] font-semibold tracking-wide text-ink/55 uppercase">Next 10 days</p>
+                </div>
+                <div className="space-y-2.5">
+                  {exams === null && !loadError && (
+                    <div className="h-16 animate-pulse rounded-lg bg-cream" aria-hidden="true" />
+                  )}
+                  {exams !== null && closingSoon.length === 0 && (
+                    <div className="rounded-lg border border-line bg-[#fbfaf7] px-4 py-4 text-[13px] text-ink/55">
+                      Nothing closes in the next 10 days.
+                    </div>
+                  )}
+                  {closingSoon.map((e) => (
+                    <a
+                      key={e.id}
+                      href={e.pdfUrl ?? undefined}
+                      target={e.pdfUrl ? "_blank" : undefined}
+                      rel="noopener noreferrer"
+                      className="block overflow-hidden rounded-lg border border-line bg-[#fbfaf7] px-4 py-3 transition-colors hover:border-line-strong"
+                      title={e.pdfUrl ? "Open the official notification (PDF)" : "Official PDF not linked yet"}
+                    >
+                      <p className="text-[14px] font-semibold leading-snug text-ink">{e.title}</p>
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <div className="h-[5px] flex-1 overflow-hidden rounded-full bg-cream">
+                          <div
+                            className={`h-full rounded-full ${e.deadlineDays <= 7 ? "bg-alert" : "bg-saffron"}`}
+                            style={{ width: `${Math.max(8, (e.deadlineDays / 45) * 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-[12.5px] font-bold tabular-nums text-alert">{e.deadlineDays}d</span>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+                {exams !== null && (
+                  <p className="mt-4 text-[12px] text-ink/60">
+                    {closingSoon.length} notification{closingSoon.length === 1 ? "" : "s"} close within 10 days
+                  </p>
+                )}
+              </aside>
+            </div>
+          </>
         )}
 
         {active === "Admit Cards" && (

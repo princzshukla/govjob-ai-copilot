@@ -1,0 +1,19 @@
+{
+  "name": "RozgarBoard — Government Jobs in India",
+  "short_name": "RozgarBoard",
+  "description": "Official government job notifications, eligibility checks and a study plan — free.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f5f0",
+  "theme_color": "#f7f5f0",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Share2 } from "lucide-react";
 import type { FeedExam } from "../../lib/exams";
 import { formatDateIN } from "../../lib/exams";
+import { shareLink, whatsappShareUrl } from "../../lib/share";
+import { toast } from "../../lib/toast";
 import { AdLabel } from "./AdSlot";
 
 /** Static width — no width animation on low-end devices. */
@@ -16,7 +19,7 @@ export function DeadlineBar({ days }: { days: number }) {
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="rounded bg-cream px-2 py-1 text-[12.5px] font-medium text-ink">
+    <span className="rounded bg-cream px-1.5 py-0.5 text-[12px] font-medium text-ink sm:px-2 sm:py-1 sm:text-[12.5px]">
       {children}
     </span>
   );
@@ -33,6 +36,11 @@ function DetailGrid({ label, value }: { label: string; value: React.ReactNode })
   );
 }
 
+function currentExamId(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("exam");
+}
+
 /** The organic notification card. Details expand in place — no modal. */
 export function JobCard({
   exam,
@@ -42,13 +50,49 @@ export function JobCard({
   /** set after an eligibility check; null when the user has no profile yet */
   verdict?: "eligible" | "borderline" | "check" | "ineligible" | null;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => currentExamId() === exam.id);
   const closed = exam.deadlineDays <= 0;
   const pct = exam.minPercentage;
 
+  useEffect(() => {
+    const onPop = () => setOpen(currentExamId() === exam.id);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [exam.id]);
+
+  const toggleDetails = () => {
+    if (!open) {
+      const params = new URLSearchParams(window.location.search);
+      params.set("exam", exam.id);
+      window.history.pushState({}, "", `${window.location.pathname}?${params.toString()}`);
+      setOpen(true);
+    } else if (currentExamId() === exam.id) {
+      window.history.back();
+    } else {
+      setOpen(false);
+    }
+  };
+
+  const onShare = async () => {
+    const url = exam.applyUrl || exam.pdfUrl || exam.sourceUrl || window.location.href;
+    try {
+      const result = await shareLink(exam.title, url);
+      if (result === "copied") {
+        toast("info", "Link copied", "Share it with a friend who's preparing.");
+      }
+    } catch {
+      toast("warn", "Couldn't copy", "Try the official notification link instead.");
+    }
+  };
+
+  const shareUrl = whatsappShareUrl(
+    exam.title,
+    exam.applyUrl || exam.pdfUrl || exam.sourceUrl || window.location.href,
+  );
+
   return (
-    <article className="rounded-lg border border-line bg-[#fbfaf7]">
-      <div className="px-5 pt-4">
+    <article className="scroll-mt-24 rounded-lg border border-line bg-[#fbfaf7]">
+      <div className="px-4 pt-3 sm:px-5 sm:pt-4">
         <div className="flex flex-wrap items-center gap-2">
           {exam.isNew && (
             <span className="rounded bg-govgreen px-1.5 py-0.5 text-[11px] font-bold text-white">
@@ -63,15 +107,14 @@ export function JobCard({
           )}
         </div>
 
-        <h3 className="font-ui mt-1.5 text-[18px] font-bold leading-snug text-ink">
+        <h3 className="font-ui mt-1.5 text-[17px] font-bold leading-snug text-ink sm:text-[18px]">
           {exam.title}
         </h3>
-        <p className="mt-1 text-[14px] text-ink/65">
+        <p className="mt-1 text-[13px] text-ink/65 sm:text-[14px]">
           {exam.department}
           {exam.postType ? <span className="text-ink/45"> · {exam.postType}</span> : null}
         </p>
 
-        {/* who can apply — what the notification actually states */}
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <Chip>
             Min {pct === null ? "—" : `${pct}%`}
@@ -103,8 +146,66 @@ export function JobCard({
         </div>
       </div>
 
-      {/* deadline + actions */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 pb-4 pt-3">
+      {/* mobile deadline + actions */}
+      <div className="px-4 pb-3 pt-3 sm:hidden">
+        <div className="flex items-center gap-2">
+          <div className="flex-1">
+            <DeadlineBar days={exam.deadlineDays} />
+          </div>
+          <p
+            className={`whitespace-nowrap text-[14px] font-semibold tabular-nums ${
+              closed ? "text-alert" : exam.deadlineDays <= 7 ? "text-alert" : "text-ink/70"
+            }`}
+          >
+            {closed ? "Closed" : `${exam.deadlineDays}d left`}
+          </p>
+        </div>
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            onClick={toggleDetails}
+            aria-expanded={open}
+            aria-controls={`details-${exam.id}`}
+            className="h-11 shrink-0 rounded-lg border-2 border-line bg-white px-4 text-[14px] font-semibold text-ink"
+          >
+            {open ? "Hide" : "Details"}
+          </button>
+          <button
+            onClick={onShare}
+            aria-label="Share this job"
+            className="grid size-11 shrink-0 place-items-center rounded-lg border-2 border-line bg-white text-ink/70"
+          >
+            <Share2 size={18} aria-hidden="true" />
+          </button>
+          {closed ? (
+            <button
+              disabled
+              className="h-11 flex-1 cursor-not-allowed rounded-lg bg-ink/15 text-[13.5px] font-bold text-ink/55"
+            >
+              Window closed
+            </button>
+          ) : exam.applyUrl ? (
+            <a
+              href={exam.applyUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-11 flex-1 items-center justify-center rounded-lg bg-saffron text-[14px] font-bold text-white"
+            >
+              Apply Now
+            </a>
+          ) : (
+            <button
+              disabled
+              title="Official application portal is not on file yet"
+              className="h-11 flex-1 cursor-not-allowed rounded-lg bg-saffron/50 text-[13.5px] font-bold text-white/80"
+            >
+              Apply
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* desktop deadline + actions */}
+      <div className="hidden flex-wrap items-center gap-x-3 gap-y-2 px-5 pb-4 pt-3 sm:flex">
         <div className="min-w-[130px] flex-1">
           <DeadlineBar days={exam.deadlineDays} />
         </div>
@@ -117,18 +218,25 @@ export function JobCard({
         </p>
         <div className="ml-auto flex items-center gap-2">
           <button
-            onClick={() => setOpen((v) => !v)}
+            onClick={toggleDetails}
             aria-expanded={open}
             aria-controls={`details-${exam.id}`}
-            className="h-10 rounded-lg border-2 border-line bg-white px-4 text-[14px] font-semibold text-ink transition-colors hover:border-line-strong"
+            className="h-11 rounded-lg border-2 border-line bg-white px-4 text-[14px] font-semibold text-ink transition-colors hover:border-line-strong"
           >
             {open ? "Hide" : "Details"}
+          </button>
+          <button
+            onClick={onShare}
+            aria-label="Share this job"
+            className="grid size-11 place-items-center rounded-lg border-2 border-line bg-white text-ink/70 hover:border-line-strong"
+          >
+            <Share2 size={18} aria-hidden="true" />
           </button>
           {closed ? (
             <button
               disabled
-              title="This application window is closed — watch for the next cycle's notification"
-              className="h-10 cursor-not-allowed rounded-lg bg-ink/15 px-5 text-[14px] font-bold text-ink/55"
+              title="This application window is closed"
+              className="h-11 cursor-not-allowed rounded-lg bg-ink/15 px-5 text-[14px] font-bold text-ink/55"
             >
               Window closed
             </button>
@@ -137,15 +245,15 @@ export function JobCard({
               href={exam.applyUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex h-10 items-center rounded-lg bg-saffron px-5 text-[14px] font-bold text-white shadow-[0_2px_0_rgba(0,0,0,.12)]"
+              className="inline-flex h-11 items-center rounded-lg bg-saffron px-5 text-[14px] font-bold text-white shadow-[0_2px_0_rgba(0,0,0,.12)]"
             >
               Apply Now
             </a>
           ) : (
             <button
               disabled
-              title="Official application portal is not on file yet — open the official notification for the apply link"
-              className="h-10 cursor-not-allowed rounded-lg bg-saffron/50 px-5 text-[14px] font-bold text-white/80"
+              title="Official application portal is not on file yet"
+              className="h-11 cursor-not-allowed rounded-lg bg-saffron/50 px-5 text-[14px] font-bold text-white/80"
             >
               Apply
             </button>
@@ -153,11 +261,10 @@ export function JobCard({
         </div>
       </div>
 
-      {/* expandable details — facts from the notification only */}
       {open && (
         <div
           id={`details-${exam.id}`}
-          className="border-t border-line bg-[#fbfaf7] px-5 py-4"
+          className="border-t border-line bg-[#fbfaf7] px-4 py-4 sm:px-5"
         >
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <DetailGrid label="Application last date" value={formatDateIN(exam.lastDateISO)} />
@@ -192,10 +299,7 @@ export function JobCard({
               </p>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {exam.topics.slice(0, 12).map((t) => (
-                  <span
-                    key={t}
-                    className="rounded bg-cream px-2 py-1 text-[12px] font-medium text-ink/80"
-                  >
+                  <span key={t} className="rounded bg-cream px-2 py-1 text-[12px] font-medium text-ink/80">
                     {t}
                   </span>
                 ))}
@@ -209,7 +313,7 @@ export function JobCard({
                 href={exam.applyUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-10 items-center rounded-lg bg-saffron px-4 text-[13.5px] font-bold text-white hover:bg-ink"
+                className="inline-flex h-11 items-center rounded-lg bg-saffron px-4 text-[13.5px] font-bold text-white hover:bg-ink"
               >
                 Apply on official portal ↗
               </a>
@@ -219,7 +323,7 @@ export function JobCard({
                 href={exam.pdfUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-10 items-center rounded-lg border-2 border-ink bg-transparent px-4 text-[13.5px] font-bold text-ink transition-colors hover:border-saffron hover:text-saffron"
+                className="inline-flex h-11 items-center rounded-lg border-2 border-ink px-4 text-[13.5px] font-bold text-ink hover:border-saffron hover:text-saffron"
               >
                 Official notification (PDF) ↗
               </a>
@@ -234,6 +338,14 @@ export function JobCard({
                 Source: official portal ↗
               </a>
             )}
+            <a
+              href={shareUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-11 items-center gap-1.5 rounded-lg border-2 border-line px-4 text-[13px] font-semibold text-ink/70 hover:border-saffron hover:text-saffron"
+            >
+              <Share2 size={15} aria-hidden="true" /> Share on WhatsApp
+            </a>
           </div>
         </div>
       )}
@@ -251,7 +363,7 @@ export function SponsoredJobCard({ job }: { job: import("../../lib/ads").Sponsor
   return (
     <article
       aria-label="Sponsored job listing"
-      className="group rounded-lg border border-dashed border-ink/25 bg-cream/50 px-5 py-4 transition-colors hover:bg-cream/80"
+      className="group rounded-lg border border-dashed border-ink/25 bg-cream/50 px-4 py-4 transition-colors hover:bg-cream/80 sm:px-5"
     >
       <div className="flex flex-wrap items-center gap-2">
         <AdLabel kind="Sponsored" />
@@ -261,10 +373,10 @@ export function SponsoredJobCard({ job }: { job: import("../../lib/ads").Sponsor
         </span>
       </div>
 
-      <h3 className="font-ui mt-1.5 text-[18px] font-bold leading-snug text-ink/75">
+      <h3 className="font-ui mt-1.5 text-[17px] font-bold leading-snug text-ink/75 sm:text-[18px]">
         {job.title}
       </h3>
-      <p className="mt-1 text-[14px] text-ink/55">{job.department}</p>
+      <p className="mt-1 text-[13px] text-ink/55 sm:text-[14px]">{job.department}</p>
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className="rounded bg-white px-2 py-1 text-[12.5px] font-medium text-ink/70">
@@ -279,10 +391,10 @@ export function SponsoredJobCard({ job }: { job: import("../../lib/ads").Sponsor
         <p className="whitespace-nowrap text-[14px] font-semibold tabular-nums text-ink/55">
           {job.deadlineDays} days left
         </p>
-        <button className="ml-auto h-10 rounded-lg border-2 border-ink/30 bg-white px-4 text-[14px] font-semibold text-ink/70 transition-colors hover:border-ink/50">
+        <button className="ml-auto h-11 rounded-lg border-2 border-ink/30 bg-white px-4 text-[14px] font-semibold text-ink/70 hover:border-ink/50">
           Details
         </button>
-        <button className="h-10 rounded-lg border-2 border-ink/25 bg-white px-5 text-[14px] font-bold text-ink/70 transition-colors hover:border-ink/50">
+        <button className="h-11 rounded-lg border-2 border-ink/25 bg-white px-5 text-[14px] font-bold text-ink/70 hover:border-ink/50">
           Apply Now
         </button>
       </div>
