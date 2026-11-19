@@ -168,7 +168,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://govjob-ai-copilot.vercel.app/"],  # exact origins only, never "*" with credentials
+    allow_origins=_cors_origins,  # exact origins only, never "*" with credentials
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
