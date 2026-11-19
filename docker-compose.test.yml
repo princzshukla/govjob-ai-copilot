@@ -1,0 +1,24 @@
+# One-command disposable Postgres for the test suite (CI uses the GitHub
+# Actions postgres service instead; this is for local runs).
+#
+#   docker compose -f docker-compose.test.yml up -d
+#   TEST_DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5433/govjobs_test" python -m pytest -q
+#
+# The DB lives on a tmpfs — wiped on every recreate, no state leaks between runs.
+services:
+  test-postgres:
+    image: postgres:16-alpine
+    container_name: govjob_test_pg
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: govjobs_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d govjobs_test"]
+      interval: 3s
+      timeout: 5s
+      retries: 30

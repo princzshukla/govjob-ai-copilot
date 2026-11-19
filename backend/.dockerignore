@@ -1,0 +1,25 @@
+# Secrets & local env files
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.pytest_cache/
+.mypy_cache/
+ruff_cache/
+
+# Node (not part of the backend image)
+node_modules/
+dist/
+.output/
+
+# Local-only operator files
+*.md
+!README.md
+
+# OS noise
+.DS_Store
+Thumbs.db
