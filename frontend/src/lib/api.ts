@@ -22,10 +22,12 @@ import type {
 } from "../types";
 
 // Both names are read so the app works with either the value written by setup.sh
-// or a manually configured frontend/.env.
+// or a manually configured frontend/.env. VITE_GOVJOB_API_BASE is preferred:
+// it is set in frontend/.env.production, whereas some hosts prefill the other
+// name with localhost, which would silently break production builds.
 const API_BASE =
-  import.meta.env["VITE_API_BASE_URL"] ??
   import.meta.env["VITE_GOVJOB_API_BASE"] ??
+  import.meta.env["VITE_API_BASE_URL"] ??
   "http://localhost:8000/api/v1";
 
 const REQUEST_TIMEOUT_MS = 25_000;
