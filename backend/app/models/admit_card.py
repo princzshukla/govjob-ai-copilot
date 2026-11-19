@@ -2,7 +2,7 @@
 from datetime import date
 from typing import Optional
 
-from sqlalchemy import Boolean, Date, Integer, String, Text
+from sqlalchemy import Boolean, Date, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.exam import Base
@@ -30,9 +30,9 @@ class AdmitCardNotification(Base):
     organizing_body: Mapped[str] = mapped_column(String(100), nullable=False)
     exam_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     # notice_pdf | notice_page | candidate_portal — what admit_url actually is
-    link_kind: Mapped[str] = mapped_column(String(20), default="notice_pdf", nullable=False)
+    link_kind: Mapped[str] = mapped_column(String(20), default="notice_pdf", server_default="notice_pdf", nullable=False)
     # admit_card | exam_city — exam-city intimation is a different notice type
-    notice_subtype: Mapped[str] = mapped_column(String(20), default="admit_card", nullable=False)
+    notice_subtype: Mapped[str] = mapped_column(String(20), default="admit_card", server_default="admit_card", nullable=False)
 
     notification_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     exam_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
@@ -41,9 +41,9 @@ class AdmitCardNotification(Base):
     source_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     last_checked_at: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
 
     # Weekly link-health sweep: consecutive *confirmed* 404/410 responses
     # required before the row is hidden; note explains the last decision.
-    link_fail_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    link_fail_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     link_health_note: Mapped[str | None] = mapped_column(Text, nullable=True)

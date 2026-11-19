@@ -48,6 +48,43 @@ class QuestionBank(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
+class QuestionReport(Base):
+    """One report per (question, user).
+
+    Without this, a single account could call ``/report-question`` three
+    times and silently retire any question for everybody.
+    """
+
+    __tablename__ = "question_reports"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    question_id = Column(
+        String,
+        ForeignKey(
+            "question_bank.id",
+            ondelete="CASCADE",
+            name="fk_question_reports_question_id",
+        ),
+        nullable=False,
+        index=True,
+    )
+    user_id = Column(
+        Integer,
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE",
+            name="fk_question_reports_user_id",
+        ),
+        nullable=False,
+    )
+    reason = Column(String(500), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+
+    __table_args__ = (
+        UniqueConstraint("question_id", "user_id", name="uq_question_reports_question_user"),
+    )
+
+
 class TopicMastery(Base):
     __tablename__ = "topic_mastery"
 

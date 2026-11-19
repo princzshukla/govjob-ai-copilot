@@ -70,6 +70,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
+from app.core.http_security import is_safe_url
 from app.models.pipeline import RawDiscoveredLink, ScrapeLog, ScrapeSource
 
 logger = logging.getLogger("app.layer1")
@@ -208,6 +209,10 @@ def extract_links(scoped: BeautifulSoup, base_url: str, link_pattern: str | None
         absolute = urljoin(base_url, raw)
         parsed = urlparse(absolute)
         if parsed.scheme not in ("http", "https"):
+            continue
+        # A scraped page can point at cloud metadata or an internal service;
+        # never feed such a URL into the Layer-2 downloader.
+        if not is_safe_url(absolute):
             continue
         url = parsed._replace(fragment="").geturl()
         if url in seen:

@@ -8,6 +8,7 @@ import {
   clearDraftProfile,
 } from "../../lib/draft";
 import { STATES } from "../../lib/exams";
+import { safeUrl } from "../../lib/safeUrl";
 import type {
   CandidateProfile,
   EligibilityCheckResponse,
@@ -92,7 +93,7 @@ function ResultRow({ r, tone }: { r: ExamMatchResult; tone: "ok" | "warn" | "bad
           )}
           {r.apply_url && (
             <a
-              href={r.apply_url}
+              href={safeUrl(r.apply_url)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex h-9 items-center rounded-lg bg-saffron px-3 text-[13px] font-bold text-white"
@@ -102,7 +103,7 @@ function ResultRow({ r, tone }: { r: ExamMatchResult; tone: "ok" | "warn" | "bad
           )}
           {r.official_pdf_url && (
             <a
-              href={r.official_pdf_url}
+              href={safeUrl(r.official_pdf_url)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex h-9 items-center rounded-lg border-2 border-ink px-3 text-[13px] font-bold text-ink hover:bg-ink hover:text-white"

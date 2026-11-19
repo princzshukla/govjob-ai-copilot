@@ -2,7 +2,7 @@
 from datetime import date
 from typing import Optional
 
-from sqlalchemy import ARRAY, Boolean, Date, Integer, Numeric, String, Text
+from sqlalchemy import ARRAY, Boolean, Date, Integer, Numeric, String, Text, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -26,7 +26,7 @@ class ExamNotification(Base):
     application_start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     # True once the jobs watchdog has confirmed the window against the
     # official PDF. The startup seed upsert then leaves deadline fields alone.
-    deadline_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deadline_locked: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)
     official_pdf_url: Mapped[str] = mapped_column(Text, nullable=True)
 
     # Statutory Eligibility Constraints

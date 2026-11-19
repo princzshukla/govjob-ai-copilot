@@ -12,7 +12,10 @@ Usage (started by Task Scheduler via pythonw.exe):
 from __future__ import annotations
 
 import argparse
-import msvcrt
+try:
+    import msvcrt  # Windows-only: file locking for Scheduled Tasks
+except ImportError:  # Linux/macOS (CI, dev): use fcntl instead
+    msvcrt = None
 import os
 import runpy
 import sys
@@ -44,7 +47,11 @@ def _acquire_lock(name: str):
     handle = open(LOG_DIR / f".{name}.lock", "a+b")
     handle.seek(0)
     try:
-        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        if msvcrt is not None:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         handle.close()
         return None
@@ -108,7 +115,11 @@ def main() -> int:
         log.flush()
         log.close()
         try:
-            msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+            if msvcrt is not None:
+                msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
         except OSError:
             pass
         lock.close()

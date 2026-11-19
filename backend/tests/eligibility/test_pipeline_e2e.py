@@ -24,6 +24,7 @@ import pytest
 from sqlalchemy import delete
 
 from app.api.v1.endpoints import candidate as candidate_module
+from app.api.v1.endpoints import eligibility as eligibility_module
 from app.core.database import AsyncSessionLocal
 from app.models.exam import ExamNotification
 from app.schemas.candidate import ParsedResumeProfile
@@ -73,6 +74,20 @@ async def _eligibility(client, profile_id: str) -> dict:
 
 def _by_exam(payload: dict, bucket: str) -> dict[str, dict]:
     return {exam["exam_id"]: exam for exam in payload[bucket]}
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _freeze_seed_window():
+    """Keep the seed exams used by these assertions inside their window.
+
+    These tests hardcode ``ssc-cgl-general`` and friends, whose real deadlines
+    have since passed. Freezing the eligibility module's notion of "today"
+    exercises the verdict logic instead of the calendar, without mutating seed
+    data or touching the live database.
+    """
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(eligibility_module, "today_ist", lambda: date(2026, 6, 1))
+        yield
 
 # ---------------------------------------------------------------------------
 # Profile 1 — resume upload, then manual DOB/category completion (age boundary)

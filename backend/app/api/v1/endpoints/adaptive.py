@@ -4,15 +4,16 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
-from sqlalchemy import select, update
+from sqlalchemy import case, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.api.v1.deps import current_user, user_or_ip_key
+from app.api.v1.deps import current_user, require_admin, user_or_ip_key
 from app.core.database import get_db
 from app.core.exam_patterns import get_exam_pattern
 from app.core.rate_limit import limiter
-from app.models.adaptive import QuestionBank, QuizAttempt, TopicMastery
+from app.models.adaptive import QuestionBank, QuestionReport, QuizAttempt, TopicMastery
 from app.models.auth import User
 from app.schemas.adaptive import (
     DiagnosticItem,
@@ -297,19 +298,79 @@ async def report_bad_question(
     if not q_record:
         raise HTTPException(status_code=404, detail="Question not found")
 
-    q_record.report_count = (q_record.report_count or 0) + 1
-    attempts = max(q_record.attempts_count or 1, 1)
-    if q_record.report_count >= 3 or (q_record.report_count / attempts) > 0.15:
-        q_record.is_retired = True
-    q_record.quality_score = round(max(0.0, (q_record.quality_score or 1.0) - 0.25), 2)
+    # Durable per-user dedup: three calls from one account must not retire a
+    # question for everybody. The unique constraint also closes the race
+    # between two simultaneous requests from the same user.
+    existing = await db.execute(
+        select(QuestionReport.id).where(
+            QuestionReport.question_id == question_id,
+            QuestionReport.user_id == user.id,
+        )
+    )
+    if existing.scalar_one_or_none() is not None:
+        return {
+            "question_id": q_record.id,
+            "report_count": q_record.report_count or 0,
+            "is_retired": q_record.is_retired,
+            "quality_score": q_record.quality_score,
+            "reason_logged": None,
+            "already_reported": True,
+        }
 
-    await db.commit()
+    new_count = QuestionBank.report_count + 1
+    should_retire = case(
+        (new_count >= 3, True),
+        (
+            new_count * 1.0 / func.greatest(QuestionBank.attempts_count, 1) > 0.15,
+            True,
+        ),
+        else_=QuestionBank.is_retired,
+    )
+    try:
+        db.add(
+            QuestionReport(
+                question_id=question_id,
+                user_id=user.id,
+                reason=reason[:500],
+            )
+        )
+        updated = await db.execute(
+            update(QuestionBank)
+            .where(QuestionBank.id == question_id)
+            .values(
+                report_count=new_count,
+                quality_score=func.greatest(
+                    0.0, func.coalesce(QuestionBank.quality_score, 1.0) - 0.25
+                ),
+                is_retired=should_retire,
+            )
+            .returning(
+                QuestionBank.report_count,
+                QuestionBank.is_retired,
+                QuestionBank.quality_score,
+            )
+        )
+        report_count, is_retired, quality_score = updated.one()
+        await db.commit()
+    except IntegrityError:
+        # Another request from this user won the unique-constraint race.
+        await db.rollback()
+        return {
+            "question_id": question_id,
+            "report_count": q_record.report_count or 0,
+            "is_retired": q_record.is_retired,
+            "quality_score": q_record.quality_score,
+            "reason_logged": None,
+            "already_reported": True,
+        }
+
     return {
-        "question_id": q_record.id,
-        "report_count": q_record.report_count,
-        "is_retired": q_record.is_retired,
-        "quality_score": q_record.quality_score,
+        "question_id": question_id,
+        "report_count": report_count,
+        "is_retired": is_retired,
+        "quality_score": round(quality_score, 2) if quality_score is not None else None,
         "reason_logged": reason,
+        "already_reported": False,
     }
 
 
@@ -322,7 +383,7 @@ async def import_real_pyq_question(
     topic: str = Body(...),
     pyq_year: int = Body(..., ge=2010, le=2026),
     question_payload: Dict[str, Any] = Body(...),
-    user: User = Depends(current_user),
+    admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """

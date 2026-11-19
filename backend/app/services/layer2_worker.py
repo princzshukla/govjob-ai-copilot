@@ -39,6 +39,7 @@ import httpx
 from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
+from app.core.http_security import assert_safe_url, fetch_limited
 from app.models.pipeline import (
     ExtractionResult as ExtractionResultRow,
     RawDiscoveredLink,
@@ -257,11 +258,15 @@ def _estimate_doc_tokens(text_chars: float) -> float:
 
 async def _fetch_pdf(url: str) -> bytes | None:
     try:
-        async with httpx.AsyncClient(timeout=30.0, headers=HTTP_HEADERS, follow_redirects=True) as client:
-            resp = await client.get(url)
-            resp.raise_for_status()
-            content = resp.content
-        return _check_pdf(url, content)
+        assert_safe_url(url)
+        async with httpx.AsyncClient(timeout=30.0, headers=HTTP_HEADERS) as client:
+            # Streams with a hard byte cap and re-validates every redirect hop.
+            status, content, final_url = await fetch_limited(
+                client, url, max_bytes=MAX_PDF_BYTES
+            )
+        if status in (404, 410):
+            return None
+        return _check_pdf(final_url, content)
     except Exception as exc:
         # Servers whose TLS stack requires legacy renegotiation (e.g. RSSB)
         # are rejected by OpenSSL 3 / httpx outright; Chromium (already used
@@ -286,6 +291,7 @@ def _check_pdf(url: str, content: bytes) -> bytes | None:
 async def _fetch_via_chromium(url: str) -> bytes:
     """Fetch bytes through a real Chromium navigation — the only thing that
     accepts servers demanding legacy TLS renegotiation (RSSB)."""
+    assert_safe_url(url)
     try:
         from playwright.async_api import async_playwright
     except ImportError as exc:
@@ -320,6 +326,10 @@ async def _fetch_via_chromium(url: str) -> bytes:
                 }""",
                 url,
             )
+            # btoa inflates by ~4/3; cap before decoding so a hostile page
+            # cannot make us allocate an unbounded buffer in the worker.
+            if len(b64) > int(MAX_PDF_BYTES * 4 / 3) + 1024:
+                raise ValueError("chromium response too large")
             return base64.b64decode(b64)
         finally:
             await browser.close()

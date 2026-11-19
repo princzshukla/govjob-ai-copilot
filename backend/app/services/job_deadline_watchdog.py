@@ -14,6 +14,7 @@ from datetime import date, timedelta
 import httpx
 from sqlalchemy import or_, select
 
+from app.core.http_security import fetch_limited
 from app.core.timeutils import today_ist
 from app.models.exam import ExamNotification
 from app.models.exam_changes import ExamNotificationChange
@@ -49,17 +50,13 @@ def _record_change(db, exam: ExamNotification, *, field: str, old, new,
 
 async def _fetch_notice_text(url: str, client: httpx.AsyncClient) -> tuple[str, bool]:
     """Return (text, is_official_pdf). Failures raise to the caller."""
-    response = await client.get(url, timeout=25)
-    if response.status_code in (404, 410):
-        return "", False
-    response.raise_for_status()
-    body = response.content
+    _status, body, _final_url = await fetch_limited(
+        client, url, max_bytes=_MAX_PDF_BYTES
+    )
     if body.startswith(b"%PDF-"):
-        if len(body) > _MAX_PDF_BYTES:
-            raise ValueError("pdf_too_large")
         text, _pages, _cpp = nx.extract_text_stats(body)
         return text, True
-    return body.decode(response.encoding or "utf-8", errors="ignore"), False
+    return body.decode("utf-8", errors="ignore"), False
 
 
 async def check_exam_deadlines(

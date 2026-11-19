@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import and_, delete, or_, select, update
 
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.timeutils import today_ist
 from app.models.admit_card import AdmitCardNotification
@@ -205,6 +206,7 @@ async def check_admit_cards_links(
     headers = {"User-Agent": "govjob-copilot/0.1 (admit-card link health check)"}
     dead: list[str] = []
     refreshed = 0
+    changed = False
     async with AsyncSessionLocal() as db:
         rows = list(
             (await db.execute(select(AdmitCardNotification).where(AdmitCardNotification.is_active.is_(True)))).scalars().all()
@@ -222,6 +224,11 @@ async def check_admit_cards_links(
                     probe["attempts"], link_failure_threshold, note,
                 )
                 row.link_fail_count = fail_count
+                # A confirmed-dead first strike increments the counter but does
+                # not deactivate yet. Commit it, otherwise the rollback at the
+                # end of the sweep resets the counter and the two-strike rule
+                # can never fire.
+                changed = True
                 # Preserve prior operator context (e.g. why a row was restored)
                 # alongside the latest sweep decision.
                 previous_note = (row.link_health_note or "").strip()
@@ -233,7 +240,7 @@ async def check_admit_cards_links(
                 elif probe["reachable"]:
                     row.last_checked_at = today_ist()
                     refreshed += 1
-        if dead or refreshed:
+        if changed:
             await db.commit()
     if dead:
         logger.warning("admit-card links unhealthy (%d): %s", len(dead), ", ".join(dead))

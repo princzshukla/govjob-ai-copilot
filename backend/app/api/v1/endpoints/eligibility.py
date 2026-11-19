@@ -162,8 +162,15 @@ async def create_exam_roadmap(
     if cache_key in ROADMAP_CACHE:
         roadmap = ROADMAP_CACHE[cache_key]
     else:
-        exams = await _ensure_seed_exams(db)
-        exam_obj = next((e for e in exams if e.id == exam_id), None)
+        # A roadmap is a study plan built from the exam's syllabus — it is not
+        # an application action, so a closed application window must not make
+        # the exam unfindable. Seed if needed, then look the row up by id only.
+        await _seed_and_backfill(db)
+        exam_obj = (
+            await db.execute(
+                select(ExamNotification).where(ExamNotification.id == exam_id)
+            )
+        ).scalar_one_or_none()
         if not exam_obj:
             raise HTTPException(status_code=404, detail="Exam ID not found")
 
