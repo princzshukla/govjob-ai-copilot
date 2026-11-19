@@ -1,10 +1,10 @@
 # Render Blueprint for the GovJob Copilot backend API.
 #
-# The Dockerfile lives in backend/ and its COPY commands assume backend/ is the
-# build context (see backend/.dockerignore). Point Render at the Dockerfile
-# FILE — not the directory — and keep the context at backend/. Otherwise the
-# build fails with "failed to read dockerfile: ... /backend: is a directory",
-# or COPY fails if the context is the repo root.
+# Render resolves the Dockerfile Path from the repo root, so a root-level
+# Dockerfile is provided. Its COPY commands assume backend/ is the build
+# context (see backend/.dockerignore). Point Render at the Dockerfile FILE —
+# not the directory — and keep the context at backend/. Otherwise the build
+# fails with "failed to read dockerfile: ... /backend: is a directory".
 #
 # Connect this Blueprint to your EXISTING Render web service by setting `name`
 # below to that service's exact name before syncing. All env vars use
@@ -15,7 +15,7 @@ services:
     name: govjob-ai-copilot
     runtime: docker
     branch: main
-    dockerfilePath: ./backend/Dockerfile
+    dockerfilePath: ./Dockerfile
     dockerContext: ./backend
     healthCheckPath: /health
 
