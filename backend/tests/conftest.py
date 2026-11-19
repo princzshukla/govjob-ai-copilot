@@ -12,7 +12,7 @@ os.environ["LLM_FALLBACK_API_KEY"] = ""
 os.environ["LLM_FALLBACK_MODEL"] = ""
 os.environ["ENVIRONMENT"] = "test"
 # CI or a developer can point tests at a disposable Postgres instance without
-# editing this file. The default remains the local docker-compose database.
+# editing this file. The default is a local Postgres on :5432.
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
     "postgresql+asyncpg://postgres:postgres@localhost:5432/govjobs_test",

@@ -94,9 +94,10 @@ flagged `review`. Full per-field detail and both runs' history: see
 ```bash
 # backend (Python 3.13; uses backend/venv)
 cd backend && pip install -r requirements.txt
-# disposable test DB (one command; wiped every run)
-docker compose -f ../docker-compose.test.yml up -d
-TEST_DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5433/govjobs_test" python -m pytest -q
+# tests need a running local Postgres; the suite drops/recreates govjobs_test itself
+python -m pytest -q
+# point it elsewhere if your Postgres is not on localhost:5432
+TEST_DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/govjobs_test" python -m pytest -q
 # golden eligibility cases (51+ cases, no DB needed)
 python -m pytest tests/eligibility -q
 
