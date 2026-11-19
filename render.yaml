@@ -12,7 +12,7 @@
 
 services:
   - type: web
-    name: govjob-backend # TODO: set to the exact name of the existing Render service
+    name: govjob-ai-copilot
     runtime: docker
     branch: main
     dockerfilePath: ./backend/Dockerfile
