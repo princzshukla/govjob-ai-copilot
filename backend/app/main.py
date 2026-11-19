@@ -105,7 +105,7 @@ async def lifespan(_app: FastAPI):
 # Only exact origins from settings are allowed. The default list covers the
 # local dev servers and the deployed Vercel frontend; set CORS_ORIGINS in the
 # environment to override for custom domains.
-_CORS_ORIGINS = list(dict.fromkeys(settings.cors_origins_list))
+CORS_ORIGINS = list(dict.fromkeys(settings.cors_origins_list))
 
 app = FastAPI(
     title="GovJob Matcher & AI Roadmap API",
@@ -168,7 +168,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_CORS_ORIGINS,  # exact origins only, never "*" with credentials
+    allow_origins=CORS_ORIGINS,  # exact origins only, never "*" with credentials
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
