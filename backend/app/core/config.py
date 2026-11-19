@@ -96,6 +96,11 @@ class Settings(BaseSettings):
                 )
             if samesite == "none" and not self.COOKIE_SECURE:
                 raise ValueError("COOKIE_SAMESITE=none requires COOKIE_SECURE=true")
+            if "postgres:postgres@" in self.DATABASE_URL:
+                raise ValueError(
+                    "Refusing to run as the postgres superuser in production — "
+                    "use a least-privilege application role"
+                )
         return self
 
     @field_validator("TELEGRAM_BOT_TOKEN", mode="after")
