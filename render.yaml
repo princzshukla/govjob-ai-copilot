@@ -56,7 +56,7 @@ services:
       - key: COOKIE_SAMESITE
         sync: false
       - key: CORS_ORIGINS
-        sync: false
+        value: https://govjob-ai-copilot.vercel.app
       - key: RATE_LIMIT_STORAGE_URL
         sync: false
 
