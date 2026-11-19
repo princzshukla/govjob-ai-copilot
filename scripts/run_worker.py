@@ -31,6 +31,10 @@ WORKERS = {
         ["-m", "app.services.layer2_worker", "--all-sources", "--drain", "--max-docs", "50"],
         LOG_DIR / "layer2.log",
     ),
+    "jobswatchdog": (
+        ["-m", "app.services.jobs_watchdog_worker", "--once"],
+        LOG_DIR / "jobs_watchdog.log",
+    ),
 }
 
 

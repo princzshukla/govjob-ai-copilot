@@ -21,6 +21,12 @@ class ExamNotification(Base):
     notification_date: Mapped[date] = mapped_column(Date, nullable=True)
     application_deadline: Mapped[date] = mapped_column(Date, nullable=False)
     exam_date: Mapped[date] = mapped_column(Date, nullable=True)
+    # Official application-window opening date. NULL when the notice does not
+    # state one — never inferred from the aggregator.
+    application_start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    # True once the jobs watchdog has confirmed the window against the
+    # official PDF. The startup seed upsert then leaves deadline fields alone.
+    deadline_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     official_pdf_url: Mapped[str] = mapped_column(Text, nullable=True)
 
     # Statutory Eligibility Constraints

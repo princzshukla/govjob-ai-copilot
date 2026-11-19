@@ -1,5 +1,8 @@
+import json
 import logging
+import os
 from datetime import date
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +14,7 @@ logger = logging.getLogger(__name__)
 # intentionally left blank rather than guessed — the UI hides the Apply button
 # for them and only the official notification PDF is shown.
 
-SEED_EXAMS = [
+_BASE_SEED_EXAMS = [
     # ==================== 10TH & 12TH PASS GOVERNMENT JOBS ====================
     {
         "id": "ssc-chsl-12th",
@@ -2103,6 +2106,72 @@ SEED_EXAMS = [
     },
 ]
 
+# Admin-approved job discoveries are persisted in a small JSON overlay and
+# become part of the same SEED_EXAMS list used by upsert_seed_exams(). Exactly
+# the admit-card overlay pattern — no second publishing pipeline.
+APPROVED_JOB_SEED_PATH = Path(
+    os.environ.get("JOB_DISCOVERY_SEED_OVERLAY")
+    or Path(__file__).with_name("approved_job_discoveries.json")
+)
+
+_JOB_DATE_FIELDS = (
+    "notification_date", "application_start_date", "application_deadline", "exam_date",
+    "age_cutoff_date", "verified_on", "last_checked_at",
+)
+
+
+def load_approved_job_discoveries() -> list[dict]:
+    try:
+        data = json.loads(APPROVED_JOB_SEED_PATH.read_text(encoding="utf-8"))
+        if not isinstance(data, list):
+            return []
+        for exam in data:
+            for field in _JOB_DATE_FIELDS:
+                if isinstance(exam.get(field), str):
+                    exam[field] = date.fromisoformat(exam[field])
+            if isinstance(exam.get("topics"), list):
+                exam["topics"] = set(exam["topics"])
+        return data
+    except (FileNotFoundError, json.JSONDecodeError, OSError, ValueError):
+        return []
+
+
+def record_approved_job_seed(item: dict) -> dict:
+    """Append an approved job discovery to the overlay (id/URL dedup enforced)."""
+    existing = load_approved_job_discoveries()
+    official_url = item.get("official_pdf_url") or item.get("source_url")
+    if any(
+        exam.get("id") == item.get("id")
+        or ((exam.get("official_pdf_url") or exam.get("source_url")) == official_url and official_url)
+        for exam in existing + _BASE_SEED_EXAMS
+    ):
+        raise ValueError("approved job discovery duplicates an existing seed id or official URL")
+    serializable = {
+        key: (value.isoformat() if isinstance(value, date)
+              else sorted(value) if isinstance(value, set) else value)
+        for key, value in item.items()
+    }
+    existing.append(serializable)
+    APPROVED_JOB_SEED_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = APPROVED_JOB_SEED_PATH.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(existing, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, APPROVED_JOB_SEED_PATH)
+    refresh_approved_job_discoveries()
+    return item
+
+
+def refresh_approved_job_discoveries() -> None:
+    approved = load_approved_job_discoveries()
+    known = {exam["id"] for exam in SEED_EXAMS}
+    for item in approved:
+        if item.get("id") not in known:
+            SEED_EXAMS.append(item)
+            known.add(item["id"])
+
+
+SEED_EXAMS: list[dict] = _BASE_SEED_EXAMS + load_approved_job_discoveries()
+
+
 # Fields the curated seed file is allowed to refresh on existing seed rows.
 # Content fields (title, ages, degrees, topics, organizing_body…) are never
 # overwritten — admins may edit those in place.
@@ -2164,10 +2233,19 @@ async def upsert_seed_exams(db) -> int:
             continue
 
         changed = False
+        # A deadline confirmed against the official PDF by the jobs watchdog
+        # is authoritative: the curated file must not silently undo it on the
+        # next startup. Other provenance fields still refresh normally.
+        deadline_locked = bool(getattr(row, "deadline_locked", False))
+        locked_fields = {
+            "application_deadline", "exam_date", "verified_on",
+            "verification_status", "source_url", "last_checked_at",
+        } if deadline_locked else set()
         new_deadline = item.get("application_deadline")
         today = today_ist()
         if (
-            new_deadline is not None
+            not deadline_locked
+            and new_deadline is not None
             and row.application_deadline is not None
             and new_deadline > row.application_deadline
         ):
@@ -2181,6 +2259,8 @@ async def upsert_seed_exams(db) -> int:
                 row.is_active = True
             changed = True
         for field in _REFRESHABLE_FIELDS:
+            if field in locked_fields:
+                continue
             if field == "apply_url" and "apply_url" not in item:
                 # Never null out a stored apply link the file does not define —
                 # rows may have gotten one from the pipeline or an admin.

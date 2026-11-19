@@ -24,6 +24,13 @@ class NotificationDiscovery(Base):
     organization: Mapped[str | None] = mapped_column(String(120), nullable=True)
     recruitment_year: Mapped[str | None] = mapped_column(String(4), nullable=True)
     notice_subtype: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # 'job' (jobs watchdog) or 'admit_card' (legacy admit-card watchdog).
+    notification_kind: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="admit_card",
+        server_default="admit_card", index=True
+    )
+    # new_recruitment | duplicate | ambiguous | irrelevant | requires_official_verification
+    classification: Mapped[str | None] = mapped_column(String(30), nullable=True)
     official_website: Mapped[str | None] = mapped_column(Text, nullable=True)
     official_notification_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     official_pdf_url: Mapped[str | None] = mapped_column(Text, nullable=True)

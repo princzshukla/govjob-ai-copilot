@@ -50,5 +50,5 @@ def harden(name: str) -> None:
 
 
 if __name__ == "__main__":
-    for task in ("GovJob-Poller", "GovJob-Layer2"):
+    for task in ("GovJob-Poller", "GovJob-Layer2", "GovJob-JobsWatchdog"):
         harden(task)

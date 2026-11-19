@@ -20,6 +20,9 @@ def test_worker_contract():
         "--all-sources", "--drain", "--max-docs", "50",
     ]
     assert layer2_log.name == "layer2.log"
+    jobs_args, jobs_log = run_worker.WORKERS["jobswatchdog"]
+    assert jobs_args == ["-m", "app.services.jobs_watchdog_worker", "--once"]
+    assert jobs_log.name == "jobs_watchdog.log"
     assert run_worker.BACKEND.name == "backend"
     assert run_worker.LOG_DIR.name == "logs"
 

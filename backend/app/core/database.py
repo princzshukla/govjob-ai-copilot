@@ -7,9 +7,12 @@ from app.models.exam import Base
 
 # Model imports so metadata knows about all tables
 import app.models.adaptive  # noqa: F401
+import app.models.admit_card  # noqa: F401
 import app.models.auth  # noqa: F401
 import app.models.candidate  # noqa: F401
+import app.models.discovery  # noqa: F401
 import app.models.exam  # noqa: F401
+import app.models.exam_changes  # noqa: F401
 import app.models.pipeline  # noqa: F401
 import app.models.progress  # noqa: F401
 import app.models.report  # noqa: F401

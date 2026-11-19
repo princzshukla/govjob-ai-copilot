@@ -13,12 +13,15 @@ from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.api.v1.endpoints import adaptive, admit_cards, admin, auth, candidate, discovery, eligibility, notifications, user_data, users
+from app.api.v1.endpoints import (adaptive, admit_cards, admin, auth, candidate, discovery,
+                                  eligibility, job_discoveries, jobs_watchdog_api, notifications,
+                                  user_data, users)
 from app.core.config import settings
 from app.core.logging_config import configure_logging
 from app.core.rate_limit import limiter
 from app.core.tasks import admit_link_check_loop, exam_deadline_expiry_loop, session_cleanup_loop
 from app.services.coverage_watchdog import coverage_watchdog_loop
+from app.services.jobs_watchdog import jobs_watchdog_loop
 
 configure_logging()
 logger = logging.getLogger("app")
@@ -74,9 +77,12 @@ async def lifespan(_app: FastAPI):
     # eligibility covers a missed run).
     cleanup_task = asyncio.create_task(session_cleanup_loop())
     expiry_task = asyncio.create_task(exam_deadline_expiry_loop())
-    # Weekly read-only coverage watchdog: alerts the admin when live jobs
-    # listed by the aggregator are missing from SEED_EXAMS. No DB writes.
+    # Weekly admit-card coverage watchdog (research only; one-to-one 0.72).
     watchdog_task = asyncio.create_task(coverage_watchdog_loop())
+    # Independent Jobs Watchdog: strict 0.72 job coverage, official PDF
+    # verification, discovery queue, deadlines and reports. Shares a lock
+    # with the scheduled jobswatchdog worker so the two never overlap.
+    jobs_watchdog_task = asyncio.create_task(jobs_watchdog_loop())
     # Weekly admit-card link liveness check (HEAD each admit_url; refresh
     # last_checked_at on 2xx, hide on 404/410, alert admin either way).
     link_check_task = asyncio.create_task(admit_link_check_loop())
@@ -86,11 +92,13 @@ async def lifespan(_app: FastAPI):
         cleanup_task.cancel()
         expiry_task.cancel()
         watchdog_task.cancel()
+        jobs_watchdog_task.cancel()
         link_check_task.cancel()
         with suppress(asyncio.CancelledError):
             await cleanup_task
             await expiry_task
             await watchdog_task
+            await jobs_watchdog_task
             await link_check_task
 
 
@@ -175,6 +183,8 @@ app.include_router(admin.router, prefix="/api/v1")
 app.include_router(adaptive.router, prefix="/api/v1/adaptive", tags=["Adaptive Preparation"])
 app.include_router(admit_cards.router, prefix="/api/v1")
 app.include_router(discovery.router, prefix="/api/v1")
+app.include_router(job_discoveries.router, prefix="/api/v1")
+app.include_router(jobs_watchdog_api.router, prefix="/api/v1")
 
 
 @app.get("/health")

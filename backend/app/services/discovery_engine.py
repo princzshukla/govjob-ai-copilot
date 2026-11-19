@@ -268,42 +268,86 @@ def transition(record, to_status: str, note: str | None, actor: str = "system") 
     # history is written by callers that have a DB session
 
 
-async def collect_existing(db, exclude_id: int | None = None) -> list[dict]:
-    """Seeds + all DB cards (active & inactive) + prior discoveries."""
-    from app.core.admit_cards import SEED_ADMIT_CARDS
-    from app.models.admit_card import AdmitCardNotification
+async def collect_existing(db, exclude_id: int | None = None,
+                           notification_kind: str = "admit_card") -> list[dict]:
+    """Seeds + DB rows + prior discoveries for the given notification kind.
 
+    Default (``admit_card``) preserves the legacy comparison set exactly. The
+    jobs watchdog passes ``notification_kind='job'`` to compare against
+    ``SEED_EXAMS`` and ``exam_notifications`` instead.
+    """
     items: list[dict] = []
-    for seed in SEED_ADMIT_CARDS:
-        signals = analyze_entry(str(seed.get("title") or ""))
+    if notification_kind == "job":
+        from app.core.seed import SEED_EXAMS
+        from app.models.exam import ExamNotification
+
+        for seed in SEED_EXAMS:
+            signals = analyze_entry(str(seed.get("title") or ""))
+            items.append({
+                "id": str(seed.get("id") or ""),
+                "url": seed.get("official_pdf_url") or seed.get("source_url"),
+                "title": str(seed.get("title") or ""),
+                "organization": signals.get("organization"),
+                "year": signals.get("recruitment_year"),
+                "source": "exam_seed",
+            })
+        for exam in (await db.execute(select(ExamNotification))).scalars().all():
+            signals = analyze_entry(exam.title)
+            items.append({
+                "id": exam.id, "url": exam.official_pdf_url or exam.source_url,
+                "title": exam.title, "organization": signals.get("organization"),
+                "year": signals.get("recruitment_year"), "source": "exam_notifications",
+            })
+    else:
+        from app.core.admit_cards import SEED_ADMIT_CARDS
+        from app.models.admit_card import AdmitCardNotification
+
+        for seed in SEED_ADMIT_CARDS:
+            signals = analyze_entry(str(seed.get("title") or ""))
+            items.append({
+                "id": str(seed.get("id") or ""),
+                "url": seed.get("admit_url"),
+                "title": str(seed.get("title") or ""),
+                "organization": signals.get("organization"),
+                "year": signals.get("recruitment_year"),
+                "source": "seed",
+            })
+        for card in (await db.execute(select(AdmitCardNotification))).scalars().all():
+            signals = analyze_entry(card.title)
+            items.append({
+                "id": card.id, "url": card.admit_url, "title": card.title,
+                "organization": signals.get("organization"),
+                "year": signals.get("recruitment_year"), "source": "admit_cards",
+            })
+    prior_stmt = select(NotificationDiscovery).where(
+        NotificationDiscovery.notification_kind == notification_kind
+    )
+    if exclude_id is not None:
+        prior_stmt = prior_stmt.where(NotificationDiscovery.id != exclude_id)
+    for prior in (await db.execute(prior_stmt)).scalars().all():
         items.append({
-            "id": str(seed.get("id") or ""),
-            "url": seed.get("admit_url"),
-            "title": str(seed.get("title") or ""),
-            "organization": signals.get("organization"),
-            "year": signals.get("recruitment_year"),
-            "source": "seed",
-        })
-    for card in (await db.execute(select(AdmitCardNotification))).scalars().all():
-        signals = analyze_entry(card.title)
-        items.append({
-            "id": card.id, "url": card.admit_url, "title": card.title,
-            "organization": signals.get("organization"),
-            "year": signals.get("recruitment_year"), "source": "admit_cards",
-        })
-    for prior in (await db.execute(select(NotificationDiscovery))).scalars().all():
-        if exclude_id is not None and prior.id == exclude_id:
-            continue  # the record being investigated/approved is not its own duplicate
-        items.append({
-            "id": f"discovery-{prior.id}", "url": prior.official_pdf_url or prior.official_notification_url,
+            "id": f"discovery-{prior.id}",
+            "url": prior.official_pdf_url or prior.official_notification_url,
             "title": prior.aggregator_title, "organization": prior.organization,
             "year": prior.recruitment_year, "source": "discovery",
         })
     return items
 
 
-async def process_entry(db, entry: "cw.CoverageEntry", client: httpx.AsyncClient) -> NotificationDiscovery | None:
-    """Investigate one unmatched entry. Never approves or publishes."""
+async def process_entry(
+    db,
+    entry: "cw.CoverageEntry",
+    client: httpx.AsyncClient,
+    *,
+    notification_kind: str = "admit_card",
+    classification: str | None = None,
+    verifier=None,
+) -> NotificationDiscovery | None:
+    """Investigate one unmatched entry. Never approves or publishes.
+
+    ``notification_kind``/``classification``/``verifier`` are keyword-only and
+    default to the legacy admit-card behaviour.
+    """
     existing = (
         await db.execute(select(NotificationDiscovery).where(NotificationDiscovery.aggregator_url == entry.url))
     ).scalar_one_or_none()
@@ -312,7 +356,7 @@ async def process_entry(db, entry: "cw.CoverageEntry", client: httpx.AsyncClient
 
     # Snapshot comparison set BEFORE inserting this record, otherwise the
     # new row matches itself on normalized title.
-    existing_items = await collect_existing(db)
+    existing_items = await collect_existing(db, notification_kind=notification_kind)
     analysis = analyze_entry(entry.title)
     record = NotificationDiscovery(
         aggregator_title=entry.title[:500],
@@ -320,6 +364,8 @@ async def process_entry(db, entry: "cw.CoverageEntry", client: httpx.AsyncClient
         organization=analysis["organization"],
         recruitment_year=analysis["recruitment_year"],
         notice_subtype=analysis["notice_subtype"],
+        notification_kind=notification_kind,
+        classification=classification,
         official_website=(OFFICIAL_SOURCES.get(analysis["organization"] or "") or {}).get("website"),
         extracted_information={"analysis": analysis},
         confidence_score=0.0,
@@ -354,7 +400,8 @@ async def process_entry(db, entry: "cw.CoverageEntry", client: httpx.AsyncClient
             note = "No official-domain candidate found; manual source research required"
         else:
             for candidate in official_candidates:
-                attempt = await verify_official_candidate(candidate["url"], entry.title, client)
+                verify = verifier or verify_official_candidate
+                attempt = await verify(candidate["url"], entry.title, client)
                 if verification is None or attempt["token_overlap"] > verification["token_overlap"]:
                     verification = attempt
                 if attempt["document_matched"]:
@@ -389,6 +436,8 @@ async def process_entry(db, entry: "cw.CoverageEntry", client: httpx.AsyncClient
     record.extracted_information = {
         "analysis": analysis,
         "verification": verification or {},
+        "fields": (verification or {}).get("fields", {}),
+        "classification": classification,
         "duplicate_check": duplicate,
         "candidate_count": len(candidates),
         "evidence_policy": "official_board_url_and_pdf_text_only",
@@ -398,14 +447,26 @@ async def process_entry(db, entry: "cw.CoverageEntry", client: httpx.AsyncClient
     return record
 
 
-async def run_discovery(db, entries: list["cw.CoverageEntry"], limit: int = 25) -> dict:
+async def run_discovery(
+    db,
+    entries: list["cw.CoverageEntry"],
+    limit: int = 25,
+    *,
+    notification_kind: str = "admit_card",
+    classification_fn=None,
+    verifier=None,
+) -> dict:
     """Investigate unmatched entries; returns counts for logging/reporting."""
     stats = {"processed": 0, "skipped": 0, "failed": 0, "pdf_verified": 0,
-             "needs_review": 0, "duplicate": 0}
+             "needs_review": 0, "duplicate": 0, "source_found": 0}
     async with httpx.AsyncClient(timeout=25.0, headers=_HTTP_HEADERS, follow_redirects=True) as client:
         for entry in entries[:limit]:
             try:
-                record = await process_entry(db, entry, client)
+                classification = classification_fn(entry) if classification_fn else None
+                record = await process_entry(
+                    db, entry, client, notification_kind=notification_kind,
+                    classification=classification, verifier=verifier,
+                )
                 await db.commit()
                 if record is None:
                     stats["skipped"] += 1

@@ -310,7 +310,20 @@ def build_report(
     actionable_only: bool = False,
     today: "date | None" = None,
     kind: str = "latest_jobs",
+    aliases: "dict[str, str] | None" = None,
+    penalty_fn=None,
 ) -> CoverageReport:
+    """Score entries against seeds and assign one seed to at most one entry.
+
+    ``aliases`` and ``penalty_fn`` are optional hooks for a specialist watchdog
+    (the jobs watchdog supplies its own aliases and qualification/category
+    signals). When omitted, behaviour is exactly as before: admit-card reports
+    use ``_TITLE_ALIASES`` and every report uses ``signal_penalty``.
+    """
+    if aliases is None and kind == "admit_card":
+        aliases = _TITLE_ALIASES
+    if penalty_fn is None:
+        penalty_fn = signal_penalty
     filtered_out = 0
     if actionable_only:
         actionable = [e for e in entries if is_actionable(e, today)]
@@ -321,7 +334,7 @@ def build_report(
     # coverage. Explicit aliases bypass fuzzy scoring entirely.
     candidates: list[tuple[int, CoverageEntry, str, float, bool, bool]] = []
     for index, entry in enumerate(entries):
-        alias_target = _TITLE_ALIASES.get(normalize_title(entry.title)) if kind == "admit_card" else None
+        alias_target = aliases.get(normalize_title(entry.title)) if aliases else None
         if alias_target:
             # Resolve the normalized alias back to the real seed title so the
             # report names the actual row rather than a normalized string.
@@ -335,7 +348,7 @@ def build_report(
         best_score, second_score, best_seed = 0.0, 0.0, ""
         for seed_title in seed_titles:
             base = match_score(entry_strong, normalize_strong(seed_title))
-            score = max(0.0, base + signal_penalty(entry.title, seed_title))
+            score = max(0.0, base + penalty_fn(entry.title, seed_title))
             if score > best_score:
                 second_score, best_score, best_seed = best_score, score, seed_title
             elif score > second_score:
@@ -495,10 +508,14 @@ async def send_watchdog_alert(report: CoverageReport) -> bool:
 
 
 async def coverage_watchdog_loop(interval_seconds: int = _WATCHDOG_INTERVAL_SECONDS) -> None:
-    """Weekly watchdog: report coverage gaps and feed unmatched admit-card
-    entries into the discovery queue (research only, never publishes)."""
+    """Weekly ADMIT-CARD watchdog: report gaps and feed unmatched admit-card
+    entries into the discovery queue (research only, never publishes).
+
+    Jobs are monitored by the independent Jobs Watchdog (jobs_watchdog.py),
+    with its own stricter threshold, schedule and lock.
+    """
     while True:
-        for kind, url in (("latest_jobs", LATEST_JOBS_URL), ("admit_card", ADMIT_CARD_URL)):
+        for kind, url in (("admit_card", ADMIT_CARD_URL),):
             try:
                 report = await check_coverage(url, kind=kind)
                 if report.missing:

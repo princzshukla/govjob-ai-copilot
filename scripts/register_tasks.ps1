@@ -10,7 +10,8 @@
 # OS-level lock so two workers can never overlap. Task Scheduler itself uses
 # MultipleInstancesPolicy=IgnoreNew as a second layer of protection.
 #
-# Schedules: Poller every 1 minute; Layer 2 every 15 minutes.
+# Schedules: Poller every 1 minute; Layer 2 every 15 minutes;
+# Jobs Watchdog daily at 03:30 (independent from the admit-card watchdog).
 
 param(
     [switch]$Unregister,
@@ -29,7 +30,8 @@ if (-not (Test-Path $Launcher)) { throw "launcher not found: $Launcher" }
 
 $tasks = @(
     @{ Name = "GovJob-Poller"; Frequency = "MINUTE"; Modifier = 1; Args = "--worker poller" },
-    @{ Name = "GovJob-Layer2"; Frequency = "MINUTE"; Modifier = 15; Args = "--worker layer2" }
+    @{ Name = "GovJob-Layer2"; Frequency = "MINUTE"; Modifier = 15; Args = "--worker layer2" },
+    @{ Name = "GovJob-JobsWatchdog"; Frequency = "DAILY"; Modifier = 1; StartTime = "03:30"; Args = "--worker jobswatchdog" }
 )
 
 foreach ($t in $tasks) {
@@ -46,6 +48,7 @@ foreach ($t in $tasks) {
     # Quoted /TR: pythonw.exe with the hidden launcher; no cmd.exe at all.
     $command = '"{0}" "{1}" {2}' -f $PythonW, $Launcher, $t.Args
     $schtaskArgs = @("/Create", "/TN", $t.Name, "/TR", $command, "/SC", $t.Frequency, "/MO", $t.Modifier, "/F")
+    if ($t.StartTime) { $schtaskArgs += @("/ST", $t.StartTime) }
     $result = & schtasks @schtaskArgs 2>&1
     if ($LASTEXITCODE -ne 0) { throw "failed to create $($t.Name): $result" }
     Write-Host "registered $($t.Name)  ->  pythonw.exe (hidden), $($t.Args)"
@@ -57,6 +60,6 @@ if (-not $Unregister -and -not $WhatIf) {
     $hardener = Join-Path $PSScriptRoot "harden_tasks.py"
     & $py $hardener
     Write-Host ""
-    Write-Host "Logs: $LogDir\poller.log and $LogDir\layer2.log (uncaught exceptions included)"
-    Write-Host "Run now: schtasks /Run /TN GovJob-Poller ; schtasks /Run /TN GovJob-Layer2"
+    Write-Host "Logs: $LogDir\poller.log, $LogDir\layer2.log and $LogDir\jobs_watchdog.log"
+    Write-Host "Run now: schtasks /Run /TN GovJob-Poller ; schtasks /Run /TN GovJob-Layer2 ; schtasks /Run /TN GovJob-JobsWatchdog"
 }
