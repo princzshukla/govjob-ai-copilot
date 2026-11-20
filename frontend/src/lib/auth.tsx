@@ -114,8 +114,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(async (email: string, password: string) => {
     const u = await api.login(email, password);
-    await claimGuestDraft();
+    // Publish the session first: a failed draft claim must never clear the
+    // freshly established user (the global 401 handler can run during it).
     setUser(u);
+    await claimGuestDraft();
     toast("success", "Signed in", `Welcome back${u.full_name ? `, ${u.full_name.split(" ")[0]}` : ""}.`);
   }, []);
 
@@ -127,8 +129,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         full_name: name,
         phone: phone?.replace(/\D/g, "") ? phone.replace(/\D/g, "") : null,
       });
-      await claimGuestDraft();
       setUser(u);
+      await claimGuestDraft();
       toast("success", "Account created", "Welcome aboard.");
     },
     [],
