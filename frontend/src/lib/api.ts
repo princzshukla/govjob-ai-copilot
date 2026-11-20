@@ -22,13 +22,15 @@ import type {
 } from "../types";
 
 // Both names are read so the app works with either the value written by setup.sh
-// or a manually configured frontend/.env. VITE_GOVJOB_API_BASE is preferred:
-// it is set in frontend/.env.production, whereas some hosts prefill the other
-// name with localhost, which would silently break production builds.
+// or a manually configured frontend/.env. In production Vercel rewrites /api/*
+// to the Render backend (see vercel.json), so the browser calls a SAME-ORIGIN
+// path and the session cookie stays first-party — cross-origin cookies are
+// blocked by browsers (notably mobile Safari) and broke login persistence.
+// The default below is the production path; local dev overrides it via .env.
 const API_BASE =
   import.meta.env["VITE_GOVJOB_API_BASE"] ??
   import.meta.env["VITE_API_BASE_URL"] ??
-  "http://localhost:8000/api/v1";
+  "/api/v1";
 
 const REQUEST_TIMEOUT_MS = 25_000;
 
@@ -201,8 +203,8 @@ export function buildProfilePayload(
   return out;
 }
 
-// Global 401 handler: registered once by the app so ANY API call answered with
-// 401 flips the UI to signed-out state.
+// Global 401 handler: registered once by the app to flip the UI to signed-out
+// state when the session really is gone.
 type UnauthorizedHandler = () => void;
 let unauthorizedHandler: UnauthorizedHandler | null = null;
 
@@ -216,7 +218,7 @@ async function fetchWithTimeout(input: string, init?: RequestInit): Promise<Resp
   try {
     return await fetch(input, {
       ...init,
-      credentials: "include", // session cookie rides along cross-origin
+      credentials: "include", // session cookie rides along (same-origin in prod)
       signal: controller.signal,
     });
   } finally {
@@ -224,12 +226,41 @@ async function fetchWithTimeout(input: string, init?: RequestInit): Promise<Resp
   }
 }
 
+// A single 401 from a background request must not log the user out: a transient
+// failure or a race can produce one even when the session cookie is still
+// valid. Confirm with /auth/me (the authoritative session check) before
+// clearing UI state. The in-flight guard collapses a burst of 401s into one
+// confirmation. Network failures are not proof of logout and are ignored.
+let confirmingLogout = false;
+async function confirmLoggedOut(): Promise<void> {
+  if (!unauthorizedHandler || confirmingLogout) return;
+  confirmingLogout = true;
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/auth/me`);
+    if (res.status === 401) unauthorizedHandler();
+  } catch {
+    /* keep the session on a network failure */
+  } finally {
+    confirmingLogout = false;
+  }
+}
+
 async function callApi<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     const res = await fetchWithTimeout(`${API_BASE}${path}`, init);
     if (res.status === 401) {
-      unauthorizedHandler?.();
-      throw new Error("Not authenticated. Please sign in.");
+      // A bad login/register is a credentials error, not a session expiry —
+      // don't wipe the guest draft or flip UI state on a failed sign-in.
+      if (path !== "/auth/login" && path !== "/auth/register") {
+        void confirmLoggedOut();
+      }
+      const body: unknown = await res.json().catch(() => ({}));
+      throw new Error(
+        detailToMessage(
+          (body as { detail?: unknown }).detail,
+          "Not authenticated. Please sign in.",
+        ),
+      );
     }
     if (!res.ok) {
       const body: unknown = await res.json().catch(() => ({}));
@@ -322,7 +353,7 @@ export async function deleteAccount(password: string): Promise<void> {
     body: JSON.stringify({ password }),
   });
   if (res.status === 401) {
-    unauthorizedHandler?.();
+    void confirmLoggedOut();
     throw new Error("Not authenticated. Please sign in.");
   }
   if (!res.ok) {
@@ -402,7 +433,7 @@ export async function getMyRoadmap(examId: string): Promise<SavedRoadmap | null>
     `${API_BASE}/users/me/roadmaps/${encodeURIComponent(examId)}`,
   );
   if (res.status === 401) {
-    unauthorizedHandler?.();
+    void confirmLoggedOut();
     throw new Error("Not authenticated. Please sign in.");
   }
   if (res.status === 404) return null;
