@@ -291,6 +291,11 @@ export function getExams(): Promise<ExamsListResponse> {
   return callApi<ExamsListResponse>("/eligibility/exams");
 }
 
+/** All stored notifications, including closed ones, with a computed window_state. */
+export function getAllExams(): Promise<ExamsListResponse> {
+  return callApi<ExamsListResponse>("/eligibility/exams?status=all");
+}
+
 export function getAdmitCards(): Promise<AdmitCardsListResponse> {
   return callApi<AdmitCardsListResponse>("/admit-cards");
 }
