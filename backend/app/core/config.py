@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # Second Groq key used for automatic rotation when the primary is
     # rate-limited (HTTP 429). Empty = no rotation. Never logged.
     GROQ_API_KEY_EXTRA: str = ""
+    # Comma-separated additional Groq keys. Combined with the two fields
+    # above (deduplicated) for round-robin rotation on HTTP 429. Never logged.
+    GROQ_API_KEYS: str = ""
     GROQ_MODEL: str = "openai/gpt-oss-120b"
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/govjobs_db"
     TELEGRAM_BOT_TOKEN: str = ""

@@ -46,12 +46,17 @@ _key_index = 0
 
 
 def _groq_keys() -> list[str]:
-    """Configured Groq keys, primary first. Never logged."""
-    return [
-        key.strip()
-        for key in (settings.GROQ_API_KEY, settings.GROQ_API_KEY_EXTRA)
-        if key and key.strip()
-    ]
+    """Configured Groq keys, primary first, deduplicated. Never logged."""
+    configured = [settings.GROQ_API_KEY, settings.GROQ_API_KEY_EXTRA]
+    configured += [k.strip() for k in settings.GROQ_API_KEYS.split(",")]
+    seen: set[str] = set()
+    keys: list[str] = []
+    for key in configured:
+        key = key.strip()
+        if key and key not in seen:
+            seen.add(key)
+            keys.append(key)
+    return keys
 
 
 def _rotate_groq_key() -> bool:
