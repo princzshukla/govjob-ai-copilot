@@ -163,3 +163,9 @@ async def logout(
 @router.get("/me", response_model=UserOut)
 async def me(user: User = Depends(current_user)) -> UserOut:
     return UserOut.model_validate(user)
+
+
+@router.get("/providers")
+async def providers() -> dict[str, bool]:
+    """Public: lets the login modal show only the sign-in options configured."""
+    return {"password": True, "google": settings.GOOGLE_AUTH_ENABLED}

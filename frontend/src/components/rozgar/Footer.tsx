@@ -53,7 +53,12 @@ export function Footer() {
 
         {/* bottom bar */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-2 text-[12px] text-ink/55">
-          <p>© 2026 RozgarBoard · Government jobs in India</p>
+          <p className="flex flex-wrap items-center gap-3">
+            <span>© 2026 RozgarBoard · Government jobs in India</span>
+            <a href="/privacy" className="font-semibold hover:text-ink hover:underline">
+              Privacy policy
+            </a>
+          </p>
           <p className="flex flex-wrap gap-2">
             {[
               ["SSC", "https://ssc.gov.in"],

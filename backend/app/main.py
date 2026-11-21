@@ -14,8 +14,8 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.api.v1.endpoints import (adaptive, admit_cards, admin, auth, candidate, discovery,
-                                  eligibility, job_discoveries, jobs_watchdog_api, notifications,
-                                  user_data, users)
+                                  eligibility, google, job_discoveries, jobs_watchdog_api,
+                                  notifications, user_data, users)
 from app.core.config import settings
 from app.core.logging_config import configure_logging
 from app.core.rate_limit import limiter
@@ -193,6 +193,7 @@ app.include_router(candidate.router, prefix="/api/v1")
 app.include_router(eligibility.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(google.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(user_data.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")

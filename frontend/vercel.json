@@ -1,8 +1,25 @@
 {
   "rewrites": [
     {
+      "source": "/privacy",
+      "destination": "/index.html"
+    },
+    {
       "source": "/api/:path*",
       "destination": "https://govjob-ai-copilot.onrender.com/api/:path*"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/:path*",
+      "destination": "https://www.rozgarboard.in/:path*",
+      "permanent": true,
+      "has": [
+        {
+          "type": "host",
+          "value": "govjob-ai-copilot.vercel.app"
+        }
+      ]
     }
   ]
 }

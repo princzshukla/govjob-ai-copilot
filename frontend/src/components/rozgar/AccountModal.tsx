@@ -16,6 +16,8 @@ export function AccountModal({ onClose }: { onClose: () => void }) {
 
   const [name, setName] = useState(user?.full_name ?? "");
   const [savingName, setSavingName] = useState(false);
+  const [phone, setPhone] = useState(user?.phone ?? "");
+  const [savingPhone, setSavingPhone] = useState(false);
 
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -53,6 +55,22 @@ export function AccountModal({ onClose }: { onClose: () => void }) {
       toast("warn", "Could not save", err instanceof Error ? err.message : "Try again.");
     } finally {
       setSavingName(false);
+    }
+  };
+
+  const savePhone = async (e: FormEvent) => {
+    e.preventDefault();
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length !== 10) return;
+    setSavingPhone(true);
+    try {
+      await api.updatePhone(digits);
+      await refresh();
+      toast("success", "Saved", "Your mobile number was updated.");
+    } catch (err) {
+      toast("warn", "Could not save", err instanceof Error ? err.message : "Try again.");
+    } finally {
+      setSavingPhone(false);
     }
   };
 
@@ -127,7 +145,7 @@ export function AccountModal({ onClose }: { onClose: () => void }) {
     setDeleteError(null);
     setDeleteBusy(true);
     try {
-      await removeAccount(deletePw);
+      await removeAccount(user.has_password ? deletePw : "");
       onClose();
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : "Could not delete account.");
@@ -162,7 +180,31 @@ export function AccountModal({ onClose }: { onClose: () => void }) {
           </p>
         </form>
 
-        {/* password */}
+        {/* phone */}
+        <form onSubmit={savePhone} className="space-y-2 border-t border-line pt-5">
+          <p className={label}>Mobile number</p>
+          <div className="flex gap-2">
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              inputMode="numeric"
+              autoComplete="tel-national"
+              aria-label="Mobile number"
+              placeholder="98765 43210"
+              className={input}
+            />
+            <button
+              type="submit"
+              disabled={savingPhone || phone.replace(/\D/g, "") === (user.phone ?? "").replace(/\D/g, "")}
+              className="h-11 shrink-0 rounded-lg bg-ink px-4 text-[14px] font-bold text-white transition-colors hover:bg-saffron disabled:opacity-40"
+            >
+              {savingPhone ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </form>
+
+        {/* password — only for password accounts */}
+        {user.has_password && (
         <form onSubmit={changePassword} className="space-y-2 border-t border-line pt-5">
           <p className={label}>Change password</p>
           <input
@@ -207,6 +249,7 @@ export function AccountModal({ onClose }: { onClose: () => void }) {
             {pwBusy ? "Changing…" : "Change password"}
           </button>
         </form>
+        )}
 
         {/* telegram */}
         <div className="space-y-2 border-t border-line pt-5">
@@ -264,15 +307,21 @@ export function AccountModal({ onClose }: { onClose: () => void }) {
         {/* delete */}
         <form onSubmit={deleteAccount} className="space-y-2 border-t border-line pt-5">
           <p className={label}>Danger zone</p>
-          <input
-            type="password"
-            value={deletePw}
-            onChange={(e) => setDeletePw(e.target.value)}
-            placeholder="Confirm with your password"
-            autoComplete="current-password"
-            className={input}
-            required
-          />
+          {user.has_password ? (
+            <input
+              type="password"
+              value={deletePw}
+              onChange={(e) => setDeletePw(e.target.value)}
+              placeholder="Confirm with your password"
+              autoComplete="current-password"
+              className={input}
+              required
+            />
+          ) : (
+            <p className="text-[13px] text-ink/65">
+              Your account signs in with Google. Deleting it cannot be undone.
+            </p>
+          )}
           {deleteError && (
             <p role="alert" className="rounded-lg border border-alert/40 bg-alert/10 px-3 py-2 text-[13px] font-medium text-alert">
               {deleteError}

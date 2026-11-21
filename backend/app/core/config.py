@@ -73,14 +73,27 @@ class Settings(BaseSettings):
     COOKIE_SAMESITE: str = "lax"
     SESSION_TTL_DAYS: int = 7
     # Comma-separated list of exact frontend origins. Never "*" with credentials.
-    # Includes the deployed Vercel frontend so a fresh deploy works out of the
-    # box; set CORS_ORIGINS in the environment to override for other domains.
+    # The custom domain is canonical; the Vercel URL is kept during migration.
     CORS_ORIGINS: str = (
         "http://localhost:5173,http://localhost:8080,"
-        "https://govjob-ai-copilot.vercel.app"
+        "https://www.rozgarboard.in,https://govjob-ai-copilot.vercel.app"
     )
     # "memory://" works single-process; point at redis://<host> in multi-worker prod.
     RATE_LIMIT_STORAGE_URL: str = "memory://"
+
+    # --- Google sign-in (custom OIDC authorization code + PKCE) ---
+    # Off by default so deploys without credentials keep working unchanged.
+    GOOGLE_AUTH_ENABLED: bool = False
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    # Must exactly match the URI registered in the Google Cloud Console.
+    GOOGLE_REDIRECT_URI: str = ""
+    # Signs the short-lived state/nonce/PKCE cookie; never log or commit it.
+    OAUTH_STATE_SECRET: str = ""
+    # Where the callback redirects after issuing our own session cookie.
+    # Must be the canonical domain that starts the Google flow (the state
+    # cookie is domain-scoped, so start and callback must share a domain).
+    FRONTEND_URL: str = "https://www.rozgarboard.in"
 
     @model_validator(mode="after")
     def derive_cookie_security(self) -> "Settings":
@@ -106,6 +119,19 @@ class Settings(BaseSettings):
                     "Refusing to run as the postgres superuser in production — "
                     "use a least-privilege application role"
                 )
+        if self.GOOGLE_AUTH_ENABLED:
+            missing = [
+                name
+                for name, value in (
+                    ("GOOGLE_CLIENT_ID", self.GOOGLE_CLIENT_ID),
+                    ("GOOGLE_CLIENT_SECRET", self.GOOGLE_CLIENT_SECRET),
+                    ("GOOGLE_REDIRECT_URI", self.GOOGLE_REDIRECT_URI),
+                    ("OAUTH_STATE_SECRET", self.OAUTH_STATE_SECRET),
+                )
+                if not value.strip()
+            ]
+            if missing:
+                raise ValueError("Google auth enabled but missing: " + ", ".join(missing))
         return self
 
     @field_validator("TELEGRAM_BOT_TOKEN", mode="after")

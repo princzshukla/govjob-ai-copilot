@@ -191,6 +191,13 @@ export interface UserOut {
   full_name: string | null;
   phone: string | null;
   created_at: string;
+  /** false for Google-only accounts (no password to change or confirm). */
+  has_password: boolean;
+}
+
+export interface AuthProviders {
+  password: boolean;
+  google: boolean;
 }
 
 export interface RegisterPayload {

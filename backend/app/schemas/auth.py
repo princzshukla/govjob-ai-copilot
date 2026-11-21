@@ -85,9 +85,15 @@ class ChangePasswordIn(BaseModel):
 
 
 class DeleteAccountIn(BaseModel):
-    # No min_length: a wrong password must reach verification and get the same
-    # generic error, not a validation error.
-    password: str = Field(min_length=1, max_length=128)
+    # Empty is allowed for Google-only accounts (no password exists). For
+    # password accounts the server still verifies it and rejects a bad value.
+    password: str = Field(default="", max_length=128)
+
+
+class PhoneUpdate(_PhoneMixin):
+    """Profile-completion step: only the 10-digit mobile number is collected."""
+
+    phone: str = Field(min_length=1)
 
 
 class UserOut(BaseModel):
@@ -96,5 +102,7 @@ class UserOut(BaseModel):
     full_name: str | None = None
     phone: str | None = None
     created_at: datetime
+    # Lets the UI hide "change password" for Google-only accounts.
+    has_password: bool = True
 
     model_config = ConfigDict(from_attributes=True)
