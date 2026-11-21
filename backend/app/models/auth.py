@@ -26,9 +26,7 @@ class User(Base):
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Google's `sub` claim: the stable, never-reused account identifier. Email
     # is NOT safe as an identity key (it can change), so this is the link.
-    google_sub: Mapped[str | None] = mapped_column(
-        String(255), nullable=True, unique=True
-    )
+    google_sub: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Optional until Phase 3 makes full_name mandatory at registration.
     full_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     # E.164 normalized in Phase 3; nullable because phone is optional.

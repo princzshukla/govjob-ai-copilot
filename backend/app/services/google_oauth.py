@@ -16,6 +16,7 @@ import secrets
 from urllib.parse import urlencode
 
 import httpx
+import urllib3
 from google.auth.exceptions import GoogleAuthError
 from google.auth.transport import urllib3 as google_urllib3
 from google.oauth2 import id_token as google_id_token
@@ -84,7 +85,9 @@ def validate_next(value: str | None) -> str:
         return "/"
     if "\\" in value or any(ord(ch) < 32 for ch in value):
         return "/"
-    return value
+    # A fragment would swallow the markers we append to this URL on callback
+    # (e.g. /?tab=jobs#results?profile=phone), so drop it.
+    return value.split("#", 1)[0] or "/"
 
 
 async def exchange_code(code: str, code_verifier: str) -> str:
@@ -112,8 +115,11 @@ async def exchange_code(code: str, code_verifier: str) -> str:
 def _verify_sync(id_token_value: str) -> dict:
     # google-auth verifies the RS256 signature against Google's cached JWKS,
     # plus iss, aud and exp. Blocking IO: called via run_in_threadpool.
+    # google-auth >= 2.6 requires a transport instance; Request() with no args
+    # raises TypeError and turned every callback into a 500.
+    request = google_urllib3.Request(urllib3.PoolManager(timeout=10.0))
     return dict(google_id_token.verify_oauth2_token(
-        id_token_value, google_urllib3.Request(), settings.GOOGLE_CLIENT_ID
+        id_token_value, request, settings.GOOGLE_CLIENT_ID
     ))
 
 

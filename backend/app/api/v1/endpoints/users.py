@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
@@ -53,7 +54,16 @@ async def update_phone(
 ) -> UserOut:
     """Profile completion for Google-only accounts (and editable by anyone)."""
     user.phone = payload.phone
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # uq_users_phone: another account already owns this number. Without
+        # this guard the request 500s instead of returning a usable conflict.
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This mobile number is already registered",
+        )
     return UserOut.model_validate(user)
 
 
