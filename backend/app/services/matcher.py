@@ -661,10 +661,29 @@ def check_single_exam_eligibility(
             )
         )
 
+    # Never publish a confident verdict from fields that were never confirmed
+    # against the official notification. Aggregator-discovered rows keep
+    # placeholder ages/qualifications with verification_status=check_required;
+    # showing "you qualify" from those would break the project's core rule.
+    unverified = getattr(exam, "verification_status", None) in {"check_required", "unverified"}
+    if unverified:
+        rules.append(
+            _rule(
+                "Notification verification",
+                f"Status: {getattr(exam, 'verification_status', None)}",
+                "Verified against the official notification",
+                "needs_check",
+                "Age, qualification and deadline for this notification have not been "
+                "confirmed against the official source. Check the notification before relying on this result.",
+            )
+        )
+
     failed_rules = [r for r in rules if r.status == "failed"]
     needs_check_rules = [r for r in rules if r.status == "needs_check"]
 
-    if failed_rules:
+    if unverified:
+        verdict = "check_manually"
+    elif failed_rules:
         verdict = "ineligible"
     elif needs_check_rules:
         verdict = "check_manually"
