@@ -286,6 +286,30 @@ async def test_disabled_google_flow_returns_404(client, monkeypatch):
     assert (await client.get("/api/v1/auth/google/start", follow_redirects=False)).status_code == 404
 
 
+@pytest.mark.asyncio
+async def test_real_verification_constructs_transport(monkeypatch):
+    # The endpoint stubs _verify_sync, so without this test the real transport
+    # construction is never exercised (Request() used to raise TypeError).
+    captured = {}
+
+    def fake_verify(token, request, audience):
+        captured["request"] = request
+        captured["audience"] = audience
+        return {
+            "sub": "google-sub-1",
+            "email": "google@example.com",
+            "name": "Google User",
+            "email_verified": True,
+            "nonce": "n",
+        }
+
+    monkeypatch.setattr(google.google_id_token, "verify_oauth2_token", fake_verify)
+    info = await google.verify_id_token("fake-id-token", nonce="n")
+    assert info["sub"] == "google-sub-1"
+    assert captured["request"] is not None
+    assert captured["audience"] == settings.GOOGLE_CLIENT_ID
+
+
 @pytest.mark.parametrize(
     "value,expected",
     [

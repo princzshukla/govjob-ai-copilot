@@ -15,7 +15,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import settings
-from app.core.database import Base, db_url
+from app.core.database import DB_CONNECT_ARGS, Base, db_url
 
 config = context.config
 
@@ -68,6 +68,7 @@ async def run_async_migrations() -> None:
         db_url,
         poolclass=pool.NullPool,
         connect_args={
+            **DB_CONNECT_ARGS,
             "statement_cache_size": 0,
             "prepared_statement_cache_size": 0,
         },

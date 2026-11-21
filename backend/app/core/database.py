@@ -1,3 +1,5 @@
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -25,6 +27,21 @@ if db_url.startswith("postgresql://"):
 elif db_url.startswith("postgresql+psycopg://"):
     db_url = db_url.replace("postgresql+psycopg://", "postgresql+asyncpg://", 1)
 
+# Neon/Supabase connection strings often carry libpq-only query parameters
+# (?sslmode=require&channel_binding=require). SQLAlchemy forwards URL query
+# params to asyncpg.connect(), which rejects them with
+# "unexpected keyword argument 'sslmode'" and makes every DB request 500.
+# Strip them from the URL and translate sslmode into asyncpg's `ssl` arg.
+_parts = urlsplit(db_url)
+_params = dict(parse_qsl(_parts.query))
+_sslmode = str(_params.pop("sslmode", "")).lower()
+_params.pop("channel_binding", None)
+_params.pop("ssl", None)
+db_url = urlunsplit((_parts.scheme, _parts.netloc, _parts.path, urlencode(_params), _parts.fragment))
+_ssl_connect_args = {"ssl": True} if _sslmode in {"require", "verify-ca", "verify-full"} else {}
+# Public: Alembic needs the same SSL handling as the app engine.
+DB_CONNECT_ARGS = dict(_ssl_connect_args)
+
 # Transaction-mode poolers (Supabase pgbouncer on :6543, any pgbouncer
 # host) swap the underlying Postgres connection between statements, so an
 # asyncpg per-connection prepared-statement cache collides and the request
@@ -35,22 +52,22 @@ _is_transaction_pooler = any(marker in db_url.lower() for marker in _POOLER_MARK
 
 _engine_kwargs = {
     "echo": False,
-    "connect_args": {},
+    "connect_args": dict(_ssl_connect_args),
 }
 if settings.ENVIRONMENT == "test":
     # Prepared-statement caching breaks across per-test loops; keep it off.
-    _engine_kwargs["connect_args"] = {
+    _engine_kwargs["connect_args"].update({
         "statement_cache_size": 0,
         "prepared_statement_cache_size": 0,
         "server_settings": {"lock_timeout": "5000"},
-    }
+    })
 elif _is_transaction_pooler:
     # Poolers may not reuse a backend connection, so cached prepared
     # statements belong to a different session than the next lookup expects.
-    _engine_kwargs["connect_args"] = {
+    _engine_kwargs["connect_args"].update({
         "statement_cache_size": 0,
         "prepared_statement_cache_size": 0,
-    }
+    })
 if settings.ENVIRONMENT == "test":
     engine = create_async_engine(db_url, poolclass=NullPool, **_engine_kwargs)
 else:
