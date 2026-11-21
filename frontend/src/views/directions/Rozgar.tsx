@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Briefcase,
   FileText,
@@ -20,6 +21,7 @@ import { safeUrl } from "../../lib/safeUrl";
 import { loadEligibilityResult, saveEligibilityResult } from "../../lib/draft";
 import { useAuth } from "../../lib/auth";
 import type { EligibilityCheckResponse } from "../../types";
+import { PATH_FOR_TAB, type Tab } from "../../routes";
 import { ADS_ENABLED, AD_FREQUENCY, SPONSORED_JOBS, type AdLayout } from "../../lib/ads";
 import { JobCard, SponsoredJobCard } from "../../components/rozgar/JobCard";
 import { AdmitCardCard } from "../../components/rozgar/AdmitCard";
@@ -36,8 +38,6 @@ const NAV = [
   { label: "My Roadmap", param: "roadmap" },
   { label: "Photo & Signature", param: "documents" },
 ] as const;
-
-type Tab = (typeof NAV)[number]["label"];
 
 const BOTTOM_NAV = [
   { label: "Latest Jobs", short: "Jobs", icon: Briefcase, param: "jobs" },
@@ -84,20 +84,6 @@ function useIsDesktop(): boolean {
     return () => mq.removeEventListener("change", onChange);
   }, []);
   return desktop;
-}
-
-function tabFromUrl(): Tab {
-  if (typeof window === "undefined") return "Latest Jobs";
-  const param = new URLSearchParams(window.location.search).get("tab");
-  return NAV.find((n) => n.param === param)?.label ?? "Latest Jobs";
-}
-
-function pushUrl(tab: Tab, keepExam = false) {
-  const exam = keepExam ? new URLSearchParams(window.location.search).get("exam") : null;
-  const params = new URLSearchParams();
-  params.set("tab", NAV.find((n) => n.label === tab)?.param ?? "jobs");
-  if (exam) params.set("exam", exam);
-  window.history.pushState({}, "", `${window.location.pathname}?${params.toString()}`);
 }
 
 /* ------------------------------------------------------------------ */
@@ -473,8 +459,9 @@ function MobileClosingSoon({ exams, loading }: { exams: FeedExam[]; loading: boo
 
 /* ------------------------------------------------------------------ */
 
-export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
-  const [active, setActive] = useState<Tab>(() => tabFromUrl());
+export function Rozgar({ adLayout, tab }: { adLayout: AdLayout; tab: Tab }) {
+  const navigate = useNavigate();
+  const active = tab;
   const [query, setQuery] = useState("");
   const [chip, setChip] = useState<Chip>("all");
   const [accountOpen, setAccountOpen] = useState(false);
@@ -498,12 +485,6 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
   const [forceExpanded, setForceExpanded] = useState(false);
   const desktop = useIsDesktop();
   const [loadMore, setLoadMore] = useState(false);
-
-  useEffect(() => {
-    const onPop = () => setActive(tabFromUrl());
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -616,12 +597,11 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
     return items;
   }, [visible, verdicts]);
 
-  const goTab = (tab: Tab) => {
-    setActive(tab);
+  const goTab = (next: Tab) => {
     setForceExpanded(false);
     setChip("all");
     setLoadMore(false);
-    pushUrl(tab);
+    navigate(PATH_FOR_TAB[next]);
     window.scrollTo({ top: 0 });
   };
 
