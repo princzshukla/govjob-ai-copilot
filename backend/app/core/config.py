@@ -161,9 +161,21 @@ class Settings(BaseSettings):
     @classmethod
     def force_asyncpg_driver(cls, v: str) -> str:
         if v.startswith("postgresql://"):
-            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+            v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
         elif v.startswith("postgresql+psycopg://"):
-            return v.replace("postgresql+psycopg://", "postgresql+asyncpg://", 1)
+            v = v.replace("postgresql+psycopg://", "postgresql+asyncpg://", 1)
+
+        # Neon's dashboard connection strings carry libpq-only query options
+        # (`sslmode`, `channel_binding`) that asyncpg does not accept as connect
+        # args. Strip them; asyncpg negotiates TLS by default and Neon requires
+        # it, so dropping the flags keeps the connection encrypted.
+        if "?" in v:
+            base, _, query = v.partition("?")
+            kept = [
+                part for part in query.split("&")
+                if part.split("=", 1)[0].lower() not in {"sslmode", "channel_binding"}
+            ]
+            v = base + ("?" + "&".join(kept) if kept else "")
         return v
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
