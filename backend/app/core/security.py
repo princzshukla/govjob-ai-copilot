@@ -23,10 +23,13 @@ def hash_password(password: str) -> str:
         return _password_hasher.hash(password)
 
 
-def verify_password(password_hash: str, password: str) -> bool:
+def verify_password(password_hash: str | None, password: str) -> bool:
+    # A Google-only account has no hash. Verify against the dummy hash so the
+    # work (and timing) is identical to a real check and callers get a plain
+    # False — no "NoneType" crash and no enumeration signal.
     try:
         with _argon2_semaphore:
-            return _password_hasher.verify(password_hash, password)
+            return _password_hasher.verify(password_hash or DUMMY_PASSWORD_HASH, password)
     except (VerificationError, InvalidHashError):
         return False
 

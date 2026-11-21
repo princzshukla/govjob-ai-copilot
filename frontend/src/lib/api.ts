@@ -4,6 +4,7 @@
  */
 
 import type {
+  AuthProviders,
   CandidateProfile,
   ClaimDraftResponse,
   EligibilityCheckResponse,
@@ -317,6 +318,22 @@ export async function logout(): Promise<void> {
   await fetchWithTimeout(`${API_BASE}/auth/logout`, { method: "POST" }).catch(() => {});
 }
 
+/** Public: which sign-in options the backend has configured. */
+export function getAuthProviders(): Promise<AuthProviders> {
+  return callApi<AuthProviders>("/auth/providers");
+}
+
+/**
+ * Full-page redirect into the backend's Google flow. The backend owns the
+ * client secret and PKCE; the browser only ever sees our own session cookie.
+ */
+export function startGoogleSignIn(next?: string): void {
+  const target = next && next.startsWith("/") ? next : window.location.pathname;
+  window.location.assign(
+    `${API_BASE}/auth/google/start?next=${encodeURIComponent(target)}`,
+  );
+}
+
 /** Fetch the current session user. 401 (guest) returns null without raising. */
 export async function getMe(): Promise<UserOut | null> {
   const res = await fetchWithTimeout(`${API_BASE}/auth/me`);
@@ -332,6 +349,14 @@ export function updateMyFullName(fullName: string): Promise<UserOut> {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ full_name: fullName }),
+  });
+}
+
+export function updatePhone(phone: string): Promise<UserOut> {
+  return callApi<UserOut>("/users/me/phone", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone }),
   });
 }
 

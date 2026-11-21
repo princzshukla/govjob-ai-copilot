@@ -56,9 +56,26 @@ services:
       - key: COOKIE_SAMESITE
         sync: false
       - key: CORS_ORIGINS
-        value: https://govjob-ai-copilot.vercel.app
+        value: https://www.rozgarboard.in,https://govjob-ai-copilot.vercel.app
       - key: RATE_LIMIT_STORAGE_URL
         sync: false
+
+      # Canonical frontend domain (Google callback redirects here).
+      - key: FRONTEND_URL
+        value: https://www.rozgarboard.in
+
+      # --- Google sign-in (custom OIDC; leave disabled until all 5 are set) ---
+      - key: GOOGLE_AUTH_ENABLED
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: OAUTH_STATE_SECRET
+        sync: false
+      # All Google vars are sync:false — set them in the Render dashboard.
 
       # --- admin access, error reporting, email digest (optional) ---
       - key: ADMIN_EMAILS

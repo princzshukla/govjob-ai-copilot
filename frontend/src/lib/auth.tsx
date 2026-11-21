@@ -40,7 +40,30 @@ export interface AuthContextValue {
   authModalOpen: boolean;
   authModalMode: AuthModalMode;
   closeAuthModal: () => void;
+  /** Whether the backend has Google sign-in configured. */
+  googleEnabled: boolean;
+  /** Post-first-Google-login phone step. */
+  phoneSetupOpen: boolean;
+  closePhoneSetup: () => void;
+  savePhone: (phone: string) => Promise<void>;
 }
+
+const AUTH_ERRORS: Record<string, { title: string; detail: string }> = {
+  account_exists: {
+    title: "Account already exists",
+    detail: "An account with this email exists. Sign in with your password first.",
+  },
+  expired_state: { title: "Sign-in expired", detail: "Please try Google sign-in again." },
+  state_mismatch: { title: "Could not verify", detail: "Please try Google sign-in again." },
+  bad_nonce: { title: "Could not verify", detail: "Please try Google sign-in again." },
+  unverified_email: {
+    title: "Email not verified",
+    detail: "Use a Google account with a verified email address.",
+  },
+  google_verification_failed: { title: "Sign-in failed", detail: "Please try again." },
+  google_cancelled: { title: "Cancelled", detail: "Google sign-in was cancelled." },
+  google_invalid_request: { title: "Sign-in failed", detail: "Please try again." },
+};
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -66,12 +89,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<AuthModalMode>("login");
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [phoneSetupOpen, setPhoneSetupOpen] = useState(false);
 
   const promptSignIn = useCallback((mode: AuthModalMode = "login") => {
     setAuthModalMode(mode);
     setAuthModalOpen(true);
   }, []);
   const closeAuthModal = useCallback(() => setAuthModalOpen(false), []);
+  const closePhoneSetup = useCallback(() => setPhoneSetupOpen(false), []);
+  const savePhone = useCallback(async (phone: string) => {
+    const updated = await api.updatePhone(phone);
+    setUser(updated);
+    setPhoneSetupOpen(false);
+    toast("success", "Profile complete", "Your mobile number was saved.");
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -110,6 +142,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Show Google only when the backend is configured for it.
+  useEffect(() => {
+    let cancelled = false;
+    api.getAuthProviders().then((p) => {
+      if (!cancelled) setGoogleEnabled(p.google);
+    }).catch(() => { /* guest-facing feature; never block the app */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  // The Google callback redirects here with short markers (never tokens).
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("auth_error") && url.searchParams.get("profile") !== "phone") return;
+
+    const code = url.searchParams.get("auth_error");
+    const message = code ? AUTH_ERRORS[code] : null;
+    if (message) toast("warn", message.title, message.detail);
+    if (url.searchParams.get("profile") === "phone") setPhoneSetupOpen(true);
+
+    url.searchParams.delete("auth_error");
+    url.searchParams.delete("profile");
+    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
@@ -163,6 +219,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authModalOpen,
       authModalMode,
       closeAuthModal,
+      googleEnabled,
+      phoneSetupOpen,
+      closePhoneSetup,
+      savePhone,
     }),
     [
       user,
@@ -176,6 +236,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authModalOpen,
       authModalMode,
       closeAuthModal,
+      googleEnabled,
+      phoneSetupOpen,
+      closePhoneSetup,
+      savePhone,
     ],
   );
 

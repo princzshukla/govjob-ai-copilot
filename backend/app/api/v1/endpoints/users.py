@@ -11,7 +11,13 @@ from app.core.database import get_db
 from app.core.rate_limit import limiter
 from app.core.security import hash_password, verify_password
 from app.models.auth import Session, User
-from app.schemas.auth import ChangePasswordIn, DeleteAccountIn, UserOut, UserUpdate
+from app.schemas.auth import (
+    ChangePasswordIn,
+    DeleteAccountIn,
+    PhoneUpdate,
+    UserOut,
+    UserUpdate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +45,18 @@ async def update_me(
     return UserOut.model_validate(user)
 
 
+@router.patch("/me/phone", response_model=UserOut)
+async def update_phone(
+    payload: PhoneUpdate,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserOut:
+    """Profile completion for Google-only accounts (and editable by anyone)."""
+    user.phone = payload.phone
+    await db.commit()
+    return UserOut.model_validate(user)
+
+
 @router.post("/me/change-password", status_code=status.HTTP_200_OK)
 @limiter.limit("5/minute", key_func=user_or_ip_key)
 async def change_password(
@@ -47,6 +65,11 @@ async def change_password(
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
+    if user.password_hash is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This account signs in with Google and has no password.",
+        )
     if not await run_in_threadpool(
         verify_password, user.password_hash, payload.current_password
     ):
@@ -81,7 +104,12 @@ async def delete_me(
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    if not await run_in_threadpool(verify_password, user.password_hash, payload.password):
+    # A Google-only account has no password to confirm: the session cookie is
+    # already proof of ownership. Deleting the user also frees google_sub for
+    # reuse (cascade removes sessions and all owned rows).
+    if user.password_hash is not None and not await run_in_threadpool(
+        verify_password, user.password_hash, payload.password
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=INVALID_PASSWORD
         )

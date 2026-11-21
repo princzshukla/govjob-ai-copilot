@@ -37,6 +37,11 @@ pydantic_core==2.50.2
 pymupdf==2.0
 pymupdf4llm==2.0
 pymupdf_layout==2.0
+google-auth==2.62.2
+itsdangerous==2.2.0
+pyasn1==0.6.5
+pyasn1-modules==0.4.2
+cryptography==50.0.2
 python-dotenv==1.2.4
 python-multipart==0.0.33
 PyYAML==6.0.3

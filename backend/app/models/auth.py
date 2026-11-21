@@ -20,7 +20,15 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     # Stored trimmed and lowercased; unique constraint is the race-safe guard.
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # NULL for Google-only accounts — they have no password to verify. Password
+    # login handles NULL by verifying against a dummy hash (constant work, same
+    # generic 401), so it cannot leak whether an account is federated.
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Google's `sub` claim: the stable, never-reused account identifier. Email
+    # is NOT safe as an identity key (it can change), so this is the link.
+    google_sub: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, unique=True
+    )
     # Optional until Phase 3 makes full_name mandatory at registration.
     full_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     # E.164 normalized in Phase 3; nullable because phone is optional.
@@ -42,9 +50,15 @@ class User(Base):
     )
 
     __table_args__ = (
-        # Explicit name so autogenerate/downgrade can reference the constraint.
+        # Explicit names so autogenerate/downgrade can reference the constraints.
         UniqueConstraint("phone", name="uq_users_phone"),
+        UniqueConstraint("google_sub", name="uq_users_google_sub"),
     )
+
+    @property
+    def has_password(self) -> bool:
+        """False for Google-only accounts (used by the UI and the API)."""
+        return self.password_hash is not None
 
 
 class Session(Base):
