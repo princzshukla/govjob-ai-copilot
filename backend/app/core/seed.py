@@ -2105,12 +2105,12 @@ _BASE_SEED_EXAMS = [
         "topics": {"Percentages","Ratio & Proportion","Algebra","Current Affairs","General Science","Physical Science","History","Geography","Reasoning"}
     },
 
-    # ---- Aggregator-discovered 2026 jobs (sarkariresult.com.cm). Data extracted from the
-    # listed notice pages; verification_status=check_required until confirmed against the
-    # board's own notification. source_url keeps the discovery provenance. ----
+    # ---- Jobs originally discovered via aggregator pages (sarkariresult.com.cm). On
+    # 2026-11-22 their source_url was promoted to each board's official page. Do not
+    # reintroduce aggregator URLs here. ----
     {
         "id": "uptet-feb-2027",
-        "source_url": "https://sarkariresult.com.cm/uptet-2027-feb-exam/",  # aggregator discovery page; not an official board link
+        "source_url": "https://upessc.up.gov.in/"
         "title": "UPTET February 2027 (Uttar Pradesh Teacher Eligibility Test)",
         "organizing_body": "Uttar Pradesh Education Service Selection Commission (UPESSC)",
         "post_type": "State / UP / Teacher Eligibility Test",
@@ -2133,7 +2133,7 @@ _BASE_SEED_EXAMS = [
     },
     {
         "id": "haryana-htet-2026",
-        "source_url": "https://sarkariresult.com.cm/haryana-htet-online-form-2026/",  # aggregator discovery page; not an official board link
+        "source_url": "https://htet2026.org/"
         "title": "Haryana HTET 2026 (Teacher Eligibility Test — PRT / TGT / PGT)",
         "organizing_body": "Board of School Education Haryana (BSEH)",
         "post_type": "State / Haryana / Teacher Eligibility Test",
@@ -2155,7 +2155,7 @@ _BASE_SEED_EXAMS = [
     },
     {
         "id": "uksssc-constable-various-2026",
-        "source_url": "https://sarkariresult.com.cm/uksssc-police-constable-2026/",  # aggregator discovery page; not an official board link
+        "source_url": "https://sssc.uk.gov.in/"
         "title": "UKSSSC Constable Various Posts 2026 (Constable / PAC-IRB / Fireman / Forest Guard / Jail Warder) — 1,694 posts",
         "organizing_body": "Uttarakhand Subordinate Service Selection Commission (UKSSSC)",
         "post_type": "State / Uttarakhand / Police & Constabulary",
@@ -2177,7 +2177,7 @@ _BASE_SEED_EXAMS = [
     },
     {
         "id": "rssb-je-reopen-2026",
-        "source_url": "https://sarkariresult.com.cm/rssb-junior-engineer-2026/",  # aggregator discovery page; not an official board link
+        "source_url": "https://rssb.rajasthan.gov.in/"
         "title": "RSSB Junior Engineer (JE) 2026 — Re-Open (Advt 10/2026) — 1,909 posts",
         "organizing_body": "Rajasthan Staff Selection Board (RSSB)",
         "post_type": "State / Rajasthan / Engineering",
@@ -2199,7 +2199,7 @@ _BASE_SEED_EXAMS = [
     },
     {
         "id": "uppsc-ro-aro-2026",
-        "source_url": "https://sarkariresult.com.cm/uppsc-ro-aro-oct26/",  # aggregator discovery page; not an official board link
+        "source_url": "https://uppsc.up.nic.in/CandidatePages/Notifications.aspx"
         "title": "UPPSC Review Officer / Assistant Review Officer (RO / ARO) 2026 — 501 posts (Advt A-4/E-1/2026)",
         "organizing_body": "Uttar Pradesh Public Service Commission (UPPSC)",
         "post_type": "State / UP / Review Officer",
@@ -2221,7 +2221,7 @@ _BASE_SEED_EXAMS = [
     },
     {
         "id": "ukpsc-lower-pcs-2026",
-        "source_url": "https://sarkariresult.com.cm/ukpsc-lower-pcs-2026/",  # aggregator discovery page; not an official board link
+        "source_url": "https://pscuk.net.in/"
         "title": "UKPSC Lower Subordinate Services (Lower PCS) 2026 — 54 posts (Advt A-1/E-2/DR/LSS/2026-27)",
         "organizing_body": "Uttarakhand Public Service Commission (UKPSC)",
         "post_type": "State / Uttarakhand / Lower PCS",
@@ -2243,7 +2243,7 @@ _BASE_SEED_EXAMS = [
     },
     {
         "id": "rssb-support-engineer-2025",
-        "source_url": "https://sarkariresult.com.cm/rssb-support-engineer-recruitment-2025/",  # aggregator discovery page; not an official board link
+        "source_url": "https://rssb.rajasthan.gov.in/"
         "title": "RSSB Support Engineer / Support Chemist 2025 — 1,050 posts (short notice)",
         "organizing_body": "Rajasthan Staff Selection Board (RSSB)",
         "post_type": "State / Rajasthan / Engineering",
