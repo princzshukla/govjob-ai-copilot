@@ -2110,7 +2110,7 @@ _BASE_SEED_EXAMS = [
     # reintroduce aggregator URLs here. ----
     {
         "id": "uptet-feb-2027",
-        "source_url": "https://upessc.up.gov.in/"
+        "source_url": "https://upessc.up.gov.in/",
         "title": "UPTET February 2027 (Uttar Pradesh Teacher Eligibility Test)",
         "organizing_body": "Uttar Pradesh Education Service Selection Commission (UPESSC)",
         "post_type": "State / UP / Teacher Eligibility Test",
@@ -2133,7 +2133,7 @@ _BASE_SEED_EXAMS = [
     },
     {
         "id": "haryana-htet-2026",
-        "source_url": "https://htet2026.org/"
+        "source_url": "https://htet2026.org/",
         "title": "Haryana HTET 2026 (Teacher Eligibility Test — PRT / TGT / PGT)",
         "organizing_body": "Board of School Education Haryana (BSEH)",
         "post_type": "State / Haryana / Teacher Eligibility Test",
@@ -2155,7 +2155,7 @@ _BASE_SEED_EXAMS = [
     },
     {
         "id": "uksssc-constable-various-2026",
-        "source_url": "https://sssc.uk.gov.in/"
+        "source_url": "https://sssc.uk.gov.in/",
         "title": "UKSSSC Constable Various Posts 2026 (Constable / PAC-IRB / Fireman / Forest Guard / Jail Warder) — 1,694 posts",
         "organizing_body": "Uttarakhand Subordinate Service Selection Commission (UKSSSC)",
         "post_type": "State / Uttarakhand / Police & Constabulary",
@@ -2177,7 +2177,7 @@ _BASE_SEED_EXAMS = [
     },
     {
         "id": "rssb-je-reopen-2026",
-        "source_url": "https://rssb.rajasthan.gov.in/"
+        "source_url": "https://rssb.rajasthan.gov.in/",
         "title": "RSSB Junior Engineer (JE) 2026 — Re-Open (Advt 10/2026) — 1,909 posts",
         "organizing_body": "Rajasthan Staff Selection Board (RSSB)",
         "post_type": "State / Rajasthan / Engineering",
@@ -2199,7 +2199,7 @@ _BASE_SEED_EXAMS = [
     },
     {
         "id": "uppsc-ro-aro-2026",
-        "source_url": "https://uppsc.up.nic.in/CandidatePages/Notifications.aspx"
+        "source_url": "https://uppsc.up.nic.in/CandidatePages/Notifications.aspx",
         "title": "UPPSC Review Officer / Assistant Review Officer (RO / ARO) 2026 — 501 posts (Advt A-4/E-1/2026)",
         "organizing_body": "Uttar Pradesh Public Service Commission (UPPSC)",
         "post_type": "State / UP / Review Officer",
@@ -2221,7 +2221,7 @@ _BASE_SEED_EXAMS = [
     },
     {
         "id": "ukpsc-lower-pcs-2026",
-        "source_url": "https://pscuk.net.in/"
+        "source_url": "https://pscuk.net.in/",
         "title": "UKPSC Lower Subordinate Services (Lower PCS) 2026 — 54 posts (Advt A-1/E-2/DR/LSS/2026-27)",
         "organizing_body": "Uttarakhand Public Service Commission (UKPSC)",
         "post_type": "State / Uttarakhand / Lower PCS",
@@ -2243,7 +2243,7 @@ _BASE_SEED_EXAMS = [
     },
     {
         "id": "rssb-support-engineer-2025",
-        "source_url": "https://rssb.rajasthan.gov.in/"
+        "source_url": "https://rssb.rajasthan.gov.in/",
         "title": "RSSB Support Engineer / Support Chemist 2025 — 1,050 posts (short notice)",
         "organizing_body": "Rajasthan Staff Selection Board (RSSB)",
         "post_type": "State / Rajasthan / Engineering",
@@ -2263,6 +2263,187 @@ _BASE_SEED_EXAMS = [
         "state_restriction": "Rajasthan",
         "topics": {"General Intelligence", "Reasoning", "General Knowledge", "Current Affairs", "Mathematics", "Civil Engineering", "Mechanical Engineering", "Electrical Engineering", "Computer Science"},
     },
+
+    # ---- Added 2026-11-22: jobs missing from the live feed, each linked to the
+    # board's own apply page / notification. Eligibility fields are conservative
+    # placeholders; verification_status stays check_required until the official
+    # PDF is verified. Two Supreme Court notices use -nov-2026 IDs because older
+    # September notices with the old IDs are already in the seed. ----
+    {
+        "id": "sidbi-grade-a-b-2026",
+        "title": "SIDBI Grade A & B Online Form 2026",
+        "organizing_body": "Small Industries Development Bank of India (SIDBI)",
+        "post_type": "Bank / Grade A & B",
+        "notification_date": date(2026, 11, 21),
+        "application_deadline": date(2026, 12, 11),
+        "exam_date": None,
+        "official_pdf_url": "https://www.sidbi.in/head/uploads/career_document/SIDBI_DETAILED_WEB_ADVT_ENGLISH_211126_21_11_2026.pdf",
+        "source_url": "https://www.sidbi.in/head/uploads/career_document/SIDBI_DETAILED_WEB_ADVT_ENGLISH_211126_21_11_2026.pdf",
+        "apply_url": "https://ibpsreg.ibps.in/sidbimay26/",
+        "verified_on": None,
+        "verification_status": "check_required",
+        "deadline_locked": False,
+        "last_checked_at": date(2026, 11, 22),
+        "min_age": 18,
+        "max_age_general": 40,  # placeholder — verify against official PDF
+        "age_cutoff_date": date(2026, 12, 11),
+        "allowed_degrees": ["Any Graduate"],
+        "allowed_streams": ["Any"],
+        "min_percentage": 0.0,
+        "state_restriction": None,
+        "topics": {"Reasoning", "Quantitative Aptitude", "English", "General Awareness", "Financial Awareness"},
+    },
+
+    {
+        "id": "uppsc-civil-judge-pcs-j-2026",
+        "title": "UPPSC Civil Judge (PCS-J) Online Form 2026",
+        "organizing_body": "Uttar Pradesh Public Service Commission (UPPSC)",
+        "post_type": "State / UP / Judiciary",
+        "notification_date": date(2026, 11, 21),
+        "application_deadline": date(2026, 12, 21),
+        "exam_date": None,
+        "official_pdf_url": None,
+        "source_url": "https://uppsc.up.nic.in/Default.aspx",
+        "apply_url": "https://uppsc.up.nic.in/Default.aspx",
+        "verified_on": None,
+        "verification_status": "check_required",
+        "deadline_locked": False,
+        "last_checked_at": date(2026, 11, 22),
+        "min_age": 18,
+        "max_age_general": 40,  # placeholder — verify against official PDF
+        "age_cutoff_date": date(2026, 12, 21),
+        "allowed_degrees": ["LL.B"],
+        "allowed_streams": ["Any"],
+        "min_percentage": 0.0,
+        "state_restriction": "Uttar Pradesh",
+        "topics": {"Constitutional Law", "Civil Procedure", "Criminal Law", "General Knowledge", "English", "Hindi"},
+    },
+
+    {
+        "id": "sbi-sco-2026",
+        "title": "SBI Specialist Officer (SCO) Online Form 2026",
+        "organizing_body": "State Bank of India (SBI)",
+        "post_type": "Bank / Specialist Officer",
+        "notification_date": date(2026, 11, 21),
+        "application_deadline": date(2026, 12, 10),
+        "exam_date": None,
+        "official_pdf_url": "https://sbi.bank.in/documents/77530/57941334/20112026_Final_ADV_CRPD_SCO_2026-27_31.pdf/30ed8874-9669-c1eb-17bd-e8e4dfe534bb?t=1795161793708",
+        "source_url": "https://sbi.bank.in/documents/77530/57941334/20112026_Final_ADV_CRPD_SCO_2026-27_31.pdf/30ed8874-9669-c1eb-17bd-e8e4dfe534bb?t=1795161793708",
+        "apply_url": "https://ibpsreg.ibps.in/sbifteoct26/",
+        "verified_on": None,
+        "verification_status": "check_required",
+        "deadline_locked": False,
+        "last_checked_at": date(2026, 11, 22),
+        "min_age": 18,
+        "max_age_general": 40,  # placeholder — verify against official PDF
+        "age_cutoff_date": date(2026, 12, 10),
+        "allowed_degrees": ["Any Graduate"],
+        "allowed_streams": ["Any"],
+        "min_percentage": 0.0,
+        "state_restriction": None,
+        "topics": {"Reasoning", "Quantitative Aptitude", "English", "General Awareness", "Banking"},
+    },
+
+    {
+        "id": "pgcil-engineer-trainee-2026",
+        "title": "PGCIL Engineer Trainee Online Form 2026",
+        "organizing_body": "Power Grid Corporation of India Limited (PGCIL)",
+        "post_type": "PSU / Engineering",
+        "notification_date": date(2026, 11, 21),
+        "application_deadline": date(2026, 11, 23),
+        "exam_date": None,
+        "official_pdf_url": "https://www.powergrid.in/sites/default/files/job_opportunities_document/Notice_2_2.pdf",
+        "source_url": "https://www.powergrid.in/sites/default/files/job_opportunities_document/Notice_2_2.pdf",
+        "apply_url": "https://careers.powergrid.in/recruitment-nextgen/h/login.aspx",
+        "verified_on": None,
+        "verification_status": "check_required",
+        "deadline_locked": False,
+        "last_checked_at": date(2026, 11, 22),
+        "min_age": 18,
+        "max_age_general": 40,  # placeholder — verify against official PDF
+        "age_cutoff_date": date(2026, 11, 23),
+        "allowed_degrees": ["B.Tech", "BE"],
+        "allowed_streams": ["Electrical", "Electronics", "Civil", "Mechanical"],
+        "min_percentage": 0.0,
+        "state_restriction": None,
+        "topics": {"Electrical Engineering", "Electronics", "Reasoning", "Quantitative Aptitude", "General Awareness"},
+    },
+
+    {
+        "id": "upsc-13-2026-various-posts",
+        "title": "UPSC Advertisement 13/2026 — Various Posts",
+        "organizing_body": "Union Public Service Commission (UPSC)",
+        "post_type": "Central / Various Posts",
+        "notification_date": date(2026, 11, 21),
+        "application_deadline": date(2026, 12, 4),
+        "exam_date": None,
+        "official_pdf_url": None,
+        "source_url": "https://upsc.gov.in/whats-new",
+        "apply_url": "https://upsconline.nic.in/",
+        "verified_on": None,
+        "verification_status": "check_required",
+        "deadline_locked": False,
+        "last_checked_at": date(2026, 11, 22),
+        "min_age": 18,
+        "max_age_general": 40,  # placeholder — verify against official PDF
+        "age_cutoff_date": date(2026, 12, 4),
+        "allowed_degrees": ["Any Graduate"],
+        "allowed_streams": ["Any"],
+        "min_percentage": 0.0,
+        "state_restriction": None,
+        "topics": {'Hindi', 'Quantitative Aptitude', 'General Knowledge', 'General Intelligence', 'Current Affairs', 'English', 'Reasoning'},
+    },
+
+    {
+        "id": "sci-court-assistant-nov-2026",
+        "title": "Supreme Court of India — Court Assistant 2026 (November notice)",
+        "organizing_body": "Supreme Court of India (SCI)",
+        "post_type": "Central / Judiciary Support",
+        "notification_date": date(2026, 11, 21),
+        "application_deadline": date(2026, 11, 24),
+        "exam_date": None,
+        "official_pdf_url": "https://cdnbbsr.s3waas.gov.in/s3ec0490f1f4972d133619a60c30f3559e/uploads/2026/10/2026101374-1.pdf",
+        "source_url": "https://cdnbbsr.s3waas.gov.in/s3ec0490f1f4972d133619a60c30f3559e/uploads/2026/10/2026101374-1.pdf",
+        "apply_url": "https://cdn3.digialm.com/EForms/configuredHtml/32912/103177/qFQ6pc28SKg3N2aijS/Index.html",
+        "verified_on": None,
+        "verification_status": "check_required",
+        "deadline_locked": False,
+        "last_checked_at": date(2026, 11, 22),
+        "min_age": 18,
+        "max_age_general": 40,  # placeholder — verify against official PDF
+        "age_cutoff_date": date(2026, 11, 24),
+        "allowed_degrees": ["Any Graduate"],
+        "allowed_streams": ["Any"],
+        "min_percentage": 0.0,
+        "state_restriction": None,
+        "topics": {'Hindi', 'Quantitative Aptitude', 'General Knowledge', 'General Intelligence', 'Current Affairs', 'English', 'Reasoning'},
+    },
+
+    {
+        "id": "sci-junior-court-attendant-nov-2026",
+        "title": "Supreme Court of India — Junior Court Attendant 2026 (November notice)",
+        "organizing_body": "Supreme Court of India (SCI)",
+        "post_type": "Central / Judiciary Support",
+        "notification_date": date(2026, 11, 21),
+        "application_deadline": date(2026, 11, 25),
+        "exam_date": None,
+        "official_pdf_url": "https://cdnbbsr.s3waas.gov.in/s3ec0490f1f4972d133619a60c30f3559e/uploads/2026/10/2026101560.pdf",
+        "source_url": "https://cdnbbsr.s3waas.gov.in/s3ec0490f1f4972d133619a60c30f3559e/uploads/2026/10/2026101560.pdf",
+        "apply_url": "https://www.sci.gov.in/recruitments/",
+        "verified_on": None,
+        "verification_status": "check_required",
+        "deadline_locked": False,
+        "last_checked_at": date(2026, 11, 22),
+        "min_age": 18,
+        "max_age_general": 40,  # placeholder — verify against official PDF
+        "age_cutoff_date": date(2026, 11, 25),
+        "allowed_degrees": ["12th"],
+        "allowed_streams": ["Any"],
+        "min_percentage": 0.0,
+        "state_restriction": None,
+        "topics": {"General Intelligence", "Reasoning", "General Knowledge", "English", "Hindi"},
+    },
+
 ]
 
 # Admin-approved job discoveries are persisted in a small JSON overlay and
