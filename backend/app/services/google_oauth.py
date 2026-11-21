@@ -84,7 +84,9 @@ def validate_next(value: str | None) -> str:
         return "/"
     if "\\" in value or any(ord(ch) < 32 for ch in value):
         return "/"
-    return value
+    # A fragment would swallow the markers we append to this URL on callback
+    # (e.g. /?tab=jobs#results?profile=phone), so drop it.
+    return value.split("#", 1)[0] or "/"
 
 
 async def exchange_code(code: str, code_verifier: str) -> str:

@@ -8,6 +8,9 @@ from app.core.config import settings
 from app.services import google_oauth as google
 
 CLIENT_ID = "test-client.apps.googleusercontent.com"
+# Capture once: patch_google is called multiple times in one test and must not
+# wrap a previously patched wrapper.
+REAL_VERIFY_ID_TOKEN = google.verify_id_token
 
 
 @pytest.fixture(autouse=True)
@@ -29,8 +32,6 @@ def patch_google(monkeypatch, info=None, error=None):
     async def exchange(code, verifier):
         return "fake-id-token"
 
-    real_verify = google.verify_id_token
-
     async def verify(token, *, nonce):
         # Stub only the network/JWKS step, then run the real verification so
         # nonce, email_verified and identity-claim checks are still exercised.
@@ -42,7 +43,7 @@ def patch_google(monkeypatch, info=None, error=None):
             return payload
 
         monkeypatch.setattr(google, "_verify_sync", fake_verify_sync)
-        return await real_verify(token, nonce=nonce)
+        return await REAL_VERIFY_ID_TOKEN(token, nonce=nonce)
 
     monkeypatch.setattr(google, "exchange_code", exchange)
     monkeypatch.setattr(google, "verify_id_token", verify)
@@ -159,7 +160,9 @@ async def test_new_google_user_gets_session_and_profile_step(client, monkeypatch
     res = await callback(client, cookie, flow)
     assert res.status_code == 302
     assert urlparse(res.headers["location"]).path == "/"
-    assert parse_qs(urlparse(res.headers["location"]).query)["profile"] == ["phone"]
+    query = parse_qs(urlparse(res.headers["location"]).query)
+    assert query["google"] == ["1"]
+    assert query["profile"] == ["phone"]
     assert "session_id" in res.cookies
     # httpx drops expired cookies from Response.cookies, so assert on the
     # raw Set-Cookie header instead.
@@ -175,6 +178,49 @@ async def test_new_google_user_gets_session_and_profile_step(client, monkeypatch
     assert body["email"] == "google@example.com"
     assert body["phone"] is None
     assert body["has_password"] is False
+
+
+@pytest.mark.asyncio
+async def test_returning_google_user_gets_fresh_claims(client, monkeypatch):
+    patch_google(monkeypatch, info=token_info(email="old@example.com", name="Old Name"))
+    cookie, flow = await start_flow(client)
+    assert error_of(await callback(client, cookie, flow)) is None
+
+    patch_google(monkeypatch, info=token_info(email="new@example.com", name="New Name"))
+    cookie, flow = await start_flow(client)
+    assert error_of(await callback(client, cookie, flow)) is None
+
+    me = (await client.get("/api/v1/auth/me")).json()
+    assert me["email"] == "new@example.com"
+    assert me["full_name"] == "New Name"
+
+
+@pytest.mark.asyncio
+async def test_duplicate_phone_returns_409(client):
+    first = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "owner@example.com",
+            "password": "password123",
+            "full_name": "Owner",
+            "phone": "9876543210",
+        },
+    )
+    assert first.status_code == 201
+    await client.post(
+        "/api/v1/auth/logout",
+    )
+    second = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "other@example.com",
+            "password": "password123",
+            "full_name": "Other",
+        },
+    )
+    assert second.status_code == 201
+    phone = await client.patch("/api/v1/users/me/phone", json={"phone": "9876543210"})
+    assert phone.status_code == 409
 
 
 @pytest.mark.asyncio
@@ -248,6 +294,7 @@ async def test_disabled_google_flow_returns_404(client, monkeypatch):
         ("//evil.com", "/"),
         ("https://evil.com", "/"),
         ("/\\evil.com", "/"),
+        ("/?tab=jobs#results", "/?tab=jobs"),  # fragment would eat our markers
         (None, "/"),
         ("", "/"),
     ],

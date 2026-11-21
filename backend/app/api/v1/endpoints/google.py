@@ -135,6 +135,28 @@ async def callback(
             # Concurrent registration with the same email or sub.
             await db.rollback()
             return _redirect(error="account_exists")
+    else:
+        # Google is the source of truth for identity claims. A user can change
+        # their primary email/name in Google; keep our copy current without
+        # ever adopting an email that already belongs to another account.
+        name = str(info.get("name") or "").strip()[:120] or None
+        changed = False
+        if user.email != email:
+            clash = await db.scalar(
+                select(User.id).where(User.email == email, User.id != user.id)
+            )
+            if clash is None:
+                user.email = email
+                changed = True
+        if user.full_name != name:
+            user.full_name = name
+            changed = True
+        if changed:
+            try:
+                await db.commit()
+            except IntegrityError:
+                # Concurrent change claimed the email — keep the old, valid data.
+                await db.rollback()
 
     token = generate_session_token()
     db.add(
@@ -147,8 +169,13 @@ async def callback(
     await db.commit()
 
     target = google.validate_next(flow.get("next"))
+    # `google=1` tells the SPA to claim any guest draft now that there is an
+    # account; `profile=phone` opens the one-time phone step. Both are consumed
+    # and removed from the URL by the frontend.
+    markers = ["google=1"]
     if first_login and not user.phone:
-        target += "&profile=phone" if "?" in target else "?profile=phone"
+        markers.append("profile=phone")
+    target += ("&" if "?" in target else "?") + "&".join(markers)
 
     response = _redirect(target=target)
     set_session_cookie(response, token)

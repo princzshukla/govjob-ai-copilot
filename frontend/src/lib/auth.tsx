@@ -149,22 +149,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     api.getAuthProviders().then((p) => {
       if (!cancelled) setGoogleEnabled(p.google);
-    }).catch(() => { /* guest-facing feature; never block the app */ });
+    }).catch((err) => {
+      // Never block the app for a guest-facing flag, but don't hide the reason
+      // the Google button disappeared — that made a real outage hard to spot.
+      console.warn("Could not load sign-in providers:", err);
+    });
     return () => { cancelled = true; };
   }, []);
 
   // The Google callback redirects here with short markers (never tokens).
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (!url.searchParams.has("auth_error") && url.searchParams.get("profile") !== "phone") return;
+    const isGoogleCallback = url.searchParams.get("google") === "1";
+    if (!url.searchParams.has("auth_error") &&
+        url.searchParams.get("profile") !== "phone" &&
+        !isGoogleCallback) return;
 
     const code = url.searchParams.get("auth_error");
     const message = code ? AUTH_ERRORS[code] : null;
     if (message) toast("warn", message.title, message.detail);
     if (url.searchParams.get("profile") === "phone") setPhoneSetupOpen(true);
+    // Password sign-in claims the guest draft inside signIn(); a Google
+    // sign-in is a full-page redirect and never reaches that function.
+    if (isGoogleCallback) void claimGuestDraft();
 
     url.searchParams.delete("auth_error");
     url.searchParams.delete("profile");
+    url.searchParams.delete("google");
     window.history.replaceState({}, "", url.pathname + url.search + url.hash);
   }, []);
 
