@@ -116,6 +116,17 @@ def test_cancelled_and_revised_notices_are_detected():
     assert revised["revised"] is True
 
 
+def test_candidature_wording_does_not_count_as_recruitment_cancellation():
+    # Real apprenticeship notices contain these sentences; they must not
+    # deactivate the notification (see RRC/ISRO/UP Anganwadi false positives).
+    text = (
+        "The candidature of such applicants will be cancelled. "
+        "Candidates who have withdrawn from the Apprenticeship Training are not eligible. "
+        "Application withdrawal is allowed before the last date."
+    )
+    assert jw.extract_job_fields(text)["cancelled"] is False
+
+
 def test_report_never_claims_a_misleading_clean_coverage():
     text = jobs_report.format_jobs_report({
         "coverage_pct": 100.0, "total_live": 10, "total_seeds": 20,

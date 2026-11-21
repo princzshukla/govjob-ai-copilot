@@ -77,7 +77,17 @@ CLASS_AMBIGUOUS = "ambiguous"
 CLASS_IRRELEVANT = "irrelevant"
 CLASS_VERIFY = "requires_official_verification"
 
-_CANCEL_RE = re.compile(r"\b(cancelled|canceled|withdrawn|withdrawal|aborted)\b", re.I)
+# A bare "cancelled" is far too loose: real apprenticeship/recruitment PDFs say
+# things like "candidature will be cancelled" or "having withdrawn from training",
+# which previously deactivated perfectly live notifications. Require the
+# cancellation verb to be attached to the recruitment/exam/notification itself.
+_CANCEL_SUBJECT = r"(?:recruitment|advertisement|notification|exam(?:ination)?|advt\.?|vacanc(?:y|ies)|selection\s+process)"
+_CANCEL_VERB = r"(?:cancelled|canceled|withdraw(?:n|al)?|aborted|called\s+off)"
+_CANCEL_RE = re.compile(
+    rf"\b{_CANCEL_SUBJECT}\b[^.\n]{{0,80}}\b{_CANCEL_VERB}\b"
+    rf"|\b{_CANCEL_VERB}\b[^.\n]{{0,60}}\b{_CANCEL_SUBJECT}\b",
+    re.I,
+)
 _REVISED_RE = re.compile(r"\b(revised|corrigendum|amendment|addendum|re-scheduled)\b", re.I)
 
 
