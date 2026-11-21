@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -24,10 +26,29 @@ import { ADS_ENABLED, AD_FREQUENCY, SPONSORED_JOBS, type AdLayout } from "../../
 import { JobCard, SponsoredJobCard } from "../../components/rozgar/JobCard";
 import { AdmitCardCard } from "../../components/rozgar/AdmitCard";
 import { AdSlot } from "../../components/rozgar/AdSlot";
-import { AccountModal } from "../../components/rozgar/AccountModal";
-import { DocumentResizer } from "../../components/rozgar/DocumentResizer";
 import { Footer } from "../../components/rozgar/Footer";
-import { EligibilityPage, RoadmapPage } from "./rozgar-pages";
+
+// The default tab (Latest Jobs) is all most visitors ever open, so the
+// account dialog, the photo tool and the eligibility/roadmap pages are
+// loaded on demand. This keeps the initial JS bundle small.
+const AccountModal = lazy(() =>
+  import("../../components/rozgar/AccountModal").then((m) => ({ default: m.AccountModal })),
+);
+const DocumentResizer = lazy(() =>
+  import("../../components/rozgar/DocumentResizer").then((m) => ({ default: m.DocumentResizer })),
+);
+const EligibilityPage = lazy(() =>
+  import("./rozgar-pages").then((m) => ({ default: m.EligibilityPage })),
+);
+const RoadmapPage = lazy(() =>
+  import("./rozgar-pages").then((m) => ({ default: m.RoadmapPage })),
+);
+
+const ChunkFallback = () => (
+  <div className="mx-auto max-w-[1280px] px-4 py-10 text-center text-sm text-ink/50 sm:px-5">
+    Loading…
+  </div>
+);
 
 const NAV = [
   { label: "Latest Jobs", param: "jobs" },
@@ -649,7 +670,11 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
       </div>
 
       <BottomNav active={active} onSelect={goTab} />
-      {accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}
+      {accountOpen && (
+        <Suspense fallback={null}>
+          <AccountModal onClose={() => setAccountOpen(false)} />
+        </Suspense>
+      )}
 
       {active === "Latest Jobs" && (
         <HeroBand total={exams?.length ?? null} closingThisWeek={closingThisWeek} />
@@ -826,19 +851,25 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
         )}
 
         {active === "My Eligibility" && (
-          <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-5">
-            <EligibilityPage result={eligibility} onResultChange={setAndCacheEligibility} />
-          </div>
+          <Suspense fallback={<ChunkFallback />}>
+            <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-5">
+              <EligibilityPage result={eligibility} onResultChange={setAndCacheEligibility} />
+            </div>
+          </Suspense>
         )}
         {active === "My Roadmap" && (
-          <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-5">
-            <RoadmapPage />
-          </div>
+          <Suspense fallback={<ChunkFallback />}>
+            <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-5">
+              <RoadmapPage />
+            </div>
+          </Suspense>
         )}
         {active === "Photo & Signature" && (
-          <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-5">
-            <DocumentResizer />
-          </div>
+          <Suspense fallback={<ChunkFallback />}>
+            <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-5">
+              <DocumentResizer />
+            </div>
+          </Suspense>
         )}
       </div>
 
