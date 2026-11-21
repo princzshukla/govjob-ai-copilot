@@ -29,12 +29,20 @@ def patch_google(monkeypatch, info=None, error=None):
     async def exchange(code, verifier):
         return "fake-id-token"
 
+    real_verify = google.verify_id_token
+
     async def verify(token, *, nonce):
-        if error is not None:
-            raise error
-        payload = dict(info or token_info())
-        payload.setdefault("nonce", nonce)  # correct nonce unless overridden
-        return payload
+        # Stub only the network/JWKS step, then run the real verification so
+        # nonce, email_verified and identity-claim checks are still exercised.
+        def fake_verify_sync(_token):
+            if error is not None:
+                raise error
+            payload = dict(info or token_info())
+            payload.setdefault("nonce", nonce)
+            return payload
+
+        monkeypatch.setattr(google, "_verify_sync", fake_verify_sync)
+        return await real_verify(token, nonce=nonce)
 
     monkeypatch.setattr(google, "exchange_code", exchange)
     monkeypatch.setattr(google, "verify_id_token", verify)
@@ -153,7 +161,13 @@ async def test_new_google_user_gets_session_and_profile_step(client, monkeypatch
     assert urlparse(res.headers["location"]).path == "/"
     assert parse_qs(urlparse(res.headers["location"]).query)["profile"] == ["phone"]
     assert "session_id" in res.cookies
-    assert google.STATE_COOKIE in res.cookies  # deleted (Max-Age=0)
+    # httpx drops expired cookies from Response.cookies, so assert on the
+    # raw Set-Cookie header instead.
+    set_cookies = res.headers.get_list("set-cookie")
+    assert any(
+        cookie.startswith(f"{google.STATE_COOKIE}=") and "max-age=0" in cookie.lower()
+        for cookie in set_cookies
+    )
 
     me = await client.get("/api/v1/auth/me")
     assert me.status_code == 200
@@ -183,7 +197,7 @@ async def test_phone_completion_and_no_password_change(client, monkeypatch):
     cookie, flow = await start_flow(client)
     await callback(client, cookie, flow)
 
-    phone = await client.patch("/api/v1/auth/me/phone", json={"phone": "9876543210"})
+    phone = await client.patch("/api/v1/users/me/phone", json={"phone": "9876543210"})
     assert phone.status_code == 200
     assert phone.json()["phone"] == "+919876543210"
 

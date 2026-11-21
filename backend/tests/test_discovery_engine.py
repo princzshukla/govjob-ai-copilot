@@ -148,8 +148,9 @@ def test_idempotent_seed_insertion(monkeypatch, tmp_path):
         "notification_date": None, "exam_date": None,
         "admit_url": "https://example.gov.in/x.pdf", "source_url": "https://example.gov.in/x.pdf",
     }
+    base_count = len(ac.SEED_ADMIT_CARDS)
     assert ac.record_approved_seed(item)["id"] == "disc-1"
     with pytest.raises(ValueError):
         ac.record_approved_seed(item)
     assert len(json.loads(overlay.read_text(encoding="utf-8"))) == 1
-    assert len(ac.SEED_ADMIT_CARDS) == 41  # base list + one overlay row
+    assert len(ac.SEED_ADMIT_CARDS) == base_count + 1  # base list + one overlay row
