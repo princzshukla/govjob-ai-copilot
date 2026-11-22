@@ -51,11 +51,12 @@ export function JobCard({
   /** set after an eligibility check; null when the user has no profile yet */
   verdict?: "eligible" | "borderline" | "check" | "ineligible" | null;
 }) {
-  const [open, setOpen] = useState(() => currentExamId() === exam.id);
+  const [open, setOpen] = useState(false);
   const closed = exam.deadlineDays <= 0;
   const pct = exam.minPercentage;
 
   useEffect(() => {
+    if (currentExamId() === exam.id) setOpen(true);
     const onPop = () => setOpen(currentExamId() === exam.id);
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);

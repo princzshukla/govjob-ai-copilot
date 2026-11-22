@@ -6,7 +6,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build:client": "vite build",
+    "build:ssr": "vite build --ssr src/entry-server.tsx --outDir dist-ssr",
+    "prerender": "node scripts/prerender.mjs",
+    "sitemap": "node scripts/sitemap.mjs",
+    "build": "tsc -b && npm run build:client && npm run build:ssr && npm run prerender && npm run sitemap",
     "start": "node server.mjs",
     "preview": "vite preview",
     "test": "vitest run"

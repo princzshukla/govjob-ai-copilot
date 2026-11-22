@@ -50,15 +50,24 @@ const server = createServer((req, res) => {
   }
 
   let target = filePath;
+  let status = 200;
   if (!existsSync(target) || !statSync(target).isFile()) {
-    target = join(ROOT, "index.html");
+    const asDirectory = join(filePath, "index.html");
+    if (existsSync(asDirectory) && statSync(asDirectory).isFile()) {
+      target = asDirectory;
+    } else if (existsSync(join(ROOT, "404.html"))) {
+      target = join(ROOT, "404.html");
+      status = 404;
+    } else {
+      target = join(ROOT, "index.html");
+    }
   }
   if (!existsSync(target)) {
     return send(res, 500, "Build the frontend first: npm run build");
   }
 
   const ext = extname(target).toLowerCase();
-  res.writeHead(200, {
+  res.writeHead(status, {
     "Content-Type": MIME[ext] || "application/octet-stream",
     "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=31536000, immutable",
     "X-Content-Type-Options": "nosniff",
