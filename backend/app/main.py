@@ -18,7 +18,7 @@ from app.api.v1.endpoints import (adaptive, admit_cards, admin, auth, candidate,
                                   notifications, user_data, users)
 from app.core.config import settings
 from app.core.logging_config import configure_logging
-from app.core.rate_limit import limiter
+from app.core.rate_limit import client_key, limiter
 from app.core.tasks import admit_link_check_loop, exam_deadline_expiry_loop, session_cleanup_loop
 from app.services.coverage_watchdog import coverage_watchdog_loop
 from app.services.jobs_watchdog import jobs_watchdog_loop
@@ -140,6 +140,12 @@ async def security_headers(request: Request, call_next):
     # and detail endpoints). Only default to no-store when they did not.
     if "cache-control" not in response.headers:
         response.headers["Cache-Control"] = "no-store"
+
+    # Diagnostic only: a caller can inspect what identity the rate limiter sees
+    # by sending `X-Debug-IP: 1`. It exposes only the caller's own data.
+    if request.headers.get("x-debug-ip") == "1":
+        response.headers["X-Debug-Client-IP"] = client_key(request)
+        response.headers["X-Debug-XFF"] = request.headers.get("x-forwarded-for", "-")
     if settings.ENVIRONMENT == "production":
         response.headers["Strict-Transport-Security"] = (
             "max-age=31536000; includeSubDomains"
