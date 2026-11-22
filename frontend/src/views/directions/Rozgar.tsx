@@ -1,5 +1,4 @@
 import {
-  lazy,
   Suspense,
   useEffect,
   useLayoutEffect,
@@ -32,24 +31,13 @@ import { AdmitCardCard } from "../../components/rozgar/AdmitCard";
 import { AdSlot } from "../../components/rozgar/AdSlot";
 import { Footer } from "../../components/rozgar/Footer";
 
-// The default tab (Latest Jobs) is all most visitors ever open, so the
-// account dialog, the photo tool and the eligibility/roadmap pages are
-// loaded on demand. This keeps the initial JS bundle small.
-const AccountModal = lazy(() =>
-  import("../../components/rozgar/AccountModal").then((m) => ({ default: m.AccountModal })),
-);
-const DocumentResizer = lazy(() =>
-  import("../../components/rozgar/DocumentResizer").then((m) => ({ default: m.DocumentResizer })),
-);
-const EligibilityPage = lazy(() =>
-  import("./rozgar-pages").then((m) => ({ default: m.EligibilityPage })),
-);
-const RoadmapPage = lazy(() =>
-  import("./rozgar-pages").then((m) => ({ default: m.RoadmapPage })),
-);
-const ClosedJobsPage = lazy(() =>
-  import("./closed-jobs").then((m) => ({ default: m.ClosedJobsPage })),
-);
+// Eager imports: react-dom/server cannot wait for React.lazy, so these would
+// render a "Loading…" fallback into the prerendered HTML. Rollup still splits
+// them into separate chunks via manualChunks in vite.config.ts.
+import { AccountModal } from "../../components/rozgar/AccountModal";
+import { DocumentResizer } from "../../components/rozgar/DocumentResizer";
+import { EligibilityPage, RoadmapPage } from "./rozgar-pages";
+import { ClosedJobsPage } from "./closed-jobs";
 
 const ChunkFallback = () => (
   <div className="mx-auto max-w-[1280px] px-4 py-10 text-center text-sm text-ink/50 sm:px-5">

@@ -15,5 +15,17 @@ export default defineConfig({
   build: {
     target: "es2022",
     cssMinify: "lightningcss",
+    rollupOptions: {
+      output: {
+        // Keep the rarely-used tabs in their own chunks even though they are
+        // statically imported (SSR needs them eagerly).
+        manualChunks(id) {
+          if (id.includes("components/rozgar/DocumentResizer")) return "resizer";
+          if (id.includes("views/directions/closed-jobs")) return "closed-jobs";
+          if (id.includes("views/directions/rozgar-pages")) return "rozgar-pages";
+          if (id.includes("components/rozgar/AccountModal")) return "account-modal";
+        },
+      },
+    },
   },
 });

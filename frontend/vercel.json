@@ -20,6 +20,12 @@
     },
     {
       "source": "/",
+      "has": [{ "type": "query", "key": "tab", "value": "closed" }],
+      "destination": "/closed-jobs",
+      "permanent": true
+    },
+    {
+      "source": "/",
       "has": [{ "type": "query", "key": "tab", "value": "eligibility" }],
       "destination": "/eligibility",
       "permanent": true

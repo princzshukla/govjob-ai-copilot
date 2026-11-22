@@ -21,6 +21,7 @@ const SITE = process.env.SITE_URL || "https://www.rozgarboard.in";
 const STATIC_ROUTES = [
   { path: "/", file: "index.html" },
   { path: "/admit-cards", file: "admit-cards/index.html" },
+  { path: "/closed-jobs", file: "closed-jobs/index.html" },
   { path: "/eligibility", file: "eligibility/index.html" },
   { path: "/roadmap", file: "roadmap/index.html" },
   { path: "/tools/photo-signature-resizer", file: "tools/photo-signature-resizer/index.html" },

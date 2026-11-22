@@ -1,14 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { slugFor } from "../../lib/slug";
 
 import { getAllExams } from "../../lib/api";
 import { safeUrl } from "../../lib/safeUrl";
+import { getPrerenderData } from "../../lib/prerender-data";
 import type { ExamNotification } from "../../types";
+
+function closedExams(all: ExamNotification[]): ExamNotification[] {
+  const today = new Date().toISOString().slice(0, 10);
+  return all
+    .filter((e) =>
+      e.window_state ? e.window_state === "closed" : !!e.application_deadline && e.application_deadline < today,
+    )
+    .sort((a, b) => (b.application_deadline || "").localeCompare(a.application_deadline || ""));
+}
 
 /** Archive of notifications whose application window has closed.
  *  Data is honest: real (past) deadlines from the official notices, never extended
  *  just to keep a row visible in the live feed. */
 export function ClosedJobsPage() {
-  const [exams, setExams] = useState<ExamNotification[] | null>(null);
+  const [exams, setExams] = useState<ExamNotification[] | null>(() => {
+    const prerendered = getPrerenderData()?.exams;
+    return prerendered ? closedExams(prerendered) : null;
+  });
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -16,12 +31,7 @@ export function ClosedJobsPage() {
     getAllExams()
       .then((res) => {
         if (!alive) return;
-        const closed = res.exams.filter((e) => {
-          if (e.window_state) return e.window_state === "closed";
-          return !!e.application_deadline && e.application_deadline < new Date().toISOString().slice(0, 10);
-        });
-        closed.sort((a, b) => (b.application_deadline || "").localeCompare(a.application_deadline || ""));
-        setExams(closed);
+        setExams(closedExams(res.exams));
       })
       .catch(() => {
         if (alive) setError("Could not load the archive. Please try again.");
@@ -58,7 +68,7 @@ export function ClosedJobsPage() {
   return (
     <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-5">
       <div className="mb-5">
-        <h2 className="text-[22px] font-extrabold tracking-tight text-ink">Closed Jobs</h2>
+        <h1 className="text-[22px] font-extrabold tracking-tight text-ink">Closed Jobs</h1>
         <p className="mt-1 text-[13px] text-ink/60">
           {exams.length} past notifications. Application windows have ended — listed for reference and official
           source links only.
@@ -79,7 +89,14 @@ export function ClosedJobsPage() {
                   className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-line bg-white/60 px-4 py-3"
                 >
                   <div className="min-w-0">
-                    <p className="text-[14px] font-semibold leading-snug text-ink">{exam.title}</p>
+                    <p className="text-[14px] font-semibold leading-snug text-ink">
+                      <Link
+                        to={`/jobs/${slugFor(exam.title, exam.id)}`}
+                        className="hover:underline hover:underline-offset-2"
+                      >
+                        {exam.title}
+                      </Link>
+                    </p>
                     <p className="mt-0.5 text-[12px] text-ink/55">
                       {exam.organizing_body} · Closed {exam.application_deadline}
                     </p>

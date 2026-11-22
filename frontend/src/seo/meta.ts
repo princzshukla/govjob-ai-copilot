@@ -29,6 +29,11 @@ const PAGES: Record<string, Partial<PageMeta>> = {
     description:
       "Government exam admit cards and exam-city intimations with official download links, checked regularly against the boards.",
   },
+  "/closed-jobs": {
+    title: "Closed Government Job Notifications — Reference Archive",
+    description:
+      "Archived government job notifications with their official PDF links and dates, kept for reference after the application window closed.",
+  },
   "/eligibility": {
     title: "Government Job Eligibility Checker — Free, No Signup",
     description:

@@ -7,6 +7,7 @@
 export const TABS = [
   { label: "Latest Jobs", param: "jobs", path: "/" },
   { label: "Admit Cards", param: "admit", path: "/admit-cards" },
+  { label: "Closed Jobs", param: "closed", path: "/closed-jobs" },
   { label: "My Eligibility", param: "eligibility", path: "/eligibility" },
   { label: "My Roadmap", param: "roadmap", path: "/roadmap" },
   {
@@ -21,6 +22,7 @@ export type Tab = (typeof TABS)[number]["label"];
 export const PATH_FOR_TAB: Record<Tab, string> = {
   "Latest Jobs": "/",
   "Admit Cards": "/admit-cards",
+  "Closed Jobs": "/closed-jobs",
   "My Eligibility": "/eligibility",
   "My Roadmap": "/roadmap",
   "Photo & Signature": "/tools/photo-signature-resizer",
@@ -29,6 +31,7 @@ export const PATH_FOR_TAB: Record<Tab, string> = {
 const LEGACY_PARAM_TO_TAB: Record<string, Tab> = {
   jobs: "Latest Jobs",
   admit: "Admit Cards",
+  closed: "Closed Jobs",
   eligibility: "My Eligibility",
   roadmap: "My Roadmap",
   documents: "Photo & Signature",
