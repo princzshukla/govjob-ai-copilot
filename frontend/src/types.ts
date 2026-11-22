@@ -32,6 +32,8 @@ export interface ExamNotification {
   source_url: string | null;
   last_checked_at: string | null;
   is_active: boolean;
+  /** Computed by the list endpoint: "open" | "closed" | "unknown". */
+  window_state?: "open" | "closed" | "unknown";
 }
 
 export interface ExamsListResponse {

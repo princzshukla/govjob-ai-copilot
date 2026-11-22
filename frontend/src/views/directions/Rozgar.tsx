@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -13,6 +15,7 @@ import {
   ClipboardCheck,
   Map as MapIcon,
   Image as ImageIcon,
+  Archive as ArchiveIcon,
   Search as SearchIcon,
 } from "lucide-react";
 import { toFeedExam, toFeedAdmitCard, type FeedExam, type FeedAdmitCard } from "../../lib/exams";
@@ -27,14 +30,37 @@ import { ADS_ENABLED, AD_FREQUENCY, SPONSORED_JOBS, type AdLayout } from "../../
 import { JobCard, SponsoredJobCard } from "../../components/rozgar/JobCard";
 import { AdmitCardCard } from "../../components/rozgar/AdmitCard";
 import { AdSlot } from "../../components/rozgar/AdSlot";
-import { AccountModal } from "../../components/rozgar/AccountModal";
-import { DocumentResizer } from "../../components/rozgar/DocumentResizer";
 import { Footer } from "../../components/rozgar/Footer";
-import { EligibilityPage, RoadmapPage } from "./rozgar-pages";
+
+// The default tab (Latest Jobs) is all most visitors ever open, so the
+// account dialog, the photo tool and the eligibility/roadmap pages are
+// loaded on demand. This keeps the initial JS bundle small.
+const AccountModal = lazy(() =>
+  import("../../components/rozgar/AccountModal").then((m) => ({ default: m.AccountModal })),
+);
+const DocumentResizer = lazy(() =>
+  import("../../components/rozgar/DocumentResizer").then((m) => ({ default: m.DocumentResizer })),
+);
+const EligibilityPage = lazy(() =>
+  import("./rozgar-pages").then((m) => ({ default: m.EligibilityPage })),
+);
+const RoadmapPage = lazy(() =>
+  import("./rozgar-pages").then((m) => ({ default: m.RoadmapPage })),
+);
+const ClosedJobsPage = lazy(() =>
+  import("./closed-jobs").then((m) => ({ default: m.ClosedJobsPage })),
+);
+
+const ChunkFallback = () => (
+  <div className="mx-auto max-w-[1280px] px-4 py-10 text-center text-sm text-ink/50 sm:px-5">
+    Loading…
+  </div>
+);
 
 const NAV = [
   { label: "Latest Jobs", param: "jobs" },
   { label: "Admit Cards", param: "admit" },
+  { label: "Closed Jobs", param: "closed" },
   { label: "My Eligibility", param: "eligibility" },
   { label: "My Roadmap", param: "roadmap" },
   { label: "Photo & Signature", param: "documents" },
@@ -43,6 +69,7 @@ const NAV = [
 const BOTTOM_NAV = [
   { label: "Latest Jobs", short: "Jobs", icon: Briefcase, param: "jobs" },
   { label: "Admit Cards", short: "Admits", icon: FileText, param: "admit" },
+  { label: "Closed Jobs", short: "Closed", icon: ArchiveIcon, param: "closed" },
   { label: "My Eligibility", short: "Eligibility", icon: ClipboardCheck, param: "eligibility" },
   { label: "My Roadmap", short: "Roadmap", icon: MapIcon, param: "roadmap" },
   { label: "Photo & Signature", short: "Documents", icon: ImageIcon, param: "documents" },
@@ -633,7 +660,11 @@ export function Rozgar({ adLayout, tab }: { adLayout: AdLayout; tab: Tab }) {
       </div>
 
       <BottomNav active={active} onSelect={goTab} />
-      {accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}
+      {accountOpen && (
+        <Suspense fallback={null}>
+          <AccountModal onClose={() => setAccountOpen(false)} />
+        </Suspense>
+      )}
 
       {active === "Latest Jobs" && (
         <HeroBand total={exams?.length ?? null} closingThisWeek={closingThisWeek} />
@@ -811,20 +842,31 @@ export function Rozgar({ adLayout, tab }: { adLayout: AdLayout; tab: Tab }) {
           </div>
         )}
 
+        {active === "Closed Jobs" && (
+          <Suspense fallback={<ChunkFallback />}>
+            <ClosedJobsPage />
+          </Suspense>
+        )}
         {active === "My Eligibility" && (
-          <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-5">
-            <EligibilityPage result={eligibility} onResultChange={setAndCacheEligibility} />
-          </div>
+          <Suspense fallback={<ChunkFallback />}>
+            <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-5">
+              <EligibilityPage result={eligibility} onResultChange={setAndCacheEligibility} />
+            </div>
+          </Suspense>
         )}
         {active === "My Roadmap" && (
-          <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-5">
-            <RoadmapPage />
-          </div>
+          <Suspense fallback={<ChunkFallback />}>
+            <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-5">
+              <RoadmapPage />
+            </div>
+          </Suspense>
         )}
         {active === "Photo & Signature" && (
-          <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-5">
-            <DocumentResizer />
-          </div>
+          <Suspense fallback={<ChunkFallback />}>
+            <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-5">
+              <DocumentResizer />
+            </div>
+          </Suspense>
         )}
       </div>
 

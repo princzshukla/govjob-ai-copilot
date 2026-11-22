@@ -52,6 +52,17 @@ def test_golden_case_ids_are_unique():
     assert len(ids) == len(set(ids))
 
 
+def test_unverified_notification_never_produces_a_confident_verdict():
+    # Aggregator-discovered rows carry placeholder ages/qualifications. Even if
+    # a candidate happens to fall inside those placeholders, the result must be
+    # "Check notification", never "You qualify".
+    result = _run_case({"exam": {"verification_status": "check_required"}})
+    assert result.verdict == "check_manually"
+    assert result.is_eligible is False
+    assert result.check_manually is True
+    assert any(r.rule == "Notification verification" for r in result.rules)
+
+
 @pytest.mark.parametrize("case", CASES, ids=[case["id"] for case in CASES])
 def test_golden_case(case):
     result = _run_case(case)
