@@ -87,7 +87,7 @@ async def get_admit_card_by_key(
         func.replace(func.lower(AdmitCardNotification.id), "-", ""), "_", ""
     )
     row = (
-        await db.execute(select(AdmitCardNotification).where(normalised_id.startswith(prefix)))
+        await db.execute(select(AdmitCardNotification).where(normalised_id == prefix))
     ).scalars().first()
     if row is None:
         raise HTTPException(status_code=404, detail="Admit card not found")

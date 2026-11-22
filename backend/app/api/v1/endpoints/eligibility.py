@@ -1,6 +1,7 @@
 import logging
 import time
 import uuid
+from collections import OrderedDict
 from datetime import date as dt_date, datetime, timezone
 from typing import Optional
 
@@ -33,7 +34,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/eligibility", tags=["Eligibility & Roadmaps"])
 
 # In-memory cache for generated roadmaps, keyed by "exam_id_target_weeks".
-ROADMAP_CACHE: dict[str, StudyRoadmapResponse] = {}
+# Bounded so a crawler walking exam/week combinations cannot grow it forever.
+ROADMAP_CACHE: OrderedDict[str, StudyRoadmapResponse] = OrderedDict()
+ROADMAP_CACHE_MAX = 256
 
 DEFAULT_TOPICS = ["General Intelligence", "Quantitative Aptitude", "Current Affairs"]
 
@@ -169,7 +172,7 @@ async def get_exam_by_key(
         func.replace(func.lower(ExamNotification.id), "-", ""), "_", ""
     )
     row = (
-        await db.execute(select(ExamNotification).where(normalised_id.startswith(prefix)))
+        await db.execute(select(ExamNotification).where(normalised_id == prefix))
     ).scalars().first()
     if row is None:
         raise HTTPException(status_code=404, detail="Exam not found")
@@ -195,6 +198,7 @@ async def create_exam_roadmap(
     cache_key = f"{exam_id}_{target_weeks}"
     if cache_key in ROADMAP_CACHE:
         roadmap = ROADMAP_CACHE[cache_key]
+        ROADMAP_CACHE.move_to_end(cache_key)
     else:
         # A roadmap is a study plan built from the exam's syllabus — it is not
         # an application action, so a closed application window must not make
@@ -216,6 +220,8 @@ async def create_exam_roadmap(
             target_weeks=target_weeks
         )
         ROADMAP_CACHE[cache_key] = roadmap
+        if len(ROADMAP_CACHE) > ROADMAP_CACHE_MAX:
+            ROADMAP_CACHE.popitem(last=False)
 
     await upsert_saved_roadmap(
         db,
@@ -262,7 +268,9 @@ async def check_candidate_eligibility(
     response_model=EligibilityReportResponse,
     status_code=201,
 )
+@limiter.limit("5/hour")
 async def report_wrong_eligibility_result(
+    request: Request,
     payload: EligibilityReportCreate,
     db: AsyncSession = Depends(get_db),
 ):
@@ -290,7 +298,9 @@ async def report_wrong_eligibility_result(
         "title": exam.title,
         "organizing_body": exam.organizing_body,
         "post_type": exam.post_type,
-        "application_deadline": exam.application_deadline.isoformat(),
+        "application_deadline": (
+            exam.application_deadline.isoformat() if exam.application_deadline else None
+        ),
         "source_url": exam.source_url or exam.official_pdf_url,
         "apply_url": exam.apply_url,
         "last_checked_at": (
@@ -360,6 +370,8 @@ async def sync_live_government_jobs(
             layer2_worker.DEFAULT_SOURCES, max_docs=5
         )
     except Exception:
+        # A failed pass must not lock out retries for the whole cooldown.
+        _last_sync_started_at = None
         # Do not reflect scraper/LLM exception text back to clients.
         logger.exception("Live job sync failed")
         raise HTTPException(

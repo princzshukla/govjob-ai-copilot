@@ -165,7 +165,8 @@ export function buildProfilePayload(
   if (gender) out["gender"] = gender;
 
   const rawCategory = asTrimmedString(raw["category"]);
-  if (rawCategory) out["category"] = rawCategory === "OBC" ? "OBC-NCL" : rawCategory;
+  const category = rawCategory === "OBC" ? "OBC-NCL" : rawCategory;
+  out["category"] = category || "General";
 
   if (raw["is_pwd"] !== undefined || raw["physical_disability"] !== undefined) {
     out["is_pwd"] = toBoolean(raw["is_pwd"] ?? raw["physical_disability"]);

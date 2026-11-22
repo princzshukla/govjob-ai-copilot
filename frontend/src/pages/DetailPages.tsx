@@ -4,7 +4,25 @@ import type { AdmitCard, ExamNotification } from "../types";
 import { formatDateIN } from "../lib/exams";
 import { slugFor } from "../lib/slug";
 import { getPrerenderData } from "../lib/prerender-data";
+import { safeUrl } from "../lib/safeUrl";
 import { jobFaqs } from "../seo/faq";
+
+const todayIST = () =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+
+function MissingNotice() {
+  return (
+    <Shell>
+      <h1 className="text-2xl font-extrabold tracking-tight text-ink">Notification not found</h1>
+      <p className="mt-3 text-[14.5px] leading-relaxed text-ink/70">
+        This notification may have been removed, or the link may be out of date.
+      </p>
+      <Link to="/" className="mt-6 inline-block rounded-full bg-ink px-5 py-2.5 text-[13.5px] font-bold text-white">
+        See latest jobs
+      </Link>
+    </Shell>
+  );
+}
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
@@ -36,21 +54,33 @@ export function JobPage() {
   const [exam, setExam] = useState<ExamNotification | null>(
     () => data?.exam ?? data?.exams?.find((e) => slugFor(e.title, e.id) === key) ?? null,
   );
+  const [missing, setMissing] = useState(false);
 
   useEffect(() => {
-    if (exam || !key) return;
+    setMissing(false);
+    const initial = data?.exam ?? data?.exams?.find((e) => slugFor(e.title, e.id) === key);
+    if (initial || !key) {
+      setExam(initial ?? null);
+      return;
+    }
     let cancelled = false;
     fetch(`/api/v1/eligibility/exams/${encodeURIComponent(key)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((row) => {
-        if (!cancelled && row) setExam(row);
+      .then((res) => {
+        if (!res.ok) throw new Error(String(res.status));
+        return res.json();
       })
-      .catch(() => {});
+      .then((row) => {
+        if (!cancelled) setExam(row);
+      })
+      .catch(() => {
+        if (!cancelled) setMissing(true);
+      });
     return () => {
       cancelled = true;
     };
-  }, [key, exam]);
+  }, [key]);
 
+  if (missing) return <MissingNotice />;
   if (!exam) {
     return (
       <Shell>
@@ -60,7 +90,7 @@ export function JobPage() {
   }
 
   const faqs = jobFaqs(exam);
-  const closed = exam.application_deadline < new Date().toISOString().slice(0, 10);
+  const closed = exam.application_deadline < todayIST();
   const related = (data?.exams ?? [])
     .filter((e) => e.id !== exam.id && e.organizing_body === exam.organizing_body)
     .slice(0, 4);
@@ -141,13 +171,13 @@ export function JobPage() {
             : "No application portal is on file. Use the official notification PDF for application instructions."}
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
-          {exam.apply_url && (
-            <a href={exam.apply_url} target="_blank" rel="noopener noreferrer" className="rounded-full bg-ink px-5 py-2.5 text-[13.5px] font-bold text-white">
+          {safeUrl(exam.apply_url) && (
+            <a href={safeUrl(exam.apply_url)!} target="_blank" rel="noopener noreferrer" className="rounded-full bg-ink px-5 py-2.5 text-[13.5px] font-bold text-white">
               Apply on official portal
             </a>
           )}
-          {exam.official_pdf_url && (
-            <a href={exam.official_pdf_url} target="_blank" rel="noopener noreferrer" className="rounded-full border-2 border-ink px-5 py-2.5 text-[13.5px] font-bold text-ink">
+          {safeUrl(exam.official_pdf_url) && (
+            <a href={safeUrl(exam.official_pdf_url)!} target="_blank" rel="noopener noreferrer" className="rounded-full border-2 border-ink px-5 py-2.5 text-[13.5px] font-bold text-ink">
               Official notification PDF
             </a>
           )}
@@ -157,11 +187,11 @@ export function JobPage() {
       <section className="mt-8">
         <h2 className="text-[21px] font-extrabold tracking-tight text-ink">Sources and verification</h2>
         <ul className="mt-3 space-y-2 text-[14.5px] text-ink/80">
-          {exam.source_url && (
+          {safeUrl(exam.source_url) && (
             <li>
               Official source:{" "}
-              <a href={exam.source_url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
-                {exam.source_url}
+              <a href={safeUrl(exam.source_url)!} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                {safeUrl(exam.source_url)}
               </a>
             </li>
           )}
@@ -206,21 +236,33 @@ export function AdmitCardPage() {
   const [card, setCard] = useState<AdmitCard | null>(
     () => data?.admitCard ?? data?.admitCards?.find((c) => slugFor(c.title, c.id) === key) ?? null,
   );
+  const [missing, setMissing] = useState(false);
 
   useEffect(() => {
-    if (card || !key) return;
+    setMissing(false);
+    const initial = data?.admitCard ?? data?.admitCards?.find((c) => slugFor(c.title, c.id) === key);
+    if (initial || !key) {
+      setCard(initial ?? null);
+      return;
+    }
     let cancelled = false;
     fetch(`/api/v1/admit-cards/${encodeURIComponent(key)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((row) => {
-        if (!cancelled && row) setCard(row);
+      .then((res) => {
+        if (!res.ok) throw new Error(String(res.status));
+        return res.json();
       })
-      .catch(() => {});
+      .then((row) => {
+        if (!cancelled) setCard(row);
+      })
+      .catch(() => {
+        if (!cancelled) setMissing(true);
+      });
     return () => {
       cancelled = true;
     };
-  }, [key, card]);
+  }, [key]);
 
+  if (missing) return <MissingNotice />;
   if (!card) {
     return (
       <Shell>
@@ -255,10 +297,10 @@ export function AdmitCardPage() {
           </tbody>
         </table>
       </section>
-      {card.admit_url && (
+      {safeUrl(card.admit_url) && (
         <section className="mt-8">
           <h2 className="text-[21px] font-extrabold tracking-tight text-ink">Official download</h2>
-          <a href={card.admit_url} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block rounded-full bg-ink px-5 py-2.5 text-[13.5px] font-bold text-white">
+          <a href={safeUrl(card.admit_url)!} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block rounded-full bg-ink px-5 py-2.5 text-[13.5px] font-bold text-white">
             Open official link
           </a>
           <p className="mt-3 text-[13.5px] text-ink/60">
@@ -266,11 +308,11 @@ export function AdmitCardPage() {
           </p>
         </section>
       )}
-      {card.source_url && (
+      {safeUrl(card.source_url) && (
         <section className="mt-8">
           <h2 className="text-[21px] font-extrabold tracking-tight text-ink">Source</h2>
-          <a href={card.source_url} target="_blank" rel="noopener noreferrer" className="text-[14.5px] underline underline-offset-2">
-            {card.source_url}
+          <a href={safeUrl(card.source_url)!} target="_blank" rel="noopener noreferrer" className="text-[14.5px] underline underline-offset-2">
+            {safeUrl(card.source_url)}
           </a>
         </section>
       )}

@@ -136,7 +136,10 @@ async def security_headers(request: Request, call_next):
     )
     # Per-user JSON must never be served from caches (shared or browser).
     # Also prevents a client from reusing a stale response after it changed.
-    response.headers["Cache-Control"] = "no-store"
+    # Handlers may explicitly opt into public caching (e.g. the SEO listing
+    # and detail endpoints). Only default to no-store when they did not.
+    if "cache-control" not in response.headers:
+        response.headers["Cache-Control"] = "no-store"
     if settings.ENVIRONMENT == "production":
         response.headers["Strict-Transport-Security"] = (
             "max-age=31536000; includeSubDomains"
