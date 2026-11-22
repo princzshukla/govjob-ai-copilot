@@ -9,11 +9,12 @@ deadline. See app/models/admit_card.py.
 
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.seo import id_prefix_from_slug
 from app.core.timeutils import today_ist
 from app.models.admit_card import AdmitCardNotification
 
@@ -35,6 +36,7 @@ def _admit_card_item(card: AdmitCardNotification) -> dict:
 
 @router.get("")
 async def list_admit_cards(
+    response: Response,
     db: AsyncSession = Depends(get_db),
     subtype: str | None = Query(default=None, pattern="^(admit_card|exam_city)$"),
 ):
@@ -67,4 +69,26 @@ async def list_admit_cards(
         )
     )
     cards = list((await db.execute(stmt)).scalars().all())
+    response.headers["Cache-Control"] = "public, s-maxage=300, stale-while-revalidate=600"
     return {"total": len(cards), "admit_cards": [_admit_card_item(c) for c in cards]}
+
+
+@router.get("/{key}")
+async def get_admit_card_by_key(
+    key: str,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    """One admit-card notice by its public URL key."""
+    prefix = id_prefix_from_slug(key)
+    if prefix is None:
+        raise HTTPException(status_code=404, detail="Admit card not found")
+    row = (
+        await db.execute(
+            select(AdmitCardNotification).where(AdmitCardNotification.id.startswith(prefix))
+        )
+    ).scalars().first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Admit card not found")
+    response.headers["Cache-Control"] = "public, s-maxage=300, stale-while-revalidate=600"
+    return _admit_card_item(row)
