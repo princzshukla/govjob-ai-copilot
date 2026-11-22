@@ -8,6 +8,7 @@ import { PhoneSetupModal } from "./components/rozgar/PhoneSetupModal";
 import { ToastHost } from "./components/rozgar/Toast";
 import { PrivacyPage } from "./components/rozgar/PrivacyPage";
 import { NotFound } from "./components/rozgar/NotFound";
+import { AdmitCardPage, JobPage } from "./pages/DetailPages";
 
 /** `/?tab=admit` and friends forward to the real path, without a reload. */
 function HomeRoute() {
@@ -26,6 +27,8 @@ export function AppRoutes() {
     <Routes>
       <Route path="/" element={<HomeRoute />} />
       <Route path="/admit-cards" element={<TabRoute tab="Admit Cards" />} />
+      <Route path="/admit-cards/:key" element={<AdmitCardPage />} />
+      <Route path="/jobs/:key" element={<JobPage />} />
       <Route path="/eligibility" element={<TabRoute tab="My Eligibility" />} />
       <Route path="/roadmap" element={<TabRoute tab="My Roadmap" />} />
       <Route

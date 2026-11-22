@@ -165,10 +165,11 @@ async def get_exam_by_key(
     prefix = id_prefix_from_slug(key)
     if prefix is None:
         raise HTTPException(status_code=404, detail="Exam not found")
+    normalised_id = func.replace(
+        func.replace(func.lower(ExamNotification.id), "-", ""), "_", ""
+    )
     row = (
-        await db.execute(
-            select(ExamNotification).where(ExamNotification.id.startswith(prefix))
-        )
+        await db.execute(select(ExamNotification).where(normalised_id.startswith(prefix)))
     ).scalars().first()
     if row is None:
         raise HTTPException(status_code=404, detail="Exam not found")

@@ -8,25 +8,7 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { PageShell } from "../../views/directions/rozgar-pages";
-
-interface ResizerPreset {
-  label: string;
-  width: number;
-  height: number;
-  minKB: number;
-  maxKB: number;
-  type: "photo" | "signature" | "custom";
-}
-
-const PRESETS: ResizerPreset[] = [
-  { label: "SSC Photo (350×450, 20–50 KB)", width: 350, height: 450, minKB: 20, maxKB: 50, type: "photo" },
-  { label: "SSC Signature (280×120, 10–20 KB)", width: 280, height: 120, minKB: 10, maxKB: 20, type: "signature" },
-  { label: "IBPS Photo (200×230, 20–50 KB)", width: 200, height: 230, minKB: 20, maxKB: 50, type: "photo" },
-  { label: "IBPS Signature (140×60, 10–20 KB)", width: 140, height: 60, minKB: 10, maxKB: 20, type: "signature" },
-  { label: "UPSC Photo (350×350, 20–300 KB)", width: 350, height: 350, minKB: 20, maxKB: 300, type: "photo" },
-  { label: "UPSC Signature (350×150, 20–300 KB)", width: 350, height: 150, minKB: 20, maxKB: 300, type: "signature" },
-  { label: "Custom (Self Defined)", width: 0, height: 0, minKB: 10, maxKB: 50, type: "custom" },
-];
+import { PRESETS, toolFaqs } from "../../lib/specs";
 
 interface OutputImage {
   url: string;
@@ -497,6 +479,66 @@ export function DocumentResizer() {
       )}
 
       <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
+
+      <section className="mt-10 border-t border-line pt-8">
+        <h2 className="text-[22px] font-extrabold tracking-tight text-ink">
+          Photo and signature sizes by exam board
+        </h2>
+        <p className="mt-2 max-w-3xl text-[14.5px] leading-relaxed text-ink/70">
+          These are the dimensions and file-size bands configured in the tool above. They are
+          the limits most boards publish, but requirements change between exam cycles — confirm
+          them in the notification PDF for your exam before you upload.
+        </p>
+        <div className="mt-5 overflow-x-auto">
+          <table className="w-full border-collapse text-left text-[13.5px]">
+            <thead>
+              <tr className="border-b-2 border-ink font-bold">
+                <th className="py-2 pr-4">Board</th>
+                <th className="py-2 pr-4">Document</th>
+                <th className="py-2 pr-4">Pixels</th>
+                <th className="py-2 pr-4">File size</th>
+                <th className="py-2">Official source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {PRESETS.filter((preset) => preset.type !== "custom").map((preset) => (
+                <tr key={preset.label} className="border-b border-line align-top">
+                  <td className="py-2 pr-4 font-bold">{preset.board}</td>
+                  <td className="py-2 pr-4">{preset.type === "photo" ? "Photo" : "Signature"}</td>
+                  <td className="py-2 pr-4 tabular-nums">
+                    {preset.width} × {preset.height}
+                  </td>
+                  <td className="py-2 pr-4 tabular-nums">
+                    {preset.minKB}–{preset.maxKB} KB
+                  </td>
+                  <td className="py-2">
+                    <a
+                      href={preset.source}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold underline underline-offset-2"
+                    >
+                      Board website
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="mt-10">
+        <h2 className="text-[22px] font-extrabold tracking-tight text-ink">Common questions</h2>
+        <dl className="mt-4 space-y-5">
+          {toolFaqs().map(({ question, answer }) => (
+            <div key={question}>
+              <dt className="text-[14.5px] font-bold text-ink">{question}</dt>
+              <dd className="mt-1 max-w-3xl text-[14px] leading-relaxed text-ink/70">{answer}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
     </PageShell>
   );
 }

@@ -11,6 +11,9 @@ export interface PrerenderData {
   path?: string;
   exams?: ExamNotification[];
   admitCards?: AdmitCard[];
+  /** Present on detail pages so the HTML stays small. */
+  exam?: ExamNotification;
+  admitCard?: AdmitCard;
 }
 
 declare global {

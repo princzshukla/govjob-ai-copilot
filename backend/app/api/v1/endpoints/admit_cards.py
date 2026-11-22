@@ -10,7 +10,7 @@ deadline. See app/models/admit_card.py.
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -83,10 +83,11 @@ async def get_admit_card_by_key(
     prefix = id_prefix_from_slug(key)
     if prefix is None:
         raise HTTPException(status_code=404, detail="Admit card not found")
+    normalised_id = func.replace(
+        func.replace(func.lower(AdmitCardNotification.id), "-", ""), "_", ""
+    )
     row = (
-        await db.execute(
-            select(AdmitCardNotification).where(AdmitCardNotification.id.startswith(prefix))
-        )
+        await db.execute(select(AdmitCardNotification).where(normalised_id.startswith(prefix)))
     ).scalars().first()
     if row is None:
         raise HTTPException(status_code=404, detail="Admit card not found")

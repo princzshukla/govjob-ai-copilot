@@ -9,9 +9,15 @@ working because lookup uses only the id prefix.
 import re
 
 
+def id_suffix(record_id: str) -> str:
+    """First 8 alphanumeric characters - never starts or ends with a hyphen."""
+    return re.sub(r"[^a-z0-9]", "", record_id.lower())[:8]
+
+
 def slug_for(title: str, record_id: str) -> str:
     base = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:80].rstrip("-")
-    return f"{base}-{record_id[:8]}" if base else record_id[:8]
+    suffix = id_suffix(record_id)
+    return f"{base}-{suffix}" if base else suffix
 
 
 def id_prefix_from_slug(key: str) -> str | None:

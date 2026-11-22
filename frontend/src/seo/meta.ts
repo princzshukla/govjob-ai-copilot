@@ -56,12 +56,13 @@ const PAGES: Record<string, Partial<PageMeta>> = {
   },
 };
 
-export function metaFor(path: string): PageMeta {
+export function metaFor(path: string, override?: Partial<PageMeta>): PageMeta {
   const page = PAGES[path] ?? {};
   return {
     ...DEFAULT,
     ...page,
-    canonical: SITE_URL + path.replace(/\/$/, "") + (path === "/" ? "/" : ""),
+    ...override,
+    canonical: override?.canonical ?? SITE_URL + path.replace(/\/$/, "") + (path === "/" ? "/" : ""),
   };
 }
 

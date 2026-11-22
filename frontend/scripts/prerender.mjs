@@ -18,7 +18,7 @@ const SSR_ENTRY = join(ROOT, "dist-ssr", "entry-server.js");
 const API = process.env.API_BASE_URL || "https://govjob-ai-copilot.onrender.com/api/v1";
 const SITE = process.env.SITE_URL || "https://www.rozgarboard.in";
 
-const ROUTES = [
+const STATIC_ROUTES = [
   { path: "/", file: "index.html" },
   { path: "/admit-cards", file: "admit-cards/index.html" },
   { path: "/eligibility", file: "eligibility/index.html" },
@@ -55,18 +55,100 @@ const data = {
 };
 
 const ssr = await import(pathToFileURL(SSR_ENTRY).href);
-const { render, metaFor, headHtml, schemasFor, siteSchemas, serialisePrerenderData } = ssr;
+const {
+  render,
+  metaFor,
+  headHtml,
+  schemasFor,
+  siteSchemas,
+  faqSchema,
+  breadcrumbSchema,
+  webPageSchema,
+  serialisePrerenderData,
+  slugFor,
+  jobFaqs,
+  toolFaqs,
+} = ssr;
 
+const detailRoutes = [];
+
+for (const exam of data.exams) {
+  const key = slugFor(exam.title, exam.id);
+  detailRoutes.push({
+    path: `/jobs/${key}`,
+    file: `jobs/${key}/index.html`,
+    kind: "exam",
+    record: exam,
+    title: `${exam.title} — Eligibility, Dates & Official PDF | RozgarBoard`,
+    description: `Check eligibility, age limit, dates and the official notification for ${exam.title}.`,
+    faqs: jobFaqs(exam),
+    lastmod: exam.verified_on || exam.last_checked_at || exam.notification_date,
+  });
+}
+
+for (const card of data.admitCards) {
+  const key = slugFor(card.title, card.id);
+  detailRoutes.push({
+    path: `/admit-cards/${key}`,
+    file: `admit-cards/${key}/index.html`,
+    kind: "card",
+    record: card,
+    title: `${card.title} — Admit Card Link & Exam Date | RozgarBoard`,
+    description: `Official admit card link and exam date for ${card.title}.`,
+    faqs: [],
+    lastmod: card.last_checked_at || card.notification_date,
+  });
+}
+
+const routes = [...STATIC_ROUTES, ...detailRoutes];
 const template = await readFile(join(DIST, "index.html"), "utf8");
 const manifest = [];
+const today = new Date().toISOString().slice(0, 10);
 
-for (const route of ROUTES) {
-  const pageData = { ...data, path: route.path };
+for (const route of routes) {
+  // Detail pages only need their own record plus a few related links. Shipping
+  // the whole feed into every one of them would bloat the static output.
+  let pageData;
+  if (route.kind === "exam") {
+    pageData = {
+      path: route.path,
+      exam: route.record,
+      exams: data.exams
+        .filter((e) => e.id !== route.record.id && e.organizing_body === route.record.organizing_body)
+        .slice(0, 5),
+    };
+  } else if (route.kind === "card") {
+    pageData = {
+      path: route.path,
+      admitCard: route.record,
+      admitCards: data.admitCards.filter((c) => c.id !== route.record.id).slice(0, 5),
+    };
+  } else {
+    pageData = { ...data, path: route.path };
+  }
   const { html } = render(route.path, pageData);
-  const meta = metaFor(route.path);
-  const schemas = [...siteSchemas(), ...schemasFor(route.path, meta)];
-  const head = headHtml(meta, schemas);
 
+  const meta = metaFor(route.path, route.kind ? {
+    title: route.title,
+    description: route.description,
+    canonical: SITE + route.path,
+  } : undefined);
+
+  const schemas = [...siteSchemas(), webPageSchema(meta)];
+  if (route.path !== "/") {
+    schemas.push(breadcrumbSchema(route.path, meta.title.split(" | ")[0]));
+  }
+  const asTuples = (items) => items.map((item) => [item.question, item.answer]);
+  if (route.faqs?.length) schemas.push(faqSchema(asTuples(route.faqs)));
+  if (route.path === "/tools/photo-signature-resizer") schemas.push(faqSchema(asTuples(toolFaqs())));
+  if (!route.kind) {
+    // static routes keep the baseline schema set
+    schemas.length = 0;
+    schemas.push(...siteSchemas(), ...schemasFor(route.path, meta));
+    if (route.path === "/tools/photo-signature-resizer") schemas.push(faqSchema(asTuples(toolFaqs())));
+  }
+
+  const head = headHtml(meta, schemas);
   let out = template
     .replace(/<title>[\s\S]*?<\/title>/i, "")
     .replace(/<meta\s+name="description"[^>]*\/?>/i, "")
@@ -81,18 +163,12 @@ for (const route of ROUTES) {
   await mkdir(dirname(target), { recursive: true });
   await writeFile(target, out, "utf8");
 
-  const dates = data.exams
-    .map((e) => e.verified_on || e.last_checked_at || e.notification_date)
-    .filter(Boolean)
-    .sort();
   manifest.push({
     path: route.path,
-    lastmod: dates.length ? dates[dates.length - 1] : new Date().toISOString().slice(0, 10),
+    lastmod: route.lastmod || today,
     noindex: /noindex/i.test(meta.robots),
   });
-
-  console.log(`prerendered ${route.path} -> ${route.file} (${out.length} bytes)`);
 }
 
 await writeFile(join(DIST, ".routes.json"), JSON.stringify({ site: SITE, routes: manifest }, null, 2));
-console.log(`prerendered ${ROUTES.length} routes`);
+console.log(`prerendered ${routes.length} routes (${detailRoutes.length} detail pages)`);
