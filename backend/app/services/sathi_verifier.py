@@ -45,13 +45,21 @@ def eval_safe_math(expr: str) -> Optional[float]:
         if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
             return float(node.value)
         if isinstance(node, ast.BinOp) and type(node.op) in _SAFE_OPS:
-            return _SAFE_OPS[type(node.op)](_eval(node.left), _eval(node.right))
+            left, right = _eval(node.left), _eval(node.right)
+            if isinstance(node.op, ast.Pow):
+                # 9**9**9**9 can allocate an astronomically large integer and
+                # block the event loop. Keep exponents and bases bounded.
+                if abs(left) > 1e9 or abs(right) > 64:
+                    raise ValueError("Exponent too large")
+            return _SAFE_OPS[type(node.op)](left, right)
         if isinstance(node, ast.UnaryOp) and type(node.op) in _SAFE_OPS:
             return _SAFE_OPS[type(node.op)](_eval(node.operand))
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
             fn = _SAFE_FUNCS.get(node.func.id)
             if fn:
                 args = [_eval(a) for a in node.args]
+                if node.func.id == "factorial" and args and not 0 <= args[0] <= 1000:
+                    raise ValueError("Factorial argument too large")
                 return float(fn(*args))
         raise ValueError("Unsupported AST node")
 

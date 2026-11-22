@@ -68,26 +68,25 @@ class ResumeParseResponse(BaseModel):
 
 class CandidateProfileCreate(BaseModel):
     """Strict schema required for final government job eligibility evaluation."""
-    full_name: Optional[str] = None
+    full_name: Optional[str] = Field(default=None, max_length=120)
     dob: date = Field(..., description="Required Date of birth in YYYY-MM-DD")
-    gender: str = Field(default="Male")
-    category: str = Field(..., description="Required: General, OBC-NCL, SC, ST, EWS")
+    gender: str = Field(default="Male", max_length=20)
+    category: str = Field(default="General", max_length=20, description="General, OBC-NCL, SC, ST, EWS")
     is_pwd: bool = Field(default=False)
-    domicile_state: str = Field(..., description="Required: State of domicile")
+    domicile_state: str = Field(..., max_length=50, description="Required: State of domicile")
     highest_degree: str = Field(
-        ..., description="Required: B.Tech, BCA, B.Sc, B.Com, BA, 12th"
+        ..., max_length=100, description="Required: B.Tech, BCA, B.Sc, B.Com, BA, 12th"
     )
-    stream: Optional[str] = Field(default="Any")
+    stream: Optional[str] = Field(default="Any", max_length=100)
     percentage_cgpa: float = Field(
         ..., description="Required: Aggregate percentage (e.g., 65.5)"
     )
     passing_year: Optional[int] = None
     # "Completed" or "Final Year / Appearing". Defaults keep older clients working.
-    graduation_status: str = Field(default="Completed")
+    graduation_status: str = Field(default="Completed", max_length=30)
     # Attempts already taken. The current attempt is not included.
     previous_attempts: int = Field(default=0, ge=0)
-    skills: List[str] = Field(default_factory=list)
-    raw_resume_text: Optional[str] = None
+    skills: List[str] = Field(default_factory=list, max_length=50)
 
     @field_validator("skills", mode="before")
     @classmethod

@@ -105,7 +105,9 @@ async def upload_and_parse_resume(
 
 
 @router.post("/profile", status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/hour", key_func=user_or_ip_key)
 async def save_candidate_profile(
+    request: Request,
     payload: CandidateProfileCreate,
     profile_id: Optional[str] = Query(
         default=None,
@@ -128,8 +130,10 @@ async def save_candidate_profile(
             select(CandidateProfile).where(CandidateProfile.id == profile_id)
         )
         existing = res.scalar_one_or_none()
-        # 404s when the profile belongs to a different account (or doesn't exist).
+        # 404s when the profile belongs to a different account.
         _ensure_profile_access(existing, user)
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Candidate profile not found")
     else:
         # One profile per account: refresh it in place.
         res = await db.execute(

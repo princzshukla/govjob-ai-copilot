@@ -26,6 +26,7 @@ from datetime import date
 from sqlalchemy import and_, select
 
 from app.core.database import AsyncSessionLocal
+from app.core.timeutils import today_ist
 from app.models.candidate import CandidateProfile
 from app.models.exam import ExamNotification
 from app.models.telegram import TelegramLink
@@ -86,20 +87,22 @@ async def _active_exams() -> list[ExamNotification]:
 
 
 async def notify_deadline_reminders(within_days: int = 7, dry_run: bool = False) -> list[Digest]:
-    today = date.today()
+    today = today_ist()
     exams = await _active_exams()
     digests: list[Digest] = []
     for user_id, chat_id, profile in await _verified_profiles():
         soon = [
             exam
             for exam in await _eligible_exams_for(profile, exams)
-            if 0 <= (exam.application_deadline - today).days <= within_days
+            if exam.application_deadline
+            and 0 <= (exam.application_deadline - today).days <= within_days
         ]
         if not soon:
             continue
         lines = [f"⚠️ Deadlines close within {within_days} days — exams you qualify for:"]
-        for exam in sorted(soon, key=lambda e: e.application_deadline):
-            lines.append(f"• {exam.title} ({exam.organizing_body}) — last date {exam.application_deadline.isoformat()}")
+        for exam in sorted(soon, key=lambda e: e.application_deadline or date.max):
+            last = exam.application_deadline.isoformat() if exam.application_deadline else "not announced"
+            lines.append(f"• {exam.title} ({exam.organizing_body}) — last date {last}")
         text = "\n".join(lines)
         digests.append(Digest(user_id=user_id, chat_id=chat_id, exam_ids=[e.id for e in soon]))
         if dry_run:
@@ -110,7 +113,7 @@ async def notify_deadline_reminders(within_days: int = 7, dry_run: bool = False)
 
 
 async def notify_new_matches(within_days: int = 7, dry_run: bool = False) -> list[Digest]:
-    today = date.today()
+    today = today_ist()
     exams = await _active_exams()
     fresh = [
         exam
@@ -123,8 +126,9 @@ async def notify_new_matches(within_days: int = 7, dry_run: bool = False) -> lis
         if not matches:
             continue
         lines = ["🎯 New notification{s} you may be eligible for:".format(s="s" if len(matches) > 1 else "")]
-        for exam in sorted(matches, key=lambda e: e.application_deadline):
-            lines.append(f"• {exam.title} ({exam.organizing_body}) — last date {exam.application_deadline.isoformat()}")
+        for exam in sorted(matches, key=lambda e: e.application_deadline or date.max):
+            last = exam.application_deadline.isoformat() if exam.application_deadline else "not announced"
+            lines.append(f"• {exam.title} ({exam.organizing_body}) — last date {last}")
         text = "\n".join(lines)
         digests.append(Digest(user_id=user_id, chat_id=chat_id, exam_ids=[e.id for e in matches]))
         if dry_run:

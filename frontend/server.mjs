@@ -55,6 +55,13 @@ const server = createServer((req, res) => {
     const asDirectory = join(filePath, "index.html");
     if (existsSync(asDirectory) && statSync(asDirectory).isFile()) {
       target = asDirectory;
+    } else if (
+      /^\/(jobs|admit-cards)\//.test(pathname) &&
+      existsSync(join(ROOT, "index.html"))
+    ) {
+      // A detail key published after the last build has no directory in dist/.
+      // Let the SPA resolve it via the API (and render its own not-found).
+      target = join(ROOT, "index.html");
     } else if (existsSync(join(ROOT, "404.html"))) {
       target = join(ROOT, "404.html");
       status = 404;

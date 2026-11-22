@@ -88,9 +88,9 @@ describe("buildCandidatePayload", () => {
 });
 
 describe("buildProfilePayload", () => {
-  it("omits missing fields instead of throwing", () => {
+  it("omits missing fields and defaults category to General", () => {
     const p = buildProfilePayload({ full_name: "Aarav" });
-    expect(p).toEqual({ full_name: "Aarav" });
+    expect(p).toEqual({ full_name: "Aarav", category: "General" });
   });
 
   it("coerces types where the backend is strict", () => {
