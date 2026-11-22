@@ -12,7 +12,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const DIST = join(ROOT, "dist");
 const SSR_ENTRY = join(ROOT, "dist-ssr", "entry-server.js");
-const API = process.env.API_BASE_URL || "http://localhost:8000/api/v1";
+// CI and Vercel previews have no backend on localhost. Default to the public
+// production API so the build works with zero configuration; local setups can
+// still override it with API_BASE_URL.
+const API = process.env.API_BASE_URL || "https://govjob-ai-copilot.onrender.com/api/v1";
 const SITE = process.env.SITE_URL || "https://www.rozgarboard.in";
 
 const ROUTES = [
