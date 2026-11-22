@@ -60,6 +60,16 @@ services:
       - key: RATE_LIMIT_STORAGE_URL
         sync: false
 
+      # Must be exactly "production" (not "prod") or the shared-storage
+      # validation in config.py is skipped and limits stop working.
+      # - key: ENVIRONMENT -> production
+      #
+      # Uvicorn's proxy trust. Defaults to "*" so existing deploys keep working.
+      # Set this to Render's proxy address/CIDR once verified with the
+      # X-Debug-IP response header, then rate-limit keys become stable.
+      - key: FORWARDED_ALLOW_IPS
+        sync: false
+
       # Canonical frontend domain (Google callback redirects here).
       - key: FRONTEND_URL
         value: https://www.rozgarboard.in
