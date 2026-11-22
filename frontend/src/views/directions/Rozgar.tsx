@@ -1,5 +1,4 @@
 import {
-  lazy,
   Suspense,
   useEffect,
   useLayoutEffect,
@@ -8,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Briefcase,
   FileText,
@@ -23,30 +23,21 @@ import { safeUrl } from "../../lib/safeUrl";
 import { loadEligibilityResult, saveEligibilityResult } from "../../lib/draft";
 import { useAuth } from "../../lib/auth";
 import type { EligibilityCheckResponse } from "../../types";
+import { PATH_FOR_TAB, type Tab } from "../../routes";
+import { getPrerenderData } from "../../lib/prerender-data";
 import { ADS_ENABLED, AD_FREQUENCY, SPONSORED_JOBS, type AdLayout } from "../../lib/ads";
 import { JobCard, SponsoredJobCard } from "../../components/rozgar/JobCard";
 import { AdmitCardCard } from "../../components/rozgar/AdmitCard";
 import { AdSlot } from "../../components/rozgar/AdSlot";
 import { Footer } from "../../components/rozgar/Footer";
 
-// The default tab (Latest Jobs) is all most visitors ever open, so the
-// account dialog, the photo tool and the eligibility/roadmap pages are
-// loaded on demand. This keeps the initial JS bundle small.
-const AccountModal = lazy(() =>
-  import("../../components/rozgar/AccountModal").then((m) => ({ default: m.AccountModal })),
-);
-const DocumentResizer = lazy(() =>
-  import("../../components/rozgar/DocumentResizer").then((m) => ({ default: m.DocumentResizer })),
-);
-const EligibilityPage = lazy(() =>
-  import("./rozgar-pages").then((m) => ({ default: m.EligibilityPage })),
-);
-const RoadmapPage = lazy(() =>
-  import("./rozgar-pages").then((m) => ({ default: m.RoadmapPage })),
-);
-const ClosedJobsPage = lazy(() =>
-  import("./closed-jobs").then((m) => ({ default: m.ClosedJobsPage })),
-);
+// Eager imports: react-dom/server cannot wait for React.lazy, so these would
+// render a "Loading…" fallback into the prerendered HTML. Rollup still splits
+// them into separate chunks via manualChunks in vite.config.ts.
+import { AccountModal } from "../../components/rozgar/AccountModal";
+import { DocumentResizer } from "../../components/rozgar/DocumentResizer";
+import { EligibilityPage, RoadmapPage } from "./rozgar-pages";
+import { ClosedJobsPage } from "./closed-jobs";
 
 const ChunkFallback = () => (
   <div className="mx-auto max-w-[1280px] px-4 py-10 text-center text-sm text-ink/50 sm:px-5">
@@ -62,8 +53,6 @@ const NAV = [
   { label: "My Roadmap", param: "roadmap" },
   { label: "Photo & Signature", param: "documents" },
 ] as const;
-
-type Tab = (typeof NAV)[number]["label"];
 
 const BOTTOM_NAV = [
   { label: "Latest Jobs", short: "Jobs", icon: Briefcase, param: "jobs" },
@@ -97,34 +86,6 @@ function useScrolled(threshold = 80): boolean {
     return () => window.removeEventListener("scroll", onScroll);
   }, [threshold]);
   return scrolled;
-}
-
-function useIsDesktop(): boolean {
-  const [desktop, setDesktop] = useState(
-    () => typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    const onChange = () => setDesktop(mq.matches);
-    mq.addEventListener("change", onChange);
-    onChange();
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-  return desktop;
-}
-
-function tabFromUrl(): Tab {
-  if (typeof window === "undefined") return "Latest Jobs";
-  const param = new URLSearchParams(window.location.search).get("tab");
-  return NAV.find((n) => n.param === param)?.label ?? "Latest Jobs";
-}
-
-function pushUrl(tab: Tab, keepExam = false) {
-  const exam = keepExam ? new URLSearchParams(window.location.search).get("exam") : null;
-  const params = new URLSearchParams();
-  params.set("tab", NAV.find((n) => n.label === tab)?.param ?? "jobs");
-  if (exam) params.set("exam", exam);
-  window.history.pushState({}, "", `${window.location.pathname}?${params.toString()}`);
 }
 
 /* ------------------------------------------------------------------ */
@@ -374,17 +335,12 @@ function HeroBand({
         <p className="font-mono text-[11px] font-bold tracking-[.18em] text-saffron uppercase">
           sarkari naukri · official notifications
         </p>
-        {/* compact mobile headline */}
-        <h1 className="mt-2 text-[27px] font-extrabold leading-[1.1] tracking-tight text-ink sm:hidden">
+        <h1 className="mt-2 max-w-3xl text-[27px] font-extrabold leading-[1.1] tracking-tight text-ink sm:text-[46px] sm:leading-[1.08]">
           Government jobs, <span className="text-saffron">without the noise.</span>
         </h1>
         <p className="mt-2 text-[12px] font-mono font-bold tabular-nums text-ink/70 sm:hidden">
           {total} live · {closingThisWeek ?? 0} closing · updated today
         </p>
-        {/* full editorial hero on sm+ */}
-        <h1 className="mt-2 hidden max-w-3xl text-[46px] font-extrabold leading-[1.08] tracking-tight text-ink sm:block">
-          Government jobs, <span className="text-saffron">without the noise.</span>
-        </h1>
         <p className="mt-3 hidden max-w-xl text-[15.5px] leading-relaxed text-ink/65 sm:block">
           Every notification linked to its official PDF. Eligibility in seconds,
           one place to everything that's live.
@@ -500,37 +456,43 @@ function MobileClosingSoon({ exams, loading }: { exams: FeedExam[]; loading: boo
 
 /* ------------------------------------------------------------------ */
 
-export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
-  const [active, setActive] = useState<Tab>(() => tabFromUrl());
+export function Rozgar({ adLayout, tab }: { adLayout: AdLayout; tab: Tab }) {
+  const navigate = useNavigate();
+  const active = tab;
   const [query, setQuery] = useState("");
   const [chip, setChip] = useState<Chip>("all");
   const [accountOpen, setAccountOpen] = useState(false);
 
-  const [exams, setExams] = useState<FeedExam[] | null>(null);
+  const [exams, setExams] = useState<FeedExam[] | null>(() => {
+    const data = getPrerenderData();
+    return data?.exams ? data.exams.filter((e) => e.is_active).map(toFeedExam) : null;
+  });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  const [admitCards, setAdmitCards] = useState<FeedAdmitCard[] | null>(null);
+  const [admitCards, setAdmitCards] = useState<FeedAdmitCard[] | null>(() => {
+    const data = getPrerenderData();
+    return data?.admitCards
+      ? data.admitCards.filter((c) => c.is_active).map(toFeedAdmitCard)
+      : null;
+  });
   const [admitError, setAdmitError] = useState<string | null>(null);
 
-  const [eligibility, setEligibility] = useState<EligibilityCheckResponse | null>(
-    () => loadEligibilityResult(),
-  );
+  const [eligibility, setEligibility] = useState<EligibilityCheckResponse | null>(null);
   const setAndCacheEligibility = (r: EligibilityCheckResponse | null) => {
     setEligibility(r);
     if (r) saveEligibilityResult(r);
   };
 
+  // Loaded after mount so the first render matches the prerendered HTML.
+  useEffect(() => {
+    const saved = loadEligibilityResult();
+    if (saved) setEligibility(saved);
+  }, []);
+
   const scrolled = useScrolled(80);
   const [forceExpanded, setForceExpanded] = useState(false);
-  const desktop = useIsDesktop();
   const [loadMore, setLoadMore] = useState(false);
-
-  useEffect(() => {
-    const onPop = () => setActive(tabFromUrl());
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -543,7 +505,9 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
       } catch (err) {
         if (cancelled) return;
         setLoadError(err instanceof Error ? err.message : "Could not load notifications.");
-        setExams(null);
+        // Keep the prerendered list if the refresh fails - it is better than
+        // replacing real content with an error state.
+        if (!getPrerenderData()?.exams) setExams(null);
       }
     })();
     return () => {
@@ -562,7 +526,7 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
       } catch (err) {
         if (cancelled) return;
         setAdmitError(err instanceof Error ? err.message : "Could not load admit cards.");
-        setAdmitCards(null);
+        if (!getPrerenderData()?.admitCards) setAdmitCards(null);
       }
     })();
     return () => {
@@ -605,7 +569,9 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
     }
   }, [filtered, chip]);
 
-  const visible = desktop || loadMore ? chipped : chipped.slice(0, MOBILE_PAGE_SIZE);
+  // Every job stays in the DOM so crawlers can follow all links. On small
+  // screens the tail is hidden with CSS until "Load more" is tapped.
+  const visible = chipped;
 
   const closingSoon = useMemo(
     () =>
@@ -638,17 +604,23 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
         const sp = SPONSORED_JOBS[(i / AD_FREQUENCY - 1) % SPONSORED_JOBS.length];
         items.push(<SponsoredJobCard key={`sp-${sp.id}`} job={sp} />);
       }
-      items.push(<JobCard key={exam.id} exam={exam} verdict={verdicts.get(exam.id) ?? null} />);
+      items.push(
+        <div
+          key={exam.id}
+          className={!loadMore && i >= MOBILE_PAGE_SIZE ? "hidden md:block" : ""}
+        >
+          <JobCard exam={exam} verdict={verdicts.get(exam.id) ?? null} />
+        </div>,
+      );
     });
     return items;
-  }, [visible, verdicts]);
+  }, [visible, verdicts, loadMore]);
 
-  const goTab = (tab: Tab) => {
-    setActive(tab);
+  const goTab = (next: Tab) => {
     setForceExpanded(false);
     setChip("all");
     setLoadMore(false);
-    pushUrl(tab);
+    navigate(PATH_FOR_TAB[next]);
     window.scrollTo({ top: 0 });
   };
 
@@ -724,7 +696,7 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
                 <div className="space-y-2.5">
                   {exams === null && !loadError ? (
                     <LoadingSkeleton />
-                  ) : loadError ? (
+                  ) : loadError && exams === null ? (
                     <div className="rounded-lg border border-line bg-[#fbfaf7] px-5 py-14 text-center">
                       <p className="text-[17px] font-bold text-ink">Couldn't load notifications</p>
                       <p className="mt-1 text-[14px] text-ink/60">{loadError}</p>
@@ -745,13 +717,15 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
                   )}
                 </div>
 
-                {!desktop && !loadMore && chipped.length > MOBILE_PAGE_SIZE && (
-                  <button
-                    onClick={() => setLoadMore(true)}
-                    className="mt-4 min-h-11 w-full rounded-lg border-2 border-line bg-white text-[14px] font-bold text-ink hover:border-line-strong"
-                  >
-                    Load {chipped.length - MOBILE_PAGE_SIZE} more jobs
-                  </button>
+                {!loadMore && chipped.length > MOBILE_PAGE_SIZE && (
+                  <div className="mt-4 md:hidden">
+                    <button
+                      onClick={() => setLoadMore(true)}
+                      className="min-h-11 w-full rounded-lg border-2 border-line bg-white text-[14px] font-bold text-ink hover:border-line-strong"
+                    >
+                      Load {chipped.length - MOBILE_PAGE_SIZE} more jobs
+                    </button>
+                  </div>
                 )}
               </main>
 
@@ -811,14 +785,14 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
         {active === "Admit Cards" && (
           <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-5">
             <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
-              <h2 className="flex items-baseline gap-2 text-[22px] font-extrabold tracking-tight text-ink">
+              <h1 className="flex items-baseline gap-2 text-[22px] font-extrabold tracking-tight text-ink">
                 Admit Cards
                 {admitCards && (
                   <span className="rounded-full bg-ink px-2 py-0.5 font-mono text-[12px] font-bold tabular-nums text-white">
                     {filteredAdmitCards.length}
                   </span>
                 )}
-              </h2>
+              </h1>
               <p className="text-[12px] font-semibold tracking-wide text-ink/55 uppercase">
                 Official download links only
               </p>
@@ -830,7 +804,7 @@ export function Rozgar({ adLayout }: { adLayout: AdLayout }) {
             <div className="space-y-2.5">
               {admitCards === null && !admitError ? (
                 <LoadingSkeleton />
-              ) : admitError ? (
+              ) : admitError && admitCards === null ? (
                 <div className="rounded-lg border border-line bg-[#fbfaf7] px-5 py-14 text-center">
                   <p className="text-[17px] font-bold text-ink">Couldn't load admit cards</p>
                   <p className="mt-1 text-[14px] text-ink/60">{admitError}</p>

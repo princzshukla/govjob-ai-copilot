@@ -1,15 +1,63 @@
 {
   "rewrites": [
     {
-      "source": "/privacy",
-      "destination": "/index.html"
-    },
-    {
       "source": "/api/:path*",
       "destination": "https://govjob-ai-copilot.onrender.com/api/:path*"
     }
   ],
   "redirects": [
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "tab", "value": "jobs" }],
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "tab", "value": "admit" }],
+      "destination": "/admit-cards",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "tab", "value": "closed" }],
+      "destination": "/closed-jobs",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "tab", "value": "eligibility" }],
+      "destination": "/eligibility",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "tab", "value": "roadmap" }],
+      "destination": "/roadmap",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "tab", "value": "documents" }],
+      "destination": "/tools/photo-signature-resizer",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "tab", "value": "document" }],
+      "destination": "/tools/photo-signature-resizer",
+      "permanent": true
+    },
+    {
+      "source": "/jobs",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/index.html",
+      "destination": "/",
+      "permanent": true
+    },
     {
       "source": "/:path*",
       "destination": "https://www.rozgarboard.in/:path*",

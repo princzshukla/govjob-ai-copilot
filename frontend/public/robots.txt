@@ -1,0 +1,42 @@
+# robots.txt - https://www.rozgarboard.in
+# Updated: 2026-11-21
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /auth/
+Disallow: /account
+Disallow: /admin
+Disallow: /roadmap
+
+# Search engines
+User-agent: Googlebot
+User-agent: Googlebot-Image
+User-agent: Bingbot
+User-agent: DuckDuckBot
+User-agent: Applebot
+Allow: /
+Disallow: /api/
+Disallow: /auth/
+Disallow: /account
+Disallow: /admin
+Disallow: /roadmap
+
+# AI search crawlers - allowed so pages can be cited
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: PerplexityBot
+Allow: /
+Disallow: /api/
+Disallow: /auth/
+Disallow: /account
+Disallow: /admin
+Disallow: /roadmap
+
+# Google AI training / grounding
+User-agent: Google-Extended
+Allow: /
+
+Sitemap: https://www.rozgarboard.in/sitemap.xml

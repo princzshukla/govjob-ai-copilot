@@ -14,6 +14,7 @@ docs/implementation/
 **/node_modules/
 **/.bun/
 **/dist/
+**/dist-ssr/
 **/.output/
 **/coverage/
 

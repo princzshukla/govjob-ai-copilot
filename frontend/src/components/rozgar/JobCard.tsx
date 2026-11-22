@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Share2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { slugFor } from "../../lib/slug";
 import type { FeedExam } from "../../lib/exams";
 import { formatDateIN } from "../../lib/exams";
 import { shareLink, whatsappShareUrl } from "../../lib/share";
@@ -51,11 +53,12 @@ export function JobCard({
   /** set after an eligibility check; null when the user has no profile yet */
   verdict?: "eligible" | "borderline" | "check" | "ineligible" | null;
 }) {
-  const [open, setOpen] = useState(() => currentExamId() === exam.id);
+  const [open, setOpen] = useState(false);
   const closed = exam.deadlineDays <= 0;
   const pct = exam.minPercentage;
 
   useEffect(() => {
+    if (currentExamId() === exam.id) setOpen(true);
     const onPop = () => setOpen(currentExamId() === exam.id);
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -109,7 +112,12 @@ export function JobCard({
         </div>
 
         <h3 className="font-ui mt-1.5 text-[17px] font-bold leading-snug text-ink sm:text-[18px]">
-          {exam.title}
+          <Link
+            to={`/jobs/${slugFor(exam.title, exam.id)}`}
+            className="hover:underline hover:underline-offset-2"
+          >
+            {exam.title}
+          </Link>
         </h3>
         <p className="mt-1 text-[13px] text-ink/65 sm:text-[14px]">
           {exam.department}

@@ -8,6 +8,8 @@ export interface ExamNotification {
   notification_date: string | null;
   application_deadline: string; // ISO date, YYYY-MM-DD
   exam_date: string | null;
+  /** Official application-window opening date; null when not stated. */
+  application_start_date?: string | null;
   official_pdf_url: string | null;
   /** Official online application portal — absent when unknown. */
   apply_url: string | null;

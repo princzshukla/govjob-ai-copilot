@@ -4,13 +4,14 @@ import uuid
 from datetime import date as dt_date, datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import current_user, user_or_ip_key
 from app.core.rate_limit import limiter
 from app.core.seed import SEED_EXAMS
+from app.core.seo import id_prefix_from_slug
 from app.core.timeutils import today_ist
 from app.core.database import get_db
 from app.models.auth import User
@@ -62,7 +63,16 @@ async def _seed_and_backfill(db: AsyncSession) -> None:
 
     # Backfill provenance for rows seeded before T7. `last_checked_at` means the
     # day this API last verified the stored notification, not a re-scrape.
-    result = await db.execute(select(ExamNotification))
+    # Only load rows that still need backfilling. The previous full-table
+    # SELECT ran on every /exams and /check request, which crawlers hammer.
+    result = await db.execute(
+        select(ExamNotification).where(
+            or_(
+                ExamNotification.source_url.is_(None),
+                ExamNotification.last_checked_at.is_(None),
+            )
+        )
+    )
     metadata_changed = False
     for exam in result.scalars().all():
         if not exam.source_url:
@@ -111,6 +121,7 @@ def _exam_list_item(exam: ExamNotification) -> dict:
 
 @router.get("/exams")
 async def list_active_exams(
+    response: Response,
     status: str = Query(default="open", pattern="^(open|all)$"),
     db: AsyncSession = Depends(get_db),
 ):
@@ -140,7 +151,30 @@ async def list_active_exams(
         open_rows.sort(key=lambda e: (e.application_deadline is None, e.application_deadline or dt_date.max))
         closed_rows.sort(key=lambda e: e.application_deadline or dt_date.min, reverse=True)
         exams = open_rows + closed_rows
+    response.headers["Cache-Control"] = "public, s-maxage=300, stale-while-revalidate=600"
     return {"total": len(exams), "exams": [_exam_list_item(e) for e in exams]}
+
+
+@router.get("/exams/{key}")
+async def get_exam_by_key(
+    key: str,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    """One notification by its public URL key. Closed cycles are returned too."""
+    prefix = id_prefix_from_slug(key)
+    if prefix is None:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    normalised_id = func.replace(
+        func.replace(func.lower(ExamNotification.id), "-", ""), "_", ""
+    )
+    row = (
+        await db.execute(select(ExamNotification).where(normalised_id.startswith(prefix)))
+    ).scalars().first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    response.headers["Cache-Control"] = "public, s-maxage=300, stale-while-revalidate=600"
+    return _exam_list_item(row)
 
 
 @router.post("/generate-roadmap/{exam_id}", response_model=StudyRoadmapResponse)

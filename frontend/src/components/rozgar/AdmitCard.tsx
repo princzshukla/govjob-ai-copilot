@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { FeedAdmitCard } from "../../lib/exams";
 import { formatDateIN } from "../../lib/exams";
 import { safeUrl } from "../../lib/safeUrl";
+import { Link } from "react-router-dom";
+import { slugFor } from "../../lib/slug";
 
 /** Admit card card — official download link only, never a third-party mirror. */
 export function AdmitCardCard({ card }: { card: FeedAdmitCard }) {
@@ -34,7 +36,12 @@ export function AdmitCardCard({ card }: { card: FeedAdmitCard }) {
         </div>
 
         <h3 className="font-ui mt-1.5 text-[17px] font-bold leading-snug text-ink sm:text-[18px]">
-          {card.title}
+          <Link
+            to={`/admit-cards/${slugFor(card.title, card.id)}`}
+            className="hover:underline hover:underline-offset-2"
+          >
+            {card.title}
+          </Link>
         </h3>
         {card.examName && (
           <p className="mt-1 text-[13px] text-ink/65 sm:text-[14px]">{card.examName}</p>
