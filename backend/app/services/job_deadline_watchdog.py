@@ -70,7 +70,7 @@ async def check_exam_deadlines(
     """Check a bounded slice of active exams against their official notice."""
     today = today or today_ist()
     stats = {"checked": 0, "updated": 0, "cancelled": 0, "unchanged": 0,
-             "failed": 0, "audit_rows": 0, "skipped": 0}
+             "failed": 0, "audit_rows": 0, "skipped": 0, "unavailable": 0}
     stmt = (
         select(ExamNotification)
         .where(
@@ -108,13 +108,23 @@ async def check_exam_deadlines(
             try:
                 text, is_pdf = await _fetch_notice_text(url, client_)
                 if not text:  # 404/410 on the official URL
-                    exam.is_active = False
+                    # One unreadable fetch is not evidence of cancellation.
+                    # Keep the row visible but untrusted: the matcher already
+                    # withholds confident verdicts for `check_required` rows,
+                    # and leaving is_active=True means the next daily pass
+                    # retries this URL instead of hiding the job forever.
+                    old_status = exam.verification_status
+                    exam.verification_status = "check_required"
                     exam.last_checked_at = today
-                    _record_change(db, exam, field="is_active", old=True, new=False,
-                                   kind="notice_unavailable", source=url,
-                                   note="official notice URL returned 404/410")
-                    stats["cancelled"] += 1
-                    stats["audit_rows"] += 1
+                    if old_status != "check_required":
+                        _record_change(
+                            db, exam, field="verification_status",
+                            old=old_status, new="check_required",
+                            kind="notice_unavailable", source=url,
+                            note="official notice URL returned 404/410; kept visible, retry next pass",
+                        )
+                        stats["audit_rows"] += 1
+                    stats["unavailable"] += 1
                     await db.commit()
                     continue
                 # Official-domain evidence only: the title must appear in the

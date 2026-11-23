@@ -217,6 +217,34 @@ async def test_cancelled_notice_deactivates_and_audits(db, cleanup_jobs, monkeyp
     assert change.change_kind == "cancelled"
 
 
+async def test_unavailable_notice_keeps_job_visible_and_flags_check(db, cleanup_jobs, monkeypatch):
+    exam = ExamNotification(
+        id="deadline-test-404", title="SSC Combined Graduate Level (CGL) 2026",
+        organizing_body="SSC", application_deadline=date(2026, 12, 25),
+        min_age=18, max_age_general=27, age_cutoff_date=date(2026, 8, 1),
+        allowed_degrees=["Any Graduate"], source_url="https://ssc.gov.in/notice.pdf",
+        is_active=True, verification_status="verified",
+    )
+    db.add(exam)
+    await db.commit()
+
+    async def fake_fetch(url, client_):
+        return "", False  # 404/410 → no notice text
+
+    monkeypatch.setattr(jdw, "_fetch_notice_text", fake_fetch)
+    stats = await jdw.check_exam_deadlines(db)
+    assert stats["unavailable"] >= 1
+
+    await db.refresh(exam)
+    assert exam.is_active is True  # a transient 404 must not hide the job
+    assert exam.verification_status == "check_required"
+    change = (await db.execute(select(ExamNotificationChange).where(
+        ExamNotificationChange.exam_id == exam.id))).scalars().first()
+    assert change is not None
+    assert change.change_kind == "notice_unavailable"
+    assert change.field == "verification_status"
+
+
 async def test_locked_deadline_is_not_overwritten_by_seed_upsert(db, cleanup_jobs, monkeypatch):
     exam = ExamNotification(
         id="deadline-test-3", title="SSC Combined Graduate Level (CGL) 2026",

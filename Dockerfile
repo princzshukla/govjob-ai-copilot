@@ -22,4 +22,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 
 # Behind a reverse proxy, --forwarded-allow-ips must trust the proxy address
 # (or be narrowed), otherwise per-IP rate limits all share one bucket.
-CMD ["sh", "-c", "exec python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=${FORWARDED_ALLOW_IPS:-*}"]
+# Apply Alembic migrations before serving. `migrate.py` serialises concurrent
+# instances with a Postgres advisory lock and is a no-op when head is current.
+# Without this, new code starts against the old schema and affected endpoints 500.
+CMD ["sh", "-c", "python migrate.py && exec python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=${FORWARDED_ALLOW_IPS:-*}"]
