@@ -7,6 +7,11 @@
   ],
   "redirects": [
     {
+      "source": "/closed-jobs",
+      "destination": "/",
+      "permanent": true
+    },
+    {
       "source": "/",
       "has": [{ "type": "query", "key": "tab", "value": "jobs" }],
       "destination": "/",
