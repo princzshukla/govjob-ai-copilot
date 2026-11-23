@@ -3553,11 +3553,10 @@ async def restore_inactive_seeded_jobs(db) -> int:
     `last_checked_at` makes the next watchdog pass re-check each restored row
     against its official source; a cancellation is then recorded again.
     """
-    from datetime import date as _date
-
+    from app.core.timeutils import today_ist
     from app.models.exam import ExamNotification  # local import: avoids cycles at import time
 
-    today = _date.today()
+    today = today_ist()
     stmt = select(ExamNotification).where(
         ExamNotification.id.in_(REACTIVATE_JOB_IDS),
         ExamNotification.is_active.is_(False),

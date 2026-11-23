@@ -3,9 +3,9 @@
 Whatever the current state of exam_notifications, the hook inserts only the
 missing rows; existing rows (edited/retired by admins) are preserved.
 """
-from datetime import date
-
 import pytest
+
+from app.core.timeutils import today_ist
 from sqlalchemy import delete, func, select
 
 from app.core.database import AsyncSessionLocal
@@ -73,8 +73,8 @@ async def test_restore_reactivates_only_allowlisted_open_jobs(db):
         ).scalar_one()
 
     target.is_active = False
-    target.application_deadline = date.today()
-    target.last_checked_at = date.today()
+    target.application_deadline = today_ist()
+    target.last_checked_at = today_ist()
     # A non-allowlisted row must not be touched even when it is inactive/open.
     other = (
         await db.execute(
@@ -86,7 +86,7 @@ async def test_restore_reactivates_only_allowlisted_open_jobs(db):
     ).scalar_one()
     other_id = other.id
     other.is_active = False
-    other.application_deadline = date.today()
+    other.application_deadline = today_ist()
     await db.commit()
 
     restored = await restore_inactive_seeded_jobs(db)
