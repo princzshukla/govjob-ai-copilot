@@ -8,6 +8,11 @@ import {
   clearDraftProfile,
 } from "../../lib/draft";
 import { STATES } from "../../lib/exams";
+import {
+  DEFAULT_CATEGORY,
+  withProfileDefaults,
+  type NormalizedProfile,
+} from "../../lib/profile";
 import { safeUrl } from "../../lib/safeUrl";
 import type {
   CandidateProfile,
@@ -140,7 +145,9 @@ export function EligibilityPage({
   onResultChange: (r: EligibilityCheckResponse) => void;
 }) {
   const { user, promptSignIn } = useAuth();
-  const [profile, setProfile] = useState<CandidateProfile>(() => loadDraftProfile() ?? {});
+  const [profile, setProfile] = useState<NormalizedProfile>(() =>
+    withProfileDefaults(loadDraftProfile() ?? {}),
+  );
   const [parsing, setParsing] = useState(false);
   const [resumeMsg, setResumeMsg] = useState<string | null>(null);
   const [missing, setMissing] = useState<string[]>([]);
@@ -175,7 +182,7 @@ export function EligibilityPage({
     try {
       const data = await api.parseResume(file);
       setProfile((p) => {
-        const next = { ...p, ...(data.extracted_profile ?? {}) };
+        const next = withProfileDefaults({ ...p, ...(data.extracted_profile ?? {}) });
         saveDraftProfile(next);
         return next;
       });
@@ -222,7 +229,7 @@ export function EligibilityPage({
 
   const reset = () => {
     clearDraftProfile();
-    setProfile({});
+    setProfile(withProfileDefaults({}));
     setMissing([]);
     setResumeMsg(null);
     setFormError(null);
@@ -312,7 +319,7 @@ export function EligibilityPage({
           <label className={label} htmlFor="f-gender">Gender</label>
           <select
             id="f-gender"
-            value={profile.gender ?? "Male"}
+            value={profile.gender}
             onChange={(e) => update("gender", e.target.value)}
             className={input}
           >
@@ -325,7 +332,7 @@ export function EligibilityPage({
           <label className={label} htmlFor="f-category">Category *</label>
           <select
             id="f-category"
-            value={profile.category ?? "General"}
+            value={profile.category}
             onChange={(e) => update("category", e.target.value)}
             className={input}
             required
@@ -334,6 +341,10 @@ export function EligibilityPage({
               <option key={c}>{c}</option>
             ))}
           </select>
+          <p className="mt-1 text-[11.5px] text-ink/55">
+            {DEFAULT_CATEGORY} is assumed unless you change it — category affects age
+            relaxation and cut-offs.
+          </p>
         </div>
         <div>
           <label className={label} htmlFor="f-domicile">Domicile state *</label>
