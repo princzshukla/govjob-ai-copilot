@@ -27,7 +27,8 @@ export function AppRoutes() {
     <Routes>
       <Route path="/" element={<HomeRoute />} />
       <Route path="/admit-cards" element={<TabRoute tab="Admit Cards" />} />
-      <Route path="/closed-jobs" element={<TabRoute tab="Closed Jobs" />} />
+      {/* The archived Closed Jobs view was retired; forward old links home. */}
+      <Route path="/closed-jobs" element={<Navigate to="/" replace />} />
       <Route path="/admit-cards/:key" element={<AdmitCardPage />} />
       <Route path="/jobs/:key" element={<JobPage />} />
       <Route path="/eligibility" element={<TabRoute tab="My Eligibility" />} />

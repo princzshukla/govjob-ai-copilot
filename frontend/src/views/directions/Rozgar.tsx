@@ -14,7 +14,6 @@ import {
   ClipboardCheck,
   Map as MapIcon,
   Image as ImageIcon,
-  Archive as ArchiveIcon,
   Search as SearchIcon,
 } from "lucide-react";
 import { toFeedExam, toFeedAdmitCard, type FeedExam, type FeedAdmitCard } from "../../lib/exams";
@@ -37,7 +36,6 @@ import { Footer } from "../../components/rozgar/Footer";
 import { AccountModal } from "../../components/rozgar/AccountModal";
 import { DocumentResizer } from "../../components/rozgar/DocumentResizer";
 import { EligibilityPage, RoadmapPage } from "./rozgar-pages";
-import { ClosedJobsPage } from "./closed-jobs";
 
 const ChunkFallback = () => (
   <div className="mx-auto max-w-[1280px] px-4 py-10 text-center text-sm text-ink/50 sm:px-5">
@@ -48,7 +46,6 @@ const ChunkFallback = () => (
 const NAV = [
   { label: "Latest Jobs", param: "jobs" },
   { label: "Admit Cards", param: "admit" },
-  { label: "Closed Jobs", param: "closed" },
   { label: "My Eligibility", param: "eligibility" },
   { label: "My Roadmap", param: "roadmap" },
   { label: "Photo & Signature", param: "documents" },
@@ -57,7 +54,6 @@ const NAV = [
 const BOTTOM_NAV = [
   { label: "Latest Jobs", short: "Jobs", icon: Briefcase, param: "jobs" },
   { label: "Admit Cards", short: "Admits", icon: FileText, param: "admit" },
-  { label: "Closed Jobs", short: "Closed", icon: ArchiveIcon, param: "closed" },
   { label: "My Eligibility", short: "Eligibility", icon: ClipboardCheck, param: "eligibility" },
   { label: "My Roadmap", short: "Roadmap", icon: MapIcon, param: "roadmap" },
   { label: "Photo & Signature", short: "Documents", icon: ImageIcon, param: "documents" },
@@ -830,11 +826,6 @@ export function Rozgar({ adLayout, tab }: { adLayout: AdLayout; tab: Tab }) {
           </div>
         )}
 
-        {active === "Closed Jobs" && (
-          <Suspense fallback={<ChunkFallback />}>
-            <ClosedJobsPage />
-          </Suspense>
-        )}
         {active === "My Eligibility" && (
           <Suspense fallback={<ChunkFallback />}>
             <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-5">

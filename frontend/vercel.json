@@ -21,7 +21,7 @@
     {
       "source": "/",
       "has": [{ "type": "query", "key": "tab", "value": "closed" }],
-      "destination": "/closed-jobs",
+      "destination": "/",
       "permanent": true
     },
     {
