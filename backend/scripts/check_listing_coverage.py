@@ -22,13 +22,14 @@ from pathlib import Path
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_DIR))
 
+from app.services import jobs_watchdog as jw  # noqa: E402
 from app.services.coverage_watchdog import (  # noqa: E402
     ADMIT_CARD_MATCH_THRESHOLD,
     ADMIT_CARD_URL,
     DEFAULT_MATCH_THRESHOLD,
     LATEST_JOBS_URL,
     build_report,
-    check_coverage,
+    fetch_latest_jobs_html,
     format_report,
     parse_admit_cards_page,
     parse_latest_jobs,
@@ -44,7 +45,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--url", default=LATEST_JOBS_URL, help="latest-jobs page to check")
     parser.add_argument("--html-file", type=Path, default=None, help="parse a saved page instead of fetching")
-    parser.add_argument("--threshold", type=float, default=DEFAULT_MATCH_THRESHOLD, help="match score 0..1")
+    parser.add_argument("--threshold", type=float, default=None, help="match score 0..1 (defaults to the strict jobs threshold for latest jobs)")
     parser.add_argument("--all", action="store_true", help="include stale/archived entries with no parseable future last date")
     parser.add_argument("--admit-cards", action="store_true", help="check admit-card coverage instead of latest jobs")
     parser.add_argument("--json", action="store_true", help="print JSON instead of text")
@@ -76,7 +77,21 @@ def main() -> int:
                 kind=kind,
             )
     else:
-        report = asyncio.run(check_coverage(args.url if args.url != LATEST_JOBS_URL else default_url, threshold=args.threshold, actionable_only=not args.all, kind=kind))
+        # Use the same strict matcher (aliases + org/qualification/category
+        # signals) as the app's jobs watchdog, so the CLI cannot report
+        # coverage the app itself would reject.
+        threshold = args.threshold if args.threshold is not None else jw.JOBS_MATCH_THRESHOLD
+        url = args.url if args.url != LATEST_JOBS_URL else default_url
+        if args.html_file is not None:
+            entries = parse_latest_jobs(args.html_file.read_text(encoding="utf-8"))
+        else:
+            entries = parse_latest_jobs(asyncio.run(fetch_latest_jobs_html(url)))
+        report = jw.build_jobs_report(
+            entries, seed_titles(), threshold=threshold, source_url=(
+                str(args.html_file) if args.html_file is not None else url
+            ),
+            actionable_only=not args.all,
+        )
 
     if args.json:
         print(json.dumps({

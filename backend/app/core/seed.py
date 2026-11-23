@@ -2133,7 +2133,11 @@ _BASE_SEED_EXAMS = [
     },
     {
         "id": "haryana-htet-2026",
-        "source_url": "https://htet2026.org/",
+        # Watch the official Information Bulletin, not the application homepage:
+        # the homepage's terms contain "candidature shall be liable to be
+        # cancelled", which the deadline watchdog read as the exam being
+        # cancelled and deactivated this still-open job on 2026-11-21.
+        "source_url": "https://htet2026.org/htet2023/Information_Bulletin%20HTET-2026.pdf",
         "title": "Haryana HTET 2026 (Teacher Eligibility Test — PRT / TGT / PGT)",
         "organizing_body": "Board of School Education Haryana (BSEH)",
         "post_type": "State / Haryana / Teacher Eligibility Test",

@@ -47,6 +47,22 @@ _JOB_TITLE_ALIASES: dict[str, str] = {
         cw.normalize_title("RRB NTPC Undergraduate Posts (Clerk & Typist)"),
     cw.normalize_title("UPESSC TGT 2026 Online Form"):
         cw.normalize_title("UPESSC Assistant Teacher (TGT) 2026 — 17,735 posts (Advt 07/2026)"),
+    # 2026-11-23: aggregator wording vs curated titles. Each target was checked
+    # against the curated row it names; no seat-count/date is inferred here.
+    cw.normalize_title("Haryana HTET Online Form 2026"):
+        cw.normalize_title("Haryana HTET 2026 (Teacher Eligibility Test — PRT / TGT / PGT)"),
+    cw.normalize_title("Exim Bank Management Trainee, Manager Online Form 2026"):
+        cw.normalize_title("India Exim Bank MT & Manager 2026 — 120 posts (Advt HRM/MT/M/2026-27/05)"),
+    cw.normalize_title("UPPSC RO / ARO Online Form 2026"):
+        cw.normalize_title("UPPSC Review Officer / Assistant Review Officer (RO / ARO) 2026 — 501 posts (Advt A-4/E-1/2026)"),
+    cw.normalize_title("UKPSC Lower PCS Online Form 2026"):
+        cw.normalize_title("UKPSC Lower Subordinate Services (Lower PCS) 2026 — 54 posts (Advt A-1/E-2/DR/LSS/2026-27)"),
+    cw.normalize_title("UKSSSC Constable Various Post Online Form 2026"):
+        cw.normalize_title("UKSSSC Constable Various Posts 2026 (Constable / PAC-IRB / Fireman / Forest Guard / Jail Warder) — 1,694 posts"),
+    cw.normalize_title("Semi Conductor SCL Various Post Online Form 2026"):
+        cw.normalize_title("SCL Semi-Conductor Laboratory Recruitment 2026 — 83 posts (Advt SCL:DR:01/2026)"),
+    cw.normalize_title("UP Anganwadi Bharti Online Form 2026 (Updated)"):
+        cw.normalize_title("UP Anganwadi Worker & Helper Recruitment 2026 (District-wise)"),
 }
 
 _QUALIFICATION_PATTERNS: dict[str, tuple[str, ...]] = {
@@ -139,12 +155,13 @@ def build_jobs_report(
     threshold: float = JOBS_MATCH_THRESHOLD,
     source_url: str = cw.LATEST_JOBS_URL,
     today: "date | None" = None,
+    actionable_only: bool = True,
 ) -> cw.CoverageReport:
     """Pure strict one-to-one matching — shared by network and offline callers."""
     entries = [e for e in entries if is_job_entry(e)]
     return cw.build_report(
         entries, seed_titles, threshold=threshold, source_url=source_url,
-        actionable_only=True, today=today, kind="latest_jobs",
+        actionable_only=actionable_only, today=today, kind="latest_jobs",
         aliases=_JOB_TITLE_ALIASES, penalty_fn=job_signal_penalty,
     )
 
