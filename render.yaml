@@ -33,6 +33,8 @@ services:
         sync: false
       - key: GROQ_API_KEY_EXTRA
         sync: false
+      - key: GROQ_API_KEYS
+        sync: false
       - key: LLM_FALLBACK_BASE_URL
         sync: false
       - key: LLM_FALLBACK_API_KEY
