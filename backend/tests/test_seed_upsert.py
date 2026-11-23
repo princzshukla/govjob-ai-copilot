@@ -9,7 +9,12 @@ import pytest
 from sqlalchemy import delete, func, select
 
 from app.core.database import AsyncSessionLocal
-from app.core.seed import SEED_EXAMS, upsert_seed_exams
+from app.core.seed import (
+    REACTIVATE_JOB_IDS,
+    SEED_EXAMS,
+    restore_inactive_seeded_jobs,
+    upsert_seed_exams,
+)
 from app.models.exam import ExamNotification
 
 
@@ -54,3 +59,49 @@ async def test_upsert_never_overwrites_existing_rows(db):
 
     await db.refresh(exam)
     assert exam.organizing_body == "EDITED BY ADMIN"
+
+
+async def test_restore_reactivates_only_allowlisted_open_jobs(db):
+    target_id = next(iter(REACTIVATE_JOB_IDS))
+    target = (
+        await db.execute(select(ExamNotification).where(ExamNotification.id == target_id))
+    ).scalar_one_or_none()
+    if target is None:
+        await upsert_seed_exams(db)
+        target = (
+            await db.execute(select(ExamNotification).where(ExamNotification.id == target_id))
+        ).scalar_one()
+
+    target.is_active = False
+    target.application_deadline = date.today()
+    target.last_checked_at = date.today()
+    # A non-allowlisted row must not be touched even when it is inactive/open.
+    other = (
+        await db.execute(
+            select(ExamNotification).where(
+                ExamNotification.id.not_in(REACTIVATE_JOB_IDS),
+                ExamNotification.is_active.is_(True),
+            ).limit(1)
+        )
+    ).scalar_one()
+    other_id = other.id
+    other.is_active = False
+    other.application_deadline = date.today()
+    await db.commit()
+
+    restored = await restore_inactive_seeded_jobs(db)
+    assert restored >= 1
+
+    await db.refresh(target)
+    assert target.is_active is True
+    assert target.last_checked_at is None
+
+    await db.refresh(other)
+    assert other.is_active is False
+
+    # Idempotent: nothing left to restore on a second call.
+    assert await restore_inactive_seeded_jobs(db) == 0
+
+    target.is_active = False
+    other.is_active = True
+    await db.commit()

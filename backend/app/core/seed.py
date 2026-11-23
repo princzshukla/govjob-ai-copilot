@@ -3531,6 +3531,50 @@ for _seed_exam in SEED_EXAMS:
     _seed_exam.setdefault("verification_status", "check_required")
 
 
+# Rows the deadline watchdog deactivated after an unreadable/404 official URL
+# while their confirmed application window was still open. They stay in the
+# database but vanish from the "open jobs" feed. Restore them at startup with
+# `last_checked_at` cleared so the watchdog re-verifies them against the
+# official notice on its next run — a genuine cancellation is re-applied there.
+REACTIVATE_JOB_IDS: frozenset[str] = frozenset({
+    "hcl-apprentice-10th",
+    "sci-court-assistant-nov-2026",
+    "bhu-computer-operator",
+    "haryana-htet-2026",
+    "upsc-13-2026",
+})
+
+
+async def restore_inactive_seeded_jobs(db) -> int:
+    """Re-enable seeded jobs whose confirmed window is still open.
+
+    Scoped to an explicit allowlist: watchdog deactivations for other rows
+    (real cancellations, withdrawn notices) are never overridden. Clearing
+    `last_checked_at` makes the next watchdog pass re-check each restored row
+    against its official source; a cancellation is then recorded again.
+    """
+    from datetime import date as _date
+
+    from app.models.exam import ExamNotification  # local import: avoids cycles at import time
+
+    today = _date.today()
+    stmt = select(ExamNotification).where(
+        ExamNotification.id.in_(REACTIVATE_JOB_IDS),
+        ExamNotification.is_active.is_(False),
+        ExamNotification.application_deadline >= today,
+    )
+    restored = 0
+    for exam in (await db.execute(stmt)).scalars().all():
+        exam.is_active = True
+        exam.last_checked_at = None
+        restored += 1
+    if restored:
+        await db.commit()
+    if restored:
+        logger.info("reactivated %d seeded jobs with open windows", restored)
+    return restored
+
+
 async def upsert_seed_exams(db) -> int:
     """Idempotent startup seed.
 

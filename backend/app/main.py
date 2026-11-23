@@ -53,12 +53,16 @@ async def lifespan(_app: FastAPI):
 
         from app.core.admit_cards import upsert_admit_cards
         from app.core.database import AsyncSessionLocal
-        from app.core.seed import upsert_seed_exams
+        from app.core.seed import restore_inactive_seeded_jobs, upsert_seed_exams
 
         async with AsyncSessionLocal() as db:
             inserted = await upsert_seed_exams(db)
         if inserted:
             logger.info("seeded %d exam notifications (idempotent upsert)", inserted)
+        async with AsyncSessionLocal() as db:
+            restored = await restore_inactive_seeded_jobs(db)
+        if restored:
+            logger.info("restored %d open jobs hidden by a stale watchdog flag", restored)
         async with AsyncSessionLocal() as db:
             inserted_cards = await upsert_admit_cards(db)
         if inserted_cards:
