@@ -45,7 +45,7 @@ async function getJson(path) {
 }
 
 const [examsRes, cardsRes] = await Promise.all([
-  getJson("/eligibility/exams?status=all"),
+  getJson("/eligibility/exams"),
   getJson("/admit-cards"),
 ]);
 

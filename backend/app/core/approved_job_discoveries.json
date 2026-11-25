@@ -166,5 +166,29 @@
     "state_restriction": null,
     "topics": [],
     "last_checked_at": "2026-11-23"
+  },
+  {
+    "id": "coconut-various-posts-2026",
+    "title": "Coconut Development Board Various Posts 2026 — 35 vacancies (Advt 02/2026)",
+    "organizing_body": "Coconut Development Board (CDB)",
+    "post_type": "Central Govt / Various Posts",
+    "notification_date": "2026-11-06",
+    "application_start_date": "2026-11-25",
+    "application_deadline": "2026-12-21",
+    "exam_date": null,
+    "official_pdf_url": "https://coconutboard.in/CDBREC2026/Images/Recruitment%20Notice%20English.pdf",
+    "apply_url": "https://coconutboard.in/CDBREC2026/Login.aspx",
+    "source_url": "https://coconutboard.in/CDBREC2026/Images/Recruitment%20Notice%20English.pdf",
+    "verified_on": null,
+    "verification_status": "check_required",
+    "min_age": 18,
+    "max_age_general": 40,
+    "age_cutoff_date": "2026-12-21",
+    "allowed_degrees": ["Higher Secondary", "Bachelor's Degree", "Master's Degree", "B.Tech / Diploma"],
+    "allowed_streams": ["Any"],
+    "min_percentage": 0.0,
+    "state_restriction": null,
+    "topics": [],
+    "last_checked_at": "2026-11-25"
   }
 ]
