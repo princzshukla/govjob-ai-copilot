@@ -564,11 +564,17 @@ export function RoadmapPage() {
 
   useEffect(() => {
     api
-      .getExams()
+      // The roadmap is for planning ahead, so include closed cycles too —
+      // `getExams()` returns only currently-open windows and hides jobs that
+      // can still be used as next-cycle reference.
+      .getAllExams()
       .then((r) => {
         const slim = r.exams
           .filter((e) => e.is_active)
-          .map((e) => ({ id: e.id, title: e.title }));
+          .map((e) => ({
+            id: e.id,
+            title: e.window_state === "closed" ? `${e.title} (closed)` : e.title,
+          }));
         setExams(slim);
         setExamId((cur) => cur || slim[0]?.id || "");
       })
