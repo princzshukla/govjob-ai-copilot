@@ -1,3 +1,68 @@
+# Pipeline handoff (2026-11-26, BCA-eligible networking / cyber roles)
+
+Three more rows (157 → 160), all accepting BCA and checked against official
+notifications. `mygov-network-administrator` (above) also accepts BCA and is
+the only currently-open pure networking role in the set.
+
+| id | Job | Window | Official source |
+|---|---|---|---|
+| `kerala-hc-system-assistant` | High Court of Kerala, System Assistant, 90 posts | **open until 2026-12-14** | Rec. No. 24/2026 notification PDF, dated 2026-11-10 |
+| `nielit-delhi-cloud-administrator` | NIELIT Delhi Cloud Administrator | **open until 2026-12-06** | NIELIT Advt 07/354/2026/NDL/FM page |
+| `duk-junior-forensics-analyst` | DUK Junior Forensics Analyst (KSAAC) | closed 2026-11-18 | DUK notification + 2026-11-13 extension notice |
+
+- Kerala HC asks for BCA / B.Sc(CS) / computer-electronics diploma **plus 2 years
+  of hardware troubleshooting with basic computer networking**; age is a lower
+  bound only (born on/after 02.01.1985), encoded as 18–41 with a note.
+- NIELIT is `check_required`: the main route is BE/B.Tech/M.Tech/MCA, and BCA is
+  accepted **only with a cloud certification**, which the matcher cannot test.
+  BCA stays in `allowed_degrees` but the verdict is forced to `check_manually`.
+- DUK's Junior Forensics Analyst accepts BCA and **fresh graduates**; its
+  image-only extension notice was rendered and read directly to confirm
+  18.11.2026. NABARD's SOC Analyst post does **not** accept BCA (BE/B.Tech or
+  MCA only), so it remains in the set as a BE-focused next-cycle reference.
+- No BCA-eligible *government* SOC Analyst notification was found; the only
+  BCA-friendly "SOC Analyst" hit was a private-sector Infosys listing, which is
+  out of scope for this government-jobs app.
+
+Validation: `py_compile` passes, 160 unique seed ids, all fields map to
+`ExamNotification` columns. DB-backed pytest still requires CI (local Postgres
+password auth fails).
+
+---
+
+# Pipeline handoff (2026-11-26, networking / SOC seed coverage)
+
+Four new curated rows in `backend/app/core/seed.py` (153 → 157), each checked
+against the recruiting body's own notification PDF on 2026-11-26:
+
+| id | Job | Window | Official source |
+|---|---|---|---|
+| `mygov-network-administrator` | MyGov Network Administrator / Engineer, Delhi (1 post) | **open until 2026-12-09** | MyGov/Digital India Corporation PDF, published 2026-11-25 |
+| `nabard-soc-analyst-2026` | NABARD SOC / Information Security Analyst (Advt 04) | closed 2026-11-02 | NABARD detailed ad + 2026-10-27 extension notice |
+| `nabard-network-security-analyst-2026` | NABARD Network Security Analyst (Advt 04) | closed 2026-11-02 | same two NABARD PDFs |
+| `cdac-cine-network-engineer-2026` | C-DAC CINE Consultant (IT & Network Engineer) | closed 2026-09-28 | C-DAC CINE/REC/2026/05 PDF, dated 2026-09-22 |
+
+Safety notes:
+
+- **MyGov is `check_required`.** Its official PDF states the post, qualification
+  (B.Tech/BE CS/ECE/EEE or BCA), 2–5 years' experience and the application form
+  URL, but prints **no closing date**. 2026-12-09 is an aggregator-reported
+  placeholder (`verified_on=None`); the matcher forces a `check_manually`
+  verdict. The apply link is the form URL printed in the PDF, not a guess.
+- **NABARD deadline comes from an image-only PDF.** The detailed ad prints
+  26.10.2026; the 27.10.2026 extension notification (rendered and read directly,
+  no extractable text) extends it to 02.11.2026. Split into two rows with
+  distinct age bands (SOC/InfoSec 24–35; Network Security Analyst 26–38) so the
+  multi-post advertisement cannot produce an over-broad "eligible" verdict.
+- **C-DAC has no `apply_url`:** applications go by email to
+  `recruitment-cine@cdac.in`, so the UI correctly shows only the notification.
+
+Validation: `py_compile` passes, 157 seed rows with unique ids, all new fields
+map to `ExamNotification` columns. DB-backed pytest could not run locally
+(local Postgres rejects password auth — see earlier handoffs); CI must run it.
+
+---
+
 # Pipeline handoff (2026-11-16, SR-parity seed)
 
 **Seed expanded to 75 notifications** (19 new, all verified against official

@@ -3441,6 +3441,261 @@ _BASE_SEED_EXAMS = [
         "is_active": True,
     },
 
+    # ==================== NETWORKING / SOC-ANALYST ROLES ====================
+    # Researched 2026-11-26 against the recruiting bodies' own notifications.
+    # Every URL below is an official PDF/portal; aggregators were used only to
+    # locate the official documents, never as proof of eligibility or dates.
+    {
+        "id": "mygov-network-administrator",
+        "title": "MyGov Network Administrator / Engineer (2026)",
+        "organizing_body": "MyGov — Digital India Corporation, Ministry of Electronics & IT",
+        "post_type": "Technical / Specialist (Networking)",
+        "notification_date": date(2026, 11, 25),
+        # The official PDF (published 25 Nov 2026) states the post, qualification,
+        # experience and application form URL, but prints NO closing date. 09 Dec
+        # 2026 is an aggregator-reported date kept as an internal placeholder;
+        # check_required forces a "Check notification" verdict until confirmed.
+        "application_deadline": date(2026, 12, 9),
+        "exam_date": None,
+        "official_pdf_url": "https://diccdnmedia.digitalindiacorporation.in/wp-content/uploads/2026/11/Network-Administrator_Engineer.pdf",
+        "source_url": "https://www.mygov.in/",
+        # The application form URL is printed in the official notification.
+        "apply_url": "https://docs.google.com/forms/d/e/1FAIpQLSdkL8owIxXUXtaiTrXBIpghf90OwDsjyT_di58L5zjQnPyaOQ/viewform",
+        "verified_on": None,
+        "verification_status": "check_required",
+        "deadline_locked": False,
+        "last_checked_at": date(2026, 11, 26),
+        # No age limit appears in the official notification; placeholders only.
+        "min_age": 18,
+        "max_age_general": 40,
+        "age_cutoff_date": date(2026, 11, 25),
+        "allowed_degrees": ["B.Tech", "BE", "BCA"],
+        "allowed_streams": [
+            "Computer Science", "Information Technology", "Electronics",
+            "Electrical", "Computer Applications"
+        ],
+        "min_percentage": 0.0,
+        "state_restriction": None,
+        "topics": {
+            "Computer Networks", "Network Administration", "LAN/WAN",
+            "Routing & Switching", "DNS & DHCP", "VPN", "IP Addressing",
+            "Network Security", "Troubleshooting", "IT Infrastructure"
+        },
+        "is_active": True,
+    },
+    {
+        "id": "nabard-soc-analyst-2026",
+        "title": "NABARD SOC / Information Security Analyst (Advt 04, 2026-27)",
+        "organizing_body": "National Bank for Agriculture and Rural Development (NABARD)",
+        "post_type": "Technical / Specialist (Cyber Security)",
+        "notification_date": date(2026, 10, 9),
+        # Detailed ad: 09.10.2026 → 26.10.2026. NABARD's official extension
+        # notice dated 27.10.2026 moved the last date to 02.11.2026. Both PDFs
+        # are on nabard.org (extension linked in `source_url`).
+        "application_deadline": date(2026, 11, 2),
+        "exam_date": None,  # shortlisting + interview; no written test
+        "official_pdf_url": "https://www.nabard.org/auth/writereaddata/CareerNotices/1107439846Advtertisement%20-%20CISO%20%26%20Dos-CSITE.pdf",
+        "source_url": "https://www.nabard.org/auth/writereaddata/CareerNotices/120281697Notification.pdf",
+        "apply_url": "https://ibpsreg.ibps.in/nabardsjul26/",
+        "verified_on": date(2026, 11, 26),
+        "verification_status": "verified",
+        "deadline_locked": False,
+        "last_checked_at": date(2026, 11, 26),
+        "min_age": 24,
+        "max_age_general": 35,
+        "age_cutoff_date": date(2026, 10, 1),
+        "allowed_degrees": ["B.Tech", "BE", "MCA", "M.Sc", "M.Tech", "M.E"],
+        "allowed_streams": [
+            "Computer Science", "Information Technology", "Electronics",
+            "Electrical", "Computer Applications"
+        ],
+        "min_percentage": 60.0,
+        "state_restriction": None,
+        "topics": {
+            "Cyber Security", "SOC Operations", "SIEM", "Threat Monitoring",
+            "Information Security", "Network Security", "Incident Response",
+            "Security+ / CEH", "Computer Networks", "Current Affairs"
+        },
+        "is_active": True,
+    },
+    {
+        "id": "nabard-network-security-analyst-2026",
+        "title": "NABARD Network Security Analyst (Advt 04, 2026-27)",
+        "organizing_body": "National Bank for Agriculture and Rural Development (NABARD)",
+        "post_type": "Technical / Specialist (Network Security)",
+        "notification_date": date(2026, 10, 9),
+        "application_deadline": date(2026, 11, 2),
+        "exam_date": None,
+        "official_pdf_url": "https://www.nabard.org/auth/writereaddata/CareerNotices/1107439846Advtertisement%20-%20CISO%20%26%20Dos-CSITE.pdf",
+        "source_url": "https://www.nabard.org/auth/writereaddata/CareerNotices/120281697Notification.pdf",
+        "apply_url": "https://ibpsreg.ibps.in/nabardsjul26/",
+        "verified_on": date(2026, 11, 26),
+        "verification_status": "verified",
+        "deadline_locked": False,
+        "last_checked_at": date(2026, 11, 26),
+        "min_age": 26,
+        "max_age_general": 38,
+        "age_cutoff_date": date(2026, 10, 1),
+        "allowed_degrees": ["B.Tech", "BE", "MCA", "M.Sc", "M.Tech", "M.E"],
+        "allowed_streams": [
+            "Computer Science", "Information Technology", "Electronics",
+            "Electrical", "Computer Applications"
+        ],
+        "min_percentage": 60.0,
+        "state_restriction": None,
+        "topics": {
+            "Network Security", "Computer Networks", "Firewalls", "VPN",
+            "Routing & Switching", "CCNP Security", "Risk Assessment",
+            "Incident Response", "Cyber Security", "Current Affairs"
+        },
+        "is_active": True,
+    },
+    {
+        "id": "cdac-cine-network-engineer-2026",
+        "title": "C-DAC CINE Consultant — IT & Network Engineer (CINE/REC/2026/05)",
+        "organizing_body": "Centre for Development of Advanced Computing (C-DAC CINE, Guwahati)",
+        "post_type": "Technical / Specialist (Networking)",
+        "notification_date": date(2026, 9, 22),
+        "application_deadline": date(2026, 9, 28),
+        "exam_date": None,
+        "official_pdf_url": "https://cdac.in/index.aspx?id=pdf_hrd_sil&dynamicId=Advertisement-Consultant.pdf",
+        # Applications go by email to recruitment-cine@cdac.in, not through a
+        # web portal — no apply_url (the UI shows only the notification link).
+        "verified_on": date(2026, 11, 26),
+        "verification_status": "verified",
+        "deadline_locked": False,
+        "last_checked_at": date(2026, 11, 26),
+        # No minimum age stated; the official ad fixes the maximum at 56 as on
+        # 01.06.2026.
+        "min_age": 18,
+        "max_age_general": 56,
+        "age_cutoff_date": date(2026, 6, 1),
+        "allowed_degrees": ["B.Tech", "BE", "M.Tech", "M.E", "M.Sc"],
+        "allowed_streams": [
+            "Computer Science", "Information Technology", "Electronics", "Electrical"
+        ],
+        "min_percentage": 60.0,
+        "state_restriction": None,
+        "topics": {
+            "Computer Networks", "Network Administration", "LAN/WAN",
+            "Routing & Switching", "Cisco Devices", "VLANs", "Firewalls",
+            "Network Security", "DNS & DHCP", "VPN", "IT Infrastructure",
+            "Troubleshooting"
+        },
+        "is_active": True,
+    },
+
+    # ---- BCA-eligible networking / cyber-analyst roles (official PDFs checked
+    # 2026-11-26). `mygov-network-administrator` above also accepts BCA. ----
+    {
+        "id": "kerala-hc-system-assistant",
+        "title": "Kerala High Court System Assistant (District Judiciary, 2026)",
+        "organizing_body": "High Court of Kerala",
+        "post_type": "Technical / Specialist (Systems & Networking)",
+        "notification_date": date(2026, 11, 10),
+        "application_deadline": date(2026, 12, 14),
+        "exam_date": None,  # screening/shortlisting followed by interview
+        "official_pdf_url": "https://hckrecruitment.keralacourts.in/hckrecruitment/Recruitment/viewFile?token=Mzk5",
+        "apply_url": "https://hckrecruitment.keralacourts.in/",
+        "verified_on": date(2026, 11, 26),
+        "verification_status": "verified",
+        "deadline_locked": False,
+        "last_checked_at": date(2026, 11, 26),
+        # Notification fixes only the lower age bound: born on/after 02.01.1985.
+        "min_age": 18,
+        "max_age_general": 41,
+        "age_cutoff_date": date(2026, 12, 14),
+        # BCA / B.Sc(CS) / 3-year computer or electronics diploma, or higher.
+        "allowed_degrees": [
+            "BCA", "B.Sc", "Diploma", "B.Tech", "BE", "MCA", "M.Sc", "M.Tech"
+        ],
+        "allowed_streams": [
+            "Computer Science", "Computer Applications", "Information Technology", "Electronics"
+        ],
+        "min_percentage": 0.0,
+        "state_restriction": None,
+        "topics": {
+            "Computer Networks", "Network Administration", "Hardware Troubleshooting",
+            "Linux", "eCourts", "DNS & DHCP", "IP Addressing", "Troubleshooting",
+            "Computer Fundamentals"
+        },
+        "is_active": True,
+    },
+    {
+        "id": "nielit-delhi-cloud-administrator",
+        "title": "NIELIT Delhi Cloud Administrator (Advt 07/354/2026/NDL/FM)",
+        "organizing_body": "National Institute of Electronics & Information Technology (NIELIT Delhi)",
+        "post_type": "Technical / Specialist (Cloud & Infrastructure)",
+        "notification_date": date(2026, 11, 23),
+        "application_deadline": date(2026, 12, 6),
+        "exam_date": None,  # document verification + interview/interaction
+        # The official NIELIT advertisement page states the 06.12.2026 last date
+        # in its title; no direct PDF URL is exposed by the site.
+        "official_pdf_url": "https://www.nielit.gov.in/blog?blogName=Empanelment-of-IT-Resource-Persons-Data-Analyst-and-Cloud-Administrator-Advertisement-vide-no-07-354-2026-NDL-FM-to-be-10958&center=DEL",
+        "apply_url": "https://docs.google.com/forms/d/e/1FAIpQLSdpJCL9KIyYMXWROLiAiR5FuiQWQ-yXlMqtm8y37HSAZ4O4kA/viewform",
+        # BCA candidates are eligible ONLY with a cloud certification (the main
+        # route is BE/B.Tech/M.Tech/MCA). That extra condition is not modelled,
+        # so eligibility is forced to "Check notification" for BCA applicants.
+        "verified_on": None,
+        "verification_status": "check_required",
+        "deadline_locked": False,
+        "last_checked_at": date(2026, 11, 26),
+        "min_age": 18,
+        "max_age_general": 40,
+        "age_cutoff_date": date(2026, 12, 6),
+        "allowed_degrees": [
+            "B.Tech", "BE", "M.Tech", "M.E", "MCA", "BCA", "M.Sc", "B.Sc"
+        ],
+        "allowed_streams": [
+            "Computer Science", "Information Technology", "Electronics", "Computer Applications"
+        ],
+        "min_percentage": 0.0,
+        "state_restriction": None,
+        "topics": {
+            "Cloud Computing", "IT Infrastructure", "Computer Networks",
+            "Network Security", "Servers & Virtualization", "Cloud Certification",
+            "Troubleshooting"
+        },
+        "is_active": True,
+    },
+    {
+        "id": "duk-junior-forensics-analyst",
+        "title": "DUK Junior Forensics Analyst (KSAAC, 2026)",
+        "organizing_body": "Kerala University of Digital Sciences, Innovation and Technology (DUK)",
+        "post_type": "Technical / Specialist (Cyber Forensics)",
+        "notification_date": date(2026, 10, 27),
+        # Official extension notice dated 13.11.2026 moved the last date from
+        # 11.11.2026 to 18.11.2026 (image-only PDF, read directly).
+        "application_deadline": date(2026, 11, 18),
+        "exam_date": None,  # test and/or interview at Thiruvananthapuram
+        "official_pdf_url": "https://duk.ac.in/data/2026/11/Notification-KSAAC-KUDSIT-587-AD_AIII-2025.pdf",
+        "source_url": "https://duk.ac.in/data/2026/11/Notification-Last-date-extension-KUDSIT-587-AD_AIII-2025.pdf",
+        "apply_url": "https://www.duk.ac.in/careers",
+        "verified_on": date(2026, 11, 26),
+        "verification_status": "verified",
+        "deadline_locked": False,
+        "last_checked_at": date(2026, 11, 26),
+        "min_age": 18,
+        "max_age_general": 30,
+        "age_cutoff_date": date(2026, 11, 18),
+        # B.E./B.Tech./BCA/MCA/M.Sc. — fresh graduates may apply, no experience
+        # required. This is the BCA-friendly cyber-analyst role in this batch;
+        # NABARD's SOC Analyst post requires BE/B.Tech or MCA, not BCA.
+        "allowed_degrees": ["BCA", "B.Tech", "BE", "MCA", "M.Sc"],
+        "allowed_streams": [
+            "Computer Science", "Information Technology", "Computer Applications",
+            "Electronics"
+        ],
+        "min_percentage": 0.0,
+        "state_restriction": None,
+        "topics": {
+            "Digital Forensics", "Cyber Security", "Incident Response",
+            "Computer Networks", "Linux", "Log Analysis", "Malware Analysis",
+            "Evidence Handling", "Python"
+        },
+        "is_active": True,
+    },
+
 ]
 
 # Admin-approved job discoveries are persisted in a small JSON overlay and
